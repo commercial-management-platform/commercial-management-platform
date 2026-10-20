@@ -27,7 +27,7 @@ export class ClienteMapper {
   static toPersistence(cliente: Cliente): ClienteOrmEntity {
     const entity = new ClienteOrmEntity();
 
-    entity.idCliente = cliente.idCliente;
+    entity.idCliente = cliente.idCliente ?? 0;
     entity.nit = cliente.nit;
     entity.razonSocial = cliente.razonSocial;
     entity.nombreComercial = cliente.nombreComercial;
