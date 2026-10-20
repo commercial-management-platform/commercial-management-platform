@@ -2,18 +2,17 @@
 
 Web platform that centralizes clients, contacts, sales advisors, routes, visits, follow-ups, quotes and orders, with a KPI dashboard, visit map, advisor schedule, activity log and CSV report export.
 
-
 ## Stack
 
-| Layer | Technology |
-|---|---|
-| Backend | NestJS (TypeScript) with Clean Architecture |
-| ORM / DB | TypeORM + PostgreSQL (Amazon RDS) |
-| Authentication | betterAuth (roles: administrator, manager, advisor) |
-| API documentation | Swagger / OpenAPI |
-| Frontend | Svelte + Vite + Tailwind + Leaflet (OpenStreetMap) |
-| Files | Amazon S3 (private bucket, signed URLs) |
-| CI/CD | Jenkins on EC2, triggered by a GitHub webhook |
+| Layer             | Technology                                          |
+| ----------------- | --------------------------------------------------- |
+| Backend           | NestJS (TypeScript) with Clean Architecture         |
+| ORM / DB          | TypeORM + PostgreSQL (Amazon RDS)                   |
+| Authentication    | betterAuth (roles: administrator, manager, advisor) |
+| API documentation | Swagger / OpenAPI                                   |
+| Frontend          | Svelte + Vite + Tailwind + Leaflet (OpenStreetMap)  |
+| Files             | Amazon S3 (private bucket, signed URLs)             |
+| CI/CD             | Jenkins on EC2, triggered by a GitHub webhook       |
 
 ## Repository structure
 
@@ -34,6 +33,7 @@ Web platform that centralizes clients, contacts, sales advisors, routes, visits,
 - Access to the development credentials
 
 ## Running locally
+
 ...
 
 ## Backend scripts
@@ -58,12 +58,16 @@ Branches, commits, PRs, architecture rules and DoD: [`CONTRIBUTING.md`](CONTRIBU
 
 ## Team
 
-| Member | Role |
-|---|---|
-| Neyder Ramírez | Lead: coordination, architecture and integration |
-| José Luis Acevedo | Database: TypeORM, migrations and integrity |
-| Natalia | Backend: clients and contacts |
-| Ricardo | Frontend: navigation, forms and API integration |
-| Stevel Iglesias | Backend: routes, visits, results and schedule |
-| Brayan Lozada | Backend: authentication, permissions and follow-ups |
-| Laura Neira | Infrastructure: AWS, Jenkins and environments |
+| Member            | Role                                                |
+| ----------------- | --------------------------------------------------- |
+| Neyder Ramírez    | Lead: coordination, architecture and integration    |
+| José Luis Acevedo | Database: TypeORM, migrations and integrity         |
+| Natalia           | Backend: clients and contacts                       |
+| Ricardo           | Frontend: navigation, forms and API integration     |
+| Stevel Iglesias   | Backend: routes, visits, results and schedule       |
+| Brayan Lozada     | Backend: authentication, permissions and follow-ups |
+| Laura Neira       | Infrastructure: AWS, Jenkins and environments       |
+
+## license
+
+MIT
