@@ -5,6 +5,7 @@ import { validateEnv } from './config/env.validation.js';
 import { typeOrmConfig } from './config/typeorm.config.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { RoutesModule } from './modules/routes/routes.module.js';
+import { ClientsModule } from './modules/clients/clients.module.js';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { RoutesModule } from './modules/routes/routes.module.js';
     TypeOrmModule.forRootAsync(typeOrmConfig),
     HealthModule,
     RoutesModule,
+    ClientsModule,
   ],
 })
 export class AppModule {}

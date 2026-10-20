@@ -1,12 +1,7 @@
-import {
-  Column,
-  Entity,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity({ name: 'HISTORIAL_CLIENTE' })
 export class HistorialClienteOrmEntity {
-    
   @PrimaryGeneratedColumn({ name: 'id_historial' })
   idHistorial: number;
 

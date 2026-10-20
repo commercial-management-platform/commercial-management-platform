@@ -28,6 +28,10 @@ export class ClienteMapper {
     const entity = new ClienteOrmEntity();
 
     entity.idCliente = cliente.idCliente ?? 0;
+    // A new client has no id yet; the database generates it on insert.
+    if (cliente.idCliente !== null) {
+      entity.idCliente = cliente.idCliente;
+    }
     entity.nit = cliente.nit;
     entity.razonSocial = cliente.razonSocial;
     entity.nombreComercial = cliente.nombreComercial;

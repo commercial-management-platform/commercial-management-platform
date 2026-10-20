@@ -11,9 +11,7 @@ import { ClienteDao } from '../persistence/daos/cliente.dao.js';
  */
 @Injectable()
 export class ClienteRepositoryImpl implements ClienteRepository {
-  constructor(
-    private readonly clienteDao: ClienteDao,
-  ) {}
+  constructor(private readonly clienteDao: ClienteDao) {}
 
   async findById(idCliente: number): Promise<Cliente | null> {
     const entity = await this.clienteDao.findById(idCliente);
