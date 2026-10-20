@@ -10,6 +10,7 @@ import {
   DomainError,
   ForbiddenError,
   NotFoundError,
+  UnauthorizedError,
 } from '../../domain/errors/index.js';
 
 export interface ErrorResponseBody {
@@ -25,10 +26,12 @@ const STATUS_BY_ERROR = new Map<
   [NotFoundError, HttpStatus.NOT_FOUND],
   [ConflictError, HttpStatus.CONFLICT],
   [ForbiddenError, HttpStatus.FORBIDDEN],
+  [UnauthorizedError, HttpStatus.UNAUTHORIZED],
 ]);
 
 const REASON_PHRASES: Partial<Record<HttpStatus, string>> = {
   [HttpStatus.BAD_REQUEST]: 'Bad Request',
+  [HttpStatus.UNAUTHORIZED]: 'Unauthorized',
   [HttpStatus.FORBIDDEN]: 'Forbidden',
   [HttpStatus.NOT_FOUND]: 'Not Found',
   [HttpStatus.CONFLICT]: 'Conflict',

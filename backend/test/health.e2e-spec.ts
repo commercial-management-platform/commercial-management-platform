@@ -24,7 +24,7 @@ describe('GET /api/health (e2e)', () => {
   let app: INestApplication<App>;
 
   afterEach(async () => {
-    await app.close();
+    await app?.close();
   });
 
   it('returns 200 with database up', async () => {

@@ -4,6 +4,7 @@ import {
   DomainError,
   ForbiddenError,
   NotFoundError,
+  UnauthorizedError,
 } from '../../domain/errors/index.js';
 import { DomainExceptionFilter } from './domain-exception.filter.js';
 
@@ -31,6 +32,7 @@ describe('DomainExceptionFilter', () => {
     [new NotFoundError('Client not found'), 404, 'Not Found'],
     [new ConflictError('NIT already registered'), 409, 'Conflict'],
     [new ForbiddenError('Not allowed'), 403, 'Forbidden'],
+    [new UnauthorizedError('Invalid credentials'), 401, 'Unauthorized'],
     [new UnmappedError(), 400, 'Bad Request'],
   ])('maps %o to HTTP %i', (exception, statusCode, error) => {
     const { host, response } = createHost();
