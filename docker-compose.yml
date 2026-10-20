@@ -1,16 +1,22 @@
+# Local development database. Values match backend/.env.example (never real credentials).
 services:
   postgres:
-    image: postgres:16
-    container_name: postgres-db
+    image: postgres:16-alpine
+    container_name: cmp-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DATABASE_USER}
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
-      POSTGRES_DB: ${DATABASE_NAME}
+      POSTGRES_USER: cmp_user
+      POSTGRES_PASSWORD: change_me
+      POSTGRES_DB: cmp_db
     ports:
-      - "${DATABASE_PORT}:5432"
+      - '5432:5432'
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - cmp_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U cmp_user -d cmp_db']
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 volumes:
-  postgres_data:
+  cmp_postgres_data:
