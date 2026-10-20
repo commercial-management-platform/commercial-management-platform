@@ -10,7 +10,10 @@ export class RemoveClientUseCase {
     if (!route) {
       throw new NotFoundError('Route not found');
     }
-    const association = await this.routeRepository.findAssociation(routeId, clientId);
+    const association = await this.routeRepository.findAssociation(
+      routeId,
+      clientId,
+    );
     if (!association) {
       throw new NotFoundError('Association not found');
     }

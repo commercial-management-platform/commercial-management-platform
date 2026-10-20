@@ -1,4 +1,7 @@
-import { ConflictError, NotFoundError } from '../../../shared/domain/errors/index.js';
+import {
+  ConflictError,
+  NotFoundError,
+} from '../../../shared/domain/errors/index.js';
 
 import type { RouteRepository } from '../domain/route.repository.js';
 import type { ClientRepository } from '../../clients/domain/client.repository.js';
@@ -18,12 +21,17 @@ export class AssociateClientUseCase {
     if (!client) {
       throw new NotFoundError('Client not found');
     }
-    const existing = await this.routeRepository.findAssociation(routeId, clientId);
+    const existing = await this.routeRepository.findAssociation(
+      routeId,
+      clientId,
+    );
     if (existing) {
       throw new ConflictError('Client already associated to route');
     }
     const clients = await this.routeRepository.findClients(routeId);
-    const nextOrder = clients.length ? Math.max(...clients.map((c) => c.visitOrder)) + 1 : 1;
+    const nextOrder = clients.length
+      ? Math.max(...clients.map((c) => c.visitOrder)) + 1
+      : 1;
     await this.routeRepository.associate(routeId, clientId, nextOrder);
   }
 }

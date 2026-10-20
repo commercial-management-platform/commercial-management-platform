@@ -2,8 +2,14 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { ClientsModule } from '../clients/clients.module.js';
-import { CLIENT_REPOSITORY } from '../clients/domain/client.repository.js';
-import { ROUTE_REPOSITORY } from './domain/route.repository.js';
+import {
+  CLIENT_REPOSITORY,
+  type ClientRepository,
+} from '../clients/domain/client.repository.js';
+import {
+  ROUTE_REPOSITORY,
+  type RouteRepository,
+} from './domain/route.repository.js';
 import { CreateRouteUseCase } from './application/create-route.use-case.js';
 import { ListRoutesUseCase } from './application/list-routes.use-case.js';
 import { GetRouteUseCase } from './application/get-route.use-case.js';
@@ -28,43 +34,43 @@ import { RoutesController } from './presentation/routes.controller.js';
     {
       provide: CreateRouteUseCase,
       inject: [ROUTE_REPOSITORY],
-      useFactory: (repo: unknown) => new CreateRouteUseCase(repo as never),
+      useFactory: (repo: RouteRepository) => new CreateRouteUseCase(repo),
     },
     {
       provide: ListRoutesUseCase,
       inject: [ROUTE_REPOSITORY],
-      useFactory: (repo: unknown) => new ListRoutesUseCase(repo as never),
+      useFactory: (repo: RouteRepository) => new ListRoutesUseCase(repo),
     },
     {
       provide: GetRouteUseCase,
       inject: [ROUTE_REPOSITORY],
-      useFactory: (repo: unknown) => new GetRouteUseCase(repo as never),
+      useFactory: (repo: RouteRepository) => new GetRouteUseCase(repo),
     },
     {
       provide: UpdateRouteUseCase,
       inject: [ROUTE_REPOSITORY],
-      useFactory: (repo: unknown) => new UpdateRouteUseCase(repo as never),
+      useFactory: (repo: RouteRepository) => new UpdateRouteUseCase(repo),
     },
     {
       provide: GetRouteClientsUseCase,
       inject: [ROUTE_REPOSITORY],
-      useFactory: (repo: unknown) => new GetRouteClientsUseCase(repo as never),
+      useFactory: (repo: RouteRepository) => new GetRouteClientsUseCase(repo),
     },
     {
       provide: AssociateClientUseCase,
       inject: [ROUTE_REPOSITORY, CLIENT_REPOSITORY],
-      useFactory: (routeRepo: unknown, clientRepo: unknown) =>
-        new AssociateClientUseCase(routeRepo as never, clientRepo as never),
+      useFactory: (routeRepo: RouteRepository, clientRepo: ClientRepository) =>
+        new AssociateClientUseCase(routeRepo, clientRepo),
     },
     {
       provide: RemoveClientUseCase,
       inject: [ROUTE_REPOSITORY],
-      useFactory: (repo: unknown) => new RemoveClientUseCase(repo as never),
+      useFactory: (repo: RouteRepository) => new RemoveClientUseCase(repo),
     },
     {
       provide: ReorderClientsUseCase,
       inject: [ROUTE_REPOSITORY],
-      useFactory: (repo: unknown) => new ReorderClientsUseCase(repo as never),
+      useFactory: (repo: RouteRepository) => new ReorderClientsUseCase(repo),
     },
   ],
 })

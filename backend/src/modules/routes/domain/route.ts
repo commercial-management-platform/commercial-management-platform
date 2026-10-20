@@ -1,3 +1,5 @@
+import type { RouteStatus } from './route-status.js';
+
 export class Route {
   constructor(
     public readonly id: number | null,
@@ -9,8 +11,9 @@ export class Route {
     public suggestedEndTime: string | null,
     public description: string | null,
     public advisorId: number,
-    public startDate: Date,
-    public endDate: Date | null,
-    public status: string,
+    /** Calendar date as YYYY-MM-DD, kept as text so no time zone can shift it. */
+    public startDate: string,
+    public endDate: string | null,
+    public status: RouteStatus,
   ) {}
 }

@@ -1,5 +1,7 @@
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
+import type { RouteStatus } from '../../../domain/route-status.js';
+
 @Entity({ name: 'route' })
 export class RouteOrmEntity {
   @PrimaryGeneratedColumn({ name: 'id' })
@@ -29,12 +31,13 @@ export class RouteOrmEntity {
   @Column({ name: 'advisor_id' })
   advisorId: number;
 
+  // TypeORM reads and writes 'date' columns as YYYY-MM-DD strings.
   @Column({ name: 'start_date', type: 'date' })
-  startDate: Date;
+  startDate: string;
 
   @Column({ name: 'end_date', type: 'date', nullable: true })
-  endDate: Date | null;
+  endDate: string | null;
 
-  @Column({ name: 'status' })
-  status: string;
+  @Column({ name: 'status', type: 'varchar' })
+  status: RouteStatus;
 }

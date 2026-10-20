@@ -2,6 +2,7 @@ import { NotFoundError } from '../../../shared/domain/errors/index.js';
 
 import type { RouteRepository } from '../domain/route.repository.js';
 import { Route } from '../domain/route.js';
+import type { RouteStatus } from '../domain/route-status.js';
 
 export class UpdateRouteUseCase {
   constructor(private readonly routeRepository: RouteRepository) {}
@@ -17,9 +18,9 @@ export class UpdateRouteUseCase {
       suggestedEndTime?: string | null;
       description?: string | null;
       advisorId?: number;
-      startDate?: Date;
-      endDate?: Date | null;
-      status?: string;
+      startDate?: string;
+      endDate?: string | null;
+      status?: RouteStatus;
     },
   ): Promise<Route> {
     const existing = await this.routeRepository.findById(id);
@@ -30,11 +31,19 @@ export class UpdateRouteUseCase {
       existing.id,
       input.name ?? existing.name,
       input.zoneId ?? existing.zoneId,
-      input.executionDays === undefined ? existing.executionDays : input.executionDays,
+      input.executionDays === undefined
+        ? existing.executionDays
+        : input.executionDays,
       input.frequency === undefined ? existing.frequency : input.frequency,
-      input.suggestedStartTime === undefined ? existing.suggestedStartTime : input.suggestedStartTime,
-      input.suggestedEndTime === undefined ? existing.suggestedEndTime : input.suggestedEndTime,
-      input.description === undefined ? existing.description : input.description,
+      input.suggestedStartTime === undefined
+        ? existing.suggestedStartTime
+        : input.suggestedStartTime,
+      input.suggestedEndTime === undefined
+        ? existing.suggestedEndTime
+        : input.suggestedEndTime,
+      input.description === undefined
+        ? existing.description
+        : input.description,
       input.advisorId ?? existing.advisorId,
       input.startDate ?? existing.startDate,
       input.endDate === undefined ? existing.endDate : input.endDate,

@@ -1,10 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
+
+import { ConflictError } from '../../../../shared/domain/errors/index.js';
 
 import { Route } from '../../domain/route.js';
 import { RouteClient } from '../../domain/route-client.js';
-import { type RouteRepository } from '../../domain/route.repository.js';
+import {
+  type RouteRepository,
+  type VisitOrderItem,
+} from '../../domain/route.repository.js';
 import { RouteMapper } from '../mappers/route.mapper.js';
 import { RouteOrmEntity } from '../persistence/entities/route.orm-entity.js';
 import { RouteClientOrmEntity } from '../persistence/entities/route-client.orm-entity.js';
@@ -51,7 +56,10 @@ export class TypeOrmRouteRepository implements RouteRepository {
     return entities.map((entity) => RouteMapper.clientToDomain(entity));
   }
 
-  async findAssociation(routeId: number, clientId: number): Promise<RouteClient | null> {
+  async findAssociation(
+    routeId: number,
+    clientId: number,
+  ): Promise<RouteClient | null> {
     const entity = await this.routeClientRepository.findOne({
       where: { routeId, clientId },
     });
@@ -61,28 +69,53 @@ export class TypeOrmRouteRepository implements RouteRepository {
     return RouteMapper.clientToDomain(entity);
   }
 
-  async associate(routeId: number, clientId: number, visitOrder: number): Promise<RouteClient> {
+  async associate(
+    routeId: number,
+    clientId: number,
+    visitOrder: number,
+  ): Promise<RouteClient> {
     const entity = new RouteClientOrmEntity();
     entity.routeId = routeId;
     entity.clientId = clientId;
     entity.visitOrder = visitOrder;
-    const saved = await this.routeClientRepository.save(entity);
-    return RouteMapper.clientToDomain(saved);
+    try {
+      const saved = await this.routeClientRepository.save(entity);
+      return RouteMapper.clientToDomain(saved);
+    } catch (error) {
+      // Two concurrent requests can pass the use case checks at the same time;
+      // the unique constraints are the last word.
+      if (isUniqueViolation(error)) {
+        throw new ConflictError(
+          'Client already associated or visit order taken, try again',
+        );
+      }
+      throw error;
+    }
   }
 
   async removeAssociation(routeId: number, clientId: number): Promise<void> {
     await this.routeClientRepository.delete({ routeId, clientId });
   }
 
-  async reorder(routeId: number, clientIds: number[]): Promise<void> {
-    const existing = await this.routeClientRepository.find({ where: { routeId } });
-    const byClient = new Map(existing.map((entity) => [entity.clientId, entity]));
-    for (let index = 0; index < clientIds.length; index += 1) {
-      const entity = byClient.get(clientIds[index]);
-      if (entity) {
-        entity.visitOrder = index + 1;
-        await this.routeClientRepository.save(entity);
+  async reorder(routeId: number, items: VisitOrderItem[]): Promise<void> {
+    // All or nothing: a failure halfway must not leave a mixed order.
+    await this.routeClientRepository.manager.transaction(async (manager) => {
+      for (const item of items) {
+        await manager.update(
+          RouteClientOrmEntity,
+          { routeId, clientId: item.clientId },
+          { visitOrder: item.visitOrder },
+        );
       }
-    }
+    });
   }
+}
+
+const PG_UNIQUE_VIOLATION = '23505';
+
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    error instanceof QueryFailedError &&
+    (error.driverError as { code?: string }).code === PG_UNIQUE_VIOLATION
+  );
 }

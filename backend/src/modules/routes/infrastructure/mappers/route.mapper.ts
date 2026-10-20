@@ -41,6 +41,11 @@ export class RouteMapper {
   }
 
   static clientToDomain(entity: RouteClientOrmEntity): RouteClient {
-    return new RouteClient(entity.id, entity.routeId, entity.clientId, entity.visitOrder);
+    return new RouteClient(
+      entity.id,
+      entity.routeId,
+      entity.clientId,
+      entity.visitOrder,
+    );
   }
 }

@@ -1,16 +1,9 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class CreateClientRouteTables1792501201377 implements MigrationInterface {
-  name = "CreateClientRouteTables1792501201377";
+export class CreateRouteTables1792501201377 implements MigrationInterface {
+  name = 'CreateRouteTables1792501201377';
 
   async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`
-      CREATE TABLE client (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR
-      )
-    `);
-
     await queryRunner.query(`
       CREATE TABLE route (
         id SERIAL PRIMARY KEY,
@@ -35,6 +28,7 @@ export class CreateClientRouteTables1792501201377 implements MigrationInterface 
         client_id INTEGER NOT NULL,
         visit_order INTEGER NOT NULL,
         CONSTRAINT uq_route_client_route_client UNIQUE (route_id, client_id),
+        CONSTRAINT uq_route_client_route_visit_order UNIQUE (route_id, visit_order) DEFERRABLE INITIALLY DEFERRED,
         CONSTRAINT fk_route_client_route FOREIGN KEY (route_id) REFERENCES route (id) ON DELETE CASCADE,
         CONSTRAINT fk_route_client_client FOREIGN KEY (client_id) REFERENCES client (id) ON DELETE CASCADE
       )
@@ -44,6 +38,5 @@ export class CreateClientRouteTables1792501201377 implements MigrationInterface 
   async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP TABLE IF EXISTS route_client`);
     await queryRunner.query(`DROP TABLE IF EXISTS route`);
-    await queryRunner.query(`DROP TABLE IF EXISTS client`);
   }
 }
