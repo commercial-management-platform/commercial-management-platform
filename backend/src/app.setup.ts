@@ -32,7 +32,18 @@ export function configureApp(app: INestApplication): void {
     app,
     new DocumentBuilder()
       .setTitle('Commercial Management Platform API')
+      .setDescription('Commercial Management Platform backend API documentation')
       .setVersion('0.0.1')
+      .addBearerAuth(
+        {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          description: 'Session bearer token obtained from /api/auth/login',
+        },
+        'bearer',
+      )
+      .addCookieAuth('better-auth.session_token')
       .build(),
   );
   SwaggerModule.setup('api/docs', app, document);
