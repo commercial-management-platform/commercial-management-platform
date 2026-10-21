@@ -1,5 +1,8 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import {
+  ConflictError,
+  ValidationError,
+} from '../../../../shared/domain/errors/index.js';
 import type { CatalogRepository } from '../../domain/repositories/catalog.repository.js';
 import { CreateCatalogEntryUseCase } from './create-catalog-entry.use-case.js';
 
@@ -32,7 +35,7 @@ describe('CreateCatalogEntryUseCase', () => {
 
     await expect(
       useCase.execute('clientPotential', 'Alto'),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ).rejects.toBeInstanceOf(ValidationError);
   });
 
   it('rejects a duplicate normalized name', async () => {
@@ -45,7 +48,7 @@ describe('CreateCatalogEntryUseCase', () => {
     const useCase = new CreateCatalogEntryUseCase(repository);
 
     await expect(useCase.execute('zone', ' Norte ')).rejects.toBeInstanceOf(
-      ConflictException,
+      ConflictError,
     );
   });
 });

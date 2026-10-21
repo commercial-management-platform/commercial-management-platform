@@ -80,8 +80,12 @@ export class CatalogDao {
     }
   }
 
-  async findAll(type: string): Promise<CatalogOrmEntity[]> {
+  async findAll(
+    type: string,
+    includeInactive = false,
+  ): Promise<CatalogOrmEntity[]> {
     return this.getRepository(type).find({
+      where: includeInactive ? {} : { active: true },
       order:
         type === 'clientPotential'
           ? { order: 'ASC', name: 'ASC' }

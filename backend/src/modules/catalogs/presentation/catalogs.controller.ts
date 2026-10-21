@@ -6,6 +6,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -20,6 +21,8 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
+import type { AuthUser } from '../../auth/domain/entities/auth-user.entity.js';
+import { CurrentUser } from '../../auth/infrastructure/decorators/current-user.decorator.js';
 import { AuthGuard } from '../../auth/infrastructure/guards/auth.guard.js';
 import { RolesGuard } from '../../auth/infrastructure/guards/roles.guard.js';
 import { Roles } from '../../auth/infrastructure/decorators/roles.decorator.js';
@@ -28,11 +31,14 @@ import { CreateCatalogEntryUseCase } from '../application/use-cases/create-catal
 import { GetCatalogEntriesUseCase } from '../application/use-cases/get-catalog-entries.use-case.js';
 import { SetCatalogEntryStatusUseCase } from '../application/use-cases/set-catalog-entry-status.use-case.js';
 import { UpdateCatalogEntryUseCase } from '../application/use-cases/update-catalog-entry.use-case.js';
+import type { CatalogType } from '../domain/repositories/catalog.repository.js';
+import { CatalogQueryDto } from './dtos/catalog-query.dto.js';
 import { CreateCatalogEntryDto } from './dtos/create-catalog-entry.dto.js';
 import { SetCatalogEntryStatusDto } from './dtos/set-catalog-entry-status.dto.js';
 import { UpdateCatalogEntryDto } from './dtos/update-catalog-entry.dto.js';
 
-// Any authenticated user can read the catalogs; writes require the admin role.
+// Any authenticated user can read the active entries; only the admin can list
+// inactive ones (?includeInactive=true) and write.
 @ApiTags('Catalogs')
 @ApiBearerAuth()
 @UseGuards(AuthGuard, RolesGuard)
@@ -49,8 +55,11 @@ export class CatalogsController {
   @Get('zones')
   @ApiOperation({ summary: 'List zones' })
   @ApiOkResponse({ description: 'Returns zones ordered by name.' })
-  async getZones() {
-    return this.getCatalogEntriesUseCase.execute('zone');
+  async getZones(
+    @Query() query: CatalogQueryDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.list('zone', query, user);
   }
 
   @Post('zones')
@@ -112,8 +121,11 @@ export class CatalogsController {
   @Get('client-types')
   @ApiOperation({ summary: 'List client types seeded by the application' })
   @ApiOkResponse({ description: 'Returns client types ordered by name.' })
-  async getClientTypes() {
-    return this.getCatalogEntriesUseCase.execute('clientType');
+  async getClientTypes(
+    @Query() query: CatalogQueryDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.list('clientType', query, user);
   }
 
   @Get('potentials')
@@ -121,22 +133,31 @@ export class CatalogsController {
   @ApiOkResponse({
     description: 'Returns client potentials ordered by display priority.',
   })
-  async getPotentials() {
-    return this.getCatalogEntriesUseCase.execute('clientPotential');
+  async getPotentials(
+    @Query() query: CatalogQueryDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.list('clientPotential', query, user);
   }
 
   @Get('client-statuses')
   @ApiOperation({ summary: 'List client statuses seeded by the application' })
   @ApiOkResponse({ description: 'Returns client statuses ordered by name.' })
-  async getClientStatuses() {
-    return this.getCatalogEntriesUseCase.execute('clientStatus');
+  async getClientStatuses(
+    @Query() query: CatalogQueryDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.list('clientStatus', query, user);
   }
 
   @Get('visit-results')
   @ApiOperation({ summary: 'List visit results seeded by the application' })
   @ApiOkResponse({ description: 'Returns visit results ordered by name.' })
-  async getVisitResults() {
-    return this.getCatalogEntriesUseCase.execute('visitResult');
+  async getVisitResults(
+    @Query() query: CatalogQueryDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.list('visitResult', query, user);
   }
 
   @Get('visit-objectives')
@@ -144,21 +165,37 @@ export class CatalogsController {
     summary: 'List visit objectives seeded by the application',
   })
   @ApiOkResponse({ description: 'Returns visit objectives ordered by name.' })
-  async getVisitObjectives() {
-    return this.getCatalogEntriesUseCase.execute('visitObjective');
+  async getVisitObjectives(
+    @Query() query: CatalogQueryDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.list('visitObjective', query, user);
   }
 
   @Get('visit-types')
   @ApiOperation({ summary: 'List visit types seeded by the application' })
   @ApiOkResponse({ description: 'Returns visit types ordered by name.' })
-  async getVisitTypes() {
-    return this.getCatalogEntriesUseCase.execute('visitType');
+  async getVisitTypes(
+    @Query() query: CatalogQueryDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.list('visitType', query, user);
   }
 
   @Get('portfolios')
   @ApiOperation({ summary: 'List portfolios seeded by the application' })
   @ApiOkResponse({ description: 'Returns portfolios ordered by name.' })
-  async getPortfolios() {
-    return this.getCatalogEntriesUseCase.execute('portfolio');
+  async getPortfolios(
+    @Query() query: CatalogQueryDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.list('portfolio', query, user);
+  }
+
+  private list(type: CatalogType, query: CatalogQueryDto, user: AuthUser) {
+    const includeInactive =
+      query.includeInactive === true && user.role === UserRole.Admin;
+
+    return this.getCatalogEntriesUseCase.execute(type, includeInactive);
   }
 }

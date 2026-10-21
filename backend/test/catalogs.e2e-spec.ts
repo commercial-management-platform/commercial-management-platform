@@ -19,6 +19,7 @@ import type {
   CatalogEntry,
   CatalogRepository,
   CatalogType,
+  FindCatalogEntriesOptions,
 } from '../src/modules/catalogs/domain/repositories/catalog.repository.js';
 import { CreateCatalogEntryUseCase } from '../src/modules/catalogs/application/use-cases/create-catalog-entry.use-case.js';
 import { GetCatalogEntriesUseCase } from '../src/modules/catalogs/application/use-cases/get-catalog-entries.use-case.js';
@@ -102,8 +103,8 @@ class InMemoryCatalogRepository implements CatalogRepository {
     return this.entries.get(type)!;
   }
 
-  async findAll(type: CatalogType) {
-    return [...this.list(type)];
+  async findAll(type: CatalogType, options: FindCatalogEntriesOptions = {}) {
+    return this.list(type).filter((e) => options.includeInactive || e.active);
   }
 
   async findById(type: CatalogType, id: number) {
@@ -284,7 +285,7 @@ describe('Catalogs (e2e)', () => {
         .expect(200);
 
       const res = await request(app.getHttpServer())
-        .get('/api/catalogs/zones')
+        .get('/api/catalogs/zones?includeInactive=true')
         .set('Authorization', 'Bearer token_admin')
         .expect(200);
       expect(res.body.find((e: CatalogEntry) => e.id === 1).active).toBe(false);
@@ -319,6 +320,87 @@ describe('Catalogs (e2e)', () => {
         .post('/api/catalogs/zones')
         .set('Authorization', 'Bearer token_admin')
         .send({ name: '' })
+        .expect(400);
+    });
+
+    it('rejects a name made only of spaces with 400 on create', async () => {
+      await request(app.getHttpServer())
+        .post('/api/catalogs/zones')
+        .set('Authorization', 'Bearer token_admin')
+        .send({ name: ' ' })
+        .expect(400);
+    });
+
+    it('rejects a name made only of spaces with 400 on update', async () => {
+      await request(app.getHttpServer())
+        .patch('/api/catalogs/zones/1')
+        .set('Authorization', 'Bearer token_admin')
+        .send({ name: '   ' })
+        .expect(400);
+    });
+
+    it('accepts a name of 100 characters', async () => {
+      await request(app.getHttpServer())
+        .post('/api/catalogs/zones')
+        .set('Authorization', 'Bearer token_admin')
+        .send({ name: 'a'.repeat(100) })
+        .expect(201);
+    });
+
+    it('rejects a name longer than 100 characters with 400', async () => {
+      await request(app.getHttpServer())
+        .post('/api/catalogs/zones')
+        .set('Authorization', 'Bearer token_admin')
+        .send({ name: 'a'.repeat(101) })
+        .expect(400);
+    });
+  });
+
+  describe('inactive entries', () => {
+    beforeEach(async () => {
+      await request(app.getHttpServer())
+        .patch('/api/catalogs/zones/1/status')
+        .set('Authorization', 'Bearer token_admin')
+        .send({ active: false })
+        .expect(200);
+    });
+
+    const names = (body: CatalogEntry[]) => body.map((e) => e.name);
+
+    it.each(['token_admin', 'token_director', 'token_advisor'])(
+      'GET /api/catalogs/zones hides inactive entries by default for %s',
+      async (token) => {
+        const res = await request(app.getHttpServer())
+          .get('/api/catalogs/zones')
+          .set('Authorization', `Bearer ${token}`)
+          .expect(200);
+        expect(names(res.body)).toEqual(['Sur']);
+      },
+    );
+
+    it('admin lists inactive entries with includeInactive=true', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/catalogs/zones?includeInactive=true')
+        .set('Authorization', 'Bearer token_admin')
+        .expect(200);
+      expect(names(res.body)).toEqual(['Norte', 'Sur']);
+    });
+
+    it.each(['token_director', 'token_advisor'])(
+      'includeInactive=true is ignored for %s',
+      async (token) => {
+        const res = await request(app.getHttpServer())
+          .get('/api/catalogs/zones?includeInactive=true')
+          .set('Authorization', `Bearer ${token}`)
+          .expect(200);
+        expect(names(res.body)).toEqual(['Sur']);
+      },
+    );
+
+    it('rejects a non-boolean includeInactive with 400', async () => {
+      await request(app.getHttpServer())
+        .get('/api/catalogs/zones?includeInactive=yes')
+        .set('Authorization', 'Bearer token_admin')
         .expect(400);
     });
   });

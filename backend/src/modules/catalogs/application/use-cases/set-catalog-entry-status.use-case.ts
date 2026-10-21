@@ -1,4 +1,6 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+
+import { NotFoundError } from '../../../../shared/domain/errors/index.js';
 
 import type {
   CatalogRepository,
@@ -16,7 +18,7 @@ export class SetCatalogEntryStatusUseCase {
     const entry = await this.catalogRepository.findById(type, id);
 
     if (!entry) {
-      throw new NotFoundException('Catalog entry not found');
+      throw new NotFoundError('Catalog entry not found');
     }
 
     await this.catalogRepository.setActive(type, id, active);

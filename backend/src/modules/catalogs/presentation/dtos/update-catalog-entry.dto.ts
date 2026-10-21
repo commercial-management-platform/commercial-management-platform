@@ -1,14 +1,26 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { Transform } from 'class-transformer';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class UpdateCatalogEntryDto {
   @ApiPropertyOptional({
     example: 'Zona Metropolitana',
+    maxLength: 100,
     description: 'New catalog name. Leading and trailing spaces are removed.',
   })
+  // Trim before validating so a name made only of spaces is rejected.
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(100)
   name?: string;
 }
 

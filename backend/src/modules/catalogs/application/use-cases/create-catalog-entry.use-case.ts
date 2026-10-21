@@ -1,9 +1,9 @@
+import { Inject, Injectable } from '@nestjs/common';
+
 import {
-  BadRequestException,
-  ConflictException,
-  Inject,
-  Injectable,
-} from '@nestjs/common';
+  ConflictError,
+  ValidationError,
+} from '../../../../shared/domain/errors/index.js';
 
 import type {
   CatalogEntry,
@@ -26,11 +26,11 @@ export class CreateCatalogEntryUseCase {
     const normalizedName = name.trim();
 
     if (type === 'clientPotential' && order === undefined) {
-      throw new BadRequestException('Order is required for a client potential');
+      throw new ValidationError('Order is required for a client potential');
     }
 
     if (type !== 'clientPotential' && order !== undefined) {
-      throw new BadRequestException(
+      throw new ValidationError(
         'Order is only supported for client potentials',
       );
     }
@@ -41,9 +41,7 @@ export class CreateCatalogEntryUseCase {
     );
 
     if (existingEntry) {
-      throw new ConflictException(
-        'A catalog entry with this name already exists',
-      );
+      throw new ConflictError('A catalog entry with this name already exists');
     }
 
     return this.catalogRepository.create(type, {

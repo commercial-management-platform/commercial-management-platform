@@ -7,6 +7,7 @@ import {
   CatalogEntry,
   CatalogRepository,
   CatalogType,
+  FindCatalogEntriesOptions,
 } from '../../domain/repositories/catalog.repository.js';
 
 import { CatalogDao } from '../persistence/daos/catalog.dao.js';
@@ -53,8 +54,14 @@ export class CatalogRepositoryImpl implements CatalogRepository {
     return error;
   }
 
-  async findAll(type: CatalogType): Promise<CatalogEntry[]> {
-    const entities = await this.catalogDao.findAll(type);
+  async findAll(
+    type: CatalogType,
+    options: FindCatalogEntriesOptions = {},
+  ): Promise<CatalogEntry[]> {
+    const entities = await this.catalogDao.findAll(
+      type,
+      options.includeInactive ?? false,
+    );
 
     return entities.map((entity) => this.toCatalogEntry(entity));
   }

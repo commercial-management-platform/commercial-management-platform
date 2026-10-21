@@ -1,10 +1,10 @@
+import { Inject, Injectable } from '@nestjs/common';
+
 import {
-  BadRequestException,
-  ConflictException,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+} from '../../../../shared/domain/errors/index.js';
 
 import type {
   CatalogEntry,
@@ -28,13 +28,13 @@ export class UpdateCatalogEntryUseCase {
     const existingEntry = await this.catalogRepository.findById(type, id);
 
     if (!existingEntry) {
-      throw new NotFoundException('Catalog entry not found');
+      throw new NotFoundError('Catalog entry not found');
     }
 
     const normalizedName = name?.trim();
 
     if (type !== 'clientPotential' && order !== undefined) {
-      throw new BadRequestException(
+      throw new ValidationError(
         'Order is only supported for client potentials',
       );
     }
@@ -46,7 +46,7 @@ export class UpdateCatalogEntryUseCase {
       );
 
       if (duplicate && duplicate.id !== existingEntry.id) {
-        throw new ConflictException(
+        throw new ConflictError(
           'A catalog entry with this name already exists',
         );
       }

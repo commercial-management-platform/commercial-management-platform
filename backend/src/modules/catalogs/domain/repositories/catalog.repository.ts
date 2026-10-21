@@ -16,8 +16,16 @@ export interface CatalogEntry {
   description?: string | null;
 }
 
+export interface FindCatalogEntriesOptions {
+  /** Defaults to false: only active entries are returned. */
+  includeInactive?: boolean;
+}
+
 export interface CatalogRepository {
-  findAll(type: CatalogType): Promise<CatalogEntry[]>;
+  findAll(
+    type: CatalogType,
+    options?: FindCatalogEntriesOptions,
+  ): Promise<CatalogEntry[]>;
 
   findById(type: CatalogType, id: number): Promise<CatalogEntry | null>;
 

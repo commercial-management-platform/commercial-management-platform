@@ -13,7 +13,10 @@ export class GetCatalogEntriesUseCase {
     private readonly catalogRepository: CatalogRepository,
   ) {}
 
-  async execute(type: CatalogType): Promise<CatalogEntry[]> {
-    return this.catalogRepository.findAll(type);
+  async execute(
+    type: CatalogType,
+    includeInactive = false,
+  ): Promise<CatalogEntry[]> {
+    return this.catalogRepository.findAll(type, { includeInactive });
   }
 }
