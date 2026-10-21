@@ -8,7 +8,6 @@ import {
 import { LoginUseCase } from './application/use-cases/login.use-case.js';
 import { LogoutUseCase } from './application/use-cases/logout.use-case.js';
 import { VerifySessionUseCase } from './application/use-cases/verify-session.use-case.js';
-import { RegisterUseCase } from './application/use-cases/register.use-case.js';
 import {
   BetterAuthAdapter,
   BETTER_AUTH_INSTANCE,
@@ -76,12 +75,6 @@ import type { EnvironmentVariables } from '../../config/env.validation.js';
       useFactory: (authService: AuthServicePort) =>
         new VerifySessionUseCase(authService),
     },
-    {
-      provide: RegisterUseCase,
-      inject: [AUTH_SERVICE_PORT],
-      useFactory: (authService: AuthServicePort) =>
-        new RegisterUseCase(authService),
-    },
     AuthGuard,
     RolesGuard,
   ],
@@ -92,7 +85,6 @@ import type { EnvironmentVariables } from '../../config/env.validation.js';
     LoginUseCase,
     LogoutUseCase,
     VerifySessionUseCase,
-    RegisterUseCase,
   ],
 })
 export class AuthModule {}

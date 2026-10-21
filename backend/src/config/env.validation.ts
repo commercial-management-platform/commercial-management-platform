@@ -17,6 +17,12 @@ export enum NodeEnvironment {
   Test = 'test',
 }
 
+/** Same value as backend/.env.example. Never valid in production. */
+export const DEVELOPMENT_BETTER_AUTH_SECRET =
+  'cmp_default_secret_key_change_in_prod_1234567890';
+
+const MIN_PRODUCTION_SECRET_LENGTH = 32;
+
 /**
  * Environment variables required by the application.
  * NODE_ENV, PORT and DB_SSL have defaults; the rest are mandatory.
@@ -63,9 +69,10 @@ export class EnvironmentVariables {
   @IsBoolean()
   DB_SSL: boolean = false;
 
+  /** Development fallback only; validateEnv rejects it in production. */
   @IsString()
   @IsNotEmpty()
-  BETTER_AUTH_SECRET: string = 'cmp_default_secret_key_change_in_prod_1234567890';
+  BETTER_AUTH_SECRET: string = DEVELOPMENT_BETTER_AUTH_SECRET;
 
   @IsString()
   @IsNotEmpty()
@@ -99,7 +106,26 @@ export function validateEnv(
     throw new Error(`Invalid environment variables: ${details}`);
   }
 
+  assertProductionSecret(validated);
+
   return validated;
+}
+
+/**
+ * In production the betterAuth secret signs sessions, so a missing value
+ * (which falls back to the default), the example value or a short one stops the app.
+ */
+function assertProductionSecret(env: EnvironmentVariables): void {
+  if (env.NODE_ENV !== NodeEnvironment.Production) return;
+
+  if (
+    env.BETTER_AUTH_SECRET === DEVELOPMENT_BETTER_AUTH_SECRET ||
+    env.BETTER_AUTH_SECRET.length < MIN_PRODUCTION_SECRET_LENGTH
+  ) {
+    throw new Error(
+      `Invalid environment variables: BETTER_AUTH_SECRET must be set to a unique value of at least ${MIN_PRODUCTION_SECRET_LENGTH} characters in production`,
+    );
+  }
 }
 
 export function parseCorsOrigins(value: string): string[] {

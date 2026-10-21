@@ -131,7 +131,6 @@ import { AuthController } from '../src/modules/auth/presentation/auth.controller
 import { LoginUseCase } from '../src/modules/auth/application/use-cases/login.use-case.js';
 import { LogoutUseCase } from '../src/modules/auth/application/use-cases/logout.use-case.js';
 import { VerifySessionUseCase } from '../src/modules/auth/application/use-cases/verify-session.use-case.js';
-import { RegisterUseCase } from '../src/modules/auth/application/use-cases/register.use-case.js';
 import { AuthGuard } from '../src/modules/auth/infrastructure/guards/auth.guard.js';
 import { RolesGuard } from '../src/modules/auth/infrastructure/guards/roles.guard.js';
 import { ConfigModule } from '@nestjs/config';
@@ -168,11 +167,6 @@ async function createTestApp(): Promise<INestApplication<App>> {
         provide: VerifySessionUseCase,
         inject: [AUTH_SERVICE_PORT],
         useFactory: (auth: AuthServicePort) => new VerifySessionUseCase(auth),
-      },
-      {
-        provide: RegisterUseCase,
-        inject: [AUTH_SERVICE_PORT],
-        useFactory: (auth: AuthServicePort) => new RegisterUseCase(auth),
       },
       AuthGuard,
       RolesGuard,
@@ -337,6 +331,22 @@ describe('Authentication (HU-01) - e2e', () => {
     });
   });
 
+  describe('POST /api/auth/register (removed)', () => {
+    it('is not exposed: public self-registration responds 404', async () => {
+      app = await createTestApp();
+
+      await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({
+          name: 'Intruder',
+          email: 'intruder@cmp.com',
+          password: 'Password123!',
+          role: 'admin',
+        })
+        .expect(404);
+    });
+  });
+
   describe('OpenAPI / Swagger documentation', () => {
     it('serves Swagger documentation including auth endpoints', async () => {
       app = await createTestApp();
@@ -348,6 +358,7 @@ describe('Authentication (HU-01) - e2e', () => {
       expect(response.body.paths).toHaveProperty('/api/auth/login');
       expect(response.body.paths).toHaveProperty('/api/auth/logout');
       expect(response.body.paths).toHaveProperty('/api/auth/me');
+      expect(response.body.paths).not.toHaveProperty('/api/auth/register');
       expect(response.body.components.securitySchemes).toHaveProperty('bearer');
     });
   });

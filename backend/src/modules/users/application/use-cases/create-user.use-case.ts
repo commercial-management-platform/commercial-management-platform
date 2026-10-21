@@ -1,7 +1,12 @@
 import { UserRepository } from '../../domain/ports/user.repository.js';
 import { User } from '../../domain/entities/user.entity.js';
-import { AuthServicePort } from '../../../auth/domain/ports/auth-service.port.js';
+import {
+  AuthServicePort,
+  LoginResult,
+} from '../../../auth/domain/ports/auth-service.port.js';
 import { UserRole } from '../../../auth/domain/types/user-role.enum.js';
+import { AdvisorProfilePort } from '../ports/advisor-profile.port.js';
+import { syncAdvisorProfile } from '../advisor-profile.sync.js';
 import {
   ConflictError,
   ValidationError,
@@ -20,6 +25,7 @@ export class CreateUserUseCase {
   constructor(
     private readonly userRepository: UserRepository,
     private readonly authService: AuthServicePort,
+    private readonly advisorProfiles: AdvisorProfilePort,
   ) {}
 
   async execute(command: CreateUserCommand): Promise<User> {
@@ -41,9 +47,23 @@ export class CreateUserUseCase {
       role: command.role,
     });
 
-    const user = await this.userRepository.findById(result.user.id);
+    const user = await this.resolveCreatedUser(command, result);
+
+    if (user.role === UserRole.Advisor) {
+      await syncAdvisorProfile(this.advisorProfiles, user);
+    }
+
+    return user;
+  }
+
+  private async resolveCreatedUser(
+    command: CreateUserCommand,
+    result: LoginResult,
+  ): Promise<User> {
+    const id = result.user.id;
+    const user = await this.userRepository.findById(id);
     if (user && user.role !== command.role) {
-      return this.userRepository.update(result.user.id, { role: command.role });
+      return this.userRepository.update(id, { role: command.role });
     }
 
     if (user) {

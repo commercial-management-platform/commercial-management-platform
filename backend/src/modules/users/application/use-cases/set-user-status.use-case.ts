@@ -1,5 +1,7 @@
 import { UserRepository } from '../../domain/ports/user.repository.js';
 import { User } from '../../domain/entities/user.entity.js';
+import { AdvisorProfilePort } from '../ports/advisor-profile.port.js';
+import { syncAdvisorProfile } from '../advisor-profile.sync.js';
 import {
   ConflictError,
   NotFoundError,
@@ -12,7 +14,10 @@ export interface SetUserStatusCommand {
 }
 
 export class SetUserStatusUseCase {
-  constructor(private readonly userRepository: UserRepository) {}
+  constructor(
+    private readonly userRepository: UserRepository,
+    private readonly advisorProfiles: AdvisorProfilePort,
+  ) {}
 
   async execute(command: SetUserStatusCommand): Promise<User> {
     if (!command.id || command.id.trim().length === 0) {
@@ -38,8 +43,13 @@ export class SetUserStatusUseCase {
       }
     }
 
-    return this.userRepository.update(command.id, {
+    const updatedUser = await this.userRepository.update(command.id, {
       isActive: command.isActive,
     });
+
+    // Deactivating an advisor leaves its record inactive instead of deleting it.
+    await syncAdvisorProfile(this.advisorProfiles, updatedUser);
+
+    return updatedUser;
   }
 }
