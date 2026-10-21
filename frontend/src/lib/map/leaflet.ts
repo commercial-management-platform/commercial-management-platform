@@ -19,6 +19,13 @@ export function createMap(container: HTMLElement): L.Map {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   }).addTo(map)
+
+  // Si el contenedor cambia de tamaño después de crear el mapa (layout que termina de
+  // acomodarse, menú lateral que se contrae…), Leaflet necesita recalcular sus teselas.
+  const observer = new ResizeObserver(() => map.invalidateSize())
+  observer.observe(container)
+  map.on('unload', () => observer.disconnect())
+
   return map
 }
 

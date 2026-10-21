@@ -9,7 +9,10 @@ services:
       POSTGRES_PASSWORD: change_me
       POSTGRES_DB: cmp_db
     ports:
-      - "5432:5432"
+      # Puerto del host configurable: si ya tienes PostgreSQL instalado en tu equipo
+      # usando el 5432, define POSTGRES_HOST_PORT=5433 en un .env junto a este archivo
+      # y DB_PORT=5433 en backend/.env.
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - cmp_postgres_data:/var/lib/postgresql/data
     healthcheck:

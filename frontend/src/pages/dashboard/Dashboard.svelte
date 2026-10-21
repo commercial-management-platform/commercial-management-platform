@@ -6,6 +6,7 @@
   import ActivityTable from './ActivityTable.svelte'
   import DeliveryRoutes from './DeliveryRoutes.svelte'
   import KpiCard from './KpiCard.svelte'
+  import PortfolioOverview from './PortfolioOverview.svelte'
 
   const periodLabel: Record<Period, string> = { semana: 'Semana', mes: 'Mes', trimestre: 'Trimestre' }
 
@@ -29,6 +30,17 @@
     <h1>{greeting()}, {firstName}</h1>
     <p class="subtitle">Esto es lo que está pasando con tu operación comercial.</p>
   </header>
+
+  <PortfolioOverview />
+
+  <!-- Visitas, rutas, cotizaciones y pedidos aún no existen en el backend:
+       esta sección usa el servidor simulado (lib/services/mock) con el mismo contrato. -->
+  <div class="section-head">
+    <div>
+      <h2>Operación comercial</h2>
+      <p><span class="pill demo">Demostración</span> Visitas, entregas y pedidos simulados hasta conectar esos módulos del backend.</p>
+    </div>
+  </div>
 
   <div class="period">
     <label for="period">Periodo</label>
@@ -121,6 +133,35 @@
     font-size: clamp(1.7rem, 2.6vw, 2.1rem);
     font-weight: 700;
     letter-spacing: -0.02em;
+  }
+
+  .section-head {
+    margin-top: 8px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border-default);
+  }
+
+  .section-head h2 {
+    font-size: 18px;
+    line-height: 26px;
+  }
+
+  .section-head p {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .pill.demo {
+    padding: 2px 10px;
+    font: 700 11px/18px var(--font-heading);
+    color: #b45309;
+    border-radius: 999px;
+    background: #fffbeb;
   }
 
   .subtitle {
