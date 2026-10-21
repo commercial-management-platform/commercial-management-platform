@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { validateEnv } from './config/env.validation.js';
 import { typeOrmConfig } from './config/typeorm.config.js';
 import { AuthModule } from './modules/auth/auth.module.js';
+import { CatalogsModule } from './modules/catalogs/catalogs.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { UsersModule } from './modules/users/users.module.js';
@@ -20,6 +21,7 @@ import { UsersModule } from './modules/users/users.module.js';
     AuthModule,
     ClientsModule,
     UsersModule,
+    CatalogsModule,
   ],
 })
 export class AppModule {}
