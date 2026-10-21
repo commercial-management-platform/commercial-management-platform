@@ -5,10 +5,8 @@ import { validateEnv } from './config/env.validation.js';
 import { typeOrmConfig } from './config/typeorm.config.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { RoutesModule } from './modules/routes/routes.module.js';
-import { ClientsModule } from './modules/clients/clients.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
-import { HealthModule } from './modules/health/health.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 
 @Module({
