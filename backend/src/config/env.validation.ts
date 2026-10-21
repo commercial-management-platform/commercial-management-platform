@@ -62,6 +62,14 @@ export class EnvironmentVariables {
   )
   @IsBoolean()
   DB_SSL: boolean = false;
+
+  @IsString()
+  @IsNotEmpty()
+  BETTER_AUTH_SECRET: string = 'cmp_default_secret_key_change_in_prod_1234567890';
+
+  @IsString()
+  @IsNotEmpty()
+  BETTER_AUTH_URL: string = 'http://localhost:3000';
 }
 
 function parseBoolean(value: unknown): unknown {
