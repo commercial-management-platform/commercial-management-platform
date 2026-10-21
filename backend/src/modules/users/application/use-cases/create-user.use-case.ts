@@ -42,6 +42,10 @@ export class CreateUserUseCase {
     });
 
     const user = await this.userRepository.findById(result.user.id);
+    if (user && user.role !== command.role) {
+      return this.userRepository.update(result.user.id, { role: command.role });
+    }
+
     if (user) {
       return user;
     }
@@ -50,7 +54,7 @@ export class CreateUserUseCase {
       id: result.user.id,
       name: result.user.name,
       email: result.user.email,
-      role: result.user.role,
+      role: command.role,
       isActive: true,
       emailVerified: result.user.emailVerified,
       createdAt: result.user.createdAt,

@@ -19,6 +19,12 @@ export class UpdateUserUseCase {
       throw new ValidationError('User id is required');
     }
 
+    if (command.name === undefined && command.image === undefined) {
+      throw new ValidationError(
+        'At least one field (name or image) must be provided to update',
+      );
+    }
+
     if (command.name !== undefined && command.name.trim().length === 0) {
       throw new ValidationError('Name cannot be empty');
     }

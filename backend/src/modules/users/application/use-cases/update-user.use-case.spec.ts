@@ -87,4 +87,20 @@ describe('UpdateUserUseCase', () => {
       useCase.execute({ id: 'non-existent', name: 'Valid Name' }),
     ).rejects.toThrow(NotFoundError);
   });
+
+  it('throws ValidationError when neither name nor image is provided', async () => {
+    const userRepository: UserRepository = {
+      findAll: vi.fn(),
+      findById: vi.fn(),
+      findByEmail: vi.fn(),
+      countActiveAdmins: vi.fn(),
+      update: vi.fn(),
+    };
+
+    const useCase = new UpdateUserUseCase(userRepository);
+
+    await expect(
+      useCase.execute({ id: 'user-1' }),
+    ).rejects.toThrow(ValidationError);
+  });
 });

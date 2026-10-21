@@ -10,7 +10,10 @@ import {
 import { User } from '../../domain/entities/user.entity.js';
 import { UserRole } from '../../../auth/domain/types/user-role.enum.js';
 import { UserMapper } from '../mappers/user.mapper.js';
-import { NotFoundError } from '../../../../shared/domain/errors/index.js';
+import {
+  ConflictError,
+  NotFoundError,
+} from '../../../../shared/domain/errors/index.js';
 
 @Injectable()
 export class TypeOrmUserRepository implements UserRepository {
@@ -66,32 +69,81 @@ export class TypeOrmUserRepository implements UserRepository {
   }
 
   async update(id: string, data: UpdateUserData): Promise<User> {
-    const entity = await this.ormRepository.findOne({ where: { id } });
-    if (!entity) {
-      throw new NotFoundError(`User with id '${id}' not found`);
-    }
+    return this.ormRepository.manager.transaction(
+      async (transactionalEntityManager) => {
+        // Find target user inside transaction
+        const entity = await transactionalEntityManager.findOne(UserOrmEntity, {
+          where: { id },
+        });
 
-    if (data.name !== undefined) {
-      entity.name = data.name;
-    }
-    if (data.image !== undefined) {
-      entity.image = data.image ?? undefined;
-    }
-    if (data.role !== undefined) {
-      entity.role = data.role;
-    }
-    if (data.isActive !== undefined) {
-      entity.banned = !data.isActive;
-      if (!data.isActive) {
-        entity.banReason = 'Deactivated by administrator';
-      } else {
-        entity.banReason = undefined;
-        entity.banExpires = undefined;
-      }
-    }
+        if (!entity) {
+          throw new NotFoundError(`User with id '${id}' not found`);
+        }
 
-    entity.updatedAt = new Date();
-    const saved = await this.ormRepository.save(entity);
-    return UserMapper.toDomain(saved);
+        const isCurrentlyActiveAdmin =
+          entity.role === UserRole.Admin && !entity.banned;
+        const isDemotingAdmin =
+          data.role !== undefined && data.role !== UserRole.Admin;
+        const isDeactivatingAdmin = data.isActive === false;
+
+        // CA-08 Concurrency Protection:
+        // If the operation would reduce the active administrator pool,
+        // lock ALL active administrator rows with SELECT ... FOR UPDATE (pessimistic_write).
+        // This serializes any concurrent requests and guarantees that no race condition
+        // can leave the platform with 0 active administrators.
+        if (
+          isCurrentlyActiveAdmin &&
+          (isDemotingAdmin || isDeactivatingAdmin)
+        ) {
+          const activeAdmins = await transactionalEntityManager
+            .createQueryBuilder(UserOrmEntity, 'user')
+            .setLock('pessimistic_write')
+            .where('user.role = :role AND user.banned = :banned', {
+              role: UserRole.Admin,
+              banned: false,
+            })
+            .getMany();
+
+          if (activeAdmins.length <= 1) {
+            if (isDemotingAdmin) {
+              throw new ConflictError(
+                'Cannot change role: the platform must have at least one active administrator',
+              );
+            }
+            if (isDeactivatingAdmin) {
+              throw new ConflictError(
+                'Cannot deactivate the last active administrator',
+              );
+            }
+          }
+        }
+
+        if (data.name !== undefined) {
+          entity.name = data.name;
+        }
+        if (data.image !== undefined) {
+          entity.image = data.image ?? undefined;
+        }
+        if (data.role !== undefined) {
+          entity.role = data.role;
+        }
+        if (data.isActive !== undefined) {
+          entity.banned = !data.isActive;
+          if (!data.isActive) {
+            entity.banReason = 'Deactivated by administrator';
+          } else {
+            entity.banReason = undefined;
+            entity.banExpires = undefined;
+          }
+        }
+
+        entity.updatedAt = new Date();
+        const saved = await transactionalEntityManager.save(
+          UserOrmEntity,
+          entity,
+        );
+        return UserMapper.toDomain(saved);
+      },
+    );
   }
 }

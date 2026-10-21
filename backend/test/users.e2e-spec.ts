@@ -207,6 +207,28 @@ class InMemoryUserRepository implements UserRepository {
       throw new NotFoundError(`User with id '${id}' not found`);
     }
 
+    const isCurrentlyActiveAdmin =
+      existing.role === UserRole.Admin && existing.isActive;
+    const isDemotingAdmin =
+      data.role !== undefined && data.role !== UserRole.Admin;
+    const isDeactivatingAdmin = data.isActive === false;
+
+    if (isCurrentlyActiveAdmin && (isDemotingAdmin || isDeactivatingAdmin)) {
+      const activeAdminsCount = await this.countActiveAdmins();
+      if (activeAdminsCount <= 1) {
+        if (isDemotingAdmin) {
+          throw new ConflictError(
+            'Cannot change role: the platform must have at least one active administrator',
+          );
+        }
+        if (isDeactivatingAdmin) {
+          throw new ConflictError(
+            'Cannot deactivate the last active administrator',
+          );
+        }
+      }
+    }
+
     const updated = new User({
       id: existing.id,
       name: data.name ?? existing.name,
@@ -449,6 +471,16 @@ describe('Users API (e2e)', () => {
         .send({ name: 'New Name' });
 
       expect(response.status).toBe(404);
+    });
+
+    it('returns 400 when updating with empty body', async () => {
+      const response = await request(app.getHttpServer())
+        .patch('/api/users/usr_advisor_1')
+        .set('Authorization', 'Bearer token_admin')
+        .send({});
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain('At least one field');
     });
   });
 
