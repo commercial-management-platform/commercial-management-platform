@@ -1,16 +1,12 @@
-import { NotFoundError } from '../../../shared/domain/errors/index.js';
-
 import type { RouteRepository } from '../domain/route.repository.js';
 import type { Route } from '../domain/route.js';
+import { findVisibleRoute } from './route-visibility.js';
+import type { RouteActor } from './types/route-actor.js';
 
 export class GetRouteUseCase {
   constructor(private readonly routeRepository: RouteRepository) {}
 
-  async execute(id: number): Promise<Route> {
-    const route = await this.routeRepository.findById(id);
-    if (!route) {
-      throw new NotFoundError('Route not found');
-    }
-    return route;
+  async execute(actor: RouteActor, id: number): Promise<Route> {
+    return findVisibleRoute(this.routeRepository, actor, id);
   }
 }

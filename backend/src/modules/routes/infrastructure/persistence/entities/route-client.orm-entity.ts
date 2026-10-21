@@ -1,6 +1,7 @@
 import {
   Column,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
@@ -13,6 +14,7 @@ import { RouteOrmEntity } from './route.orm-entity.js';
 // Constraint names must match the migration, otherwise migration:generate
 // drops and recreates them.
 @Entity({ name: 'route_client' })
+@Index('IDX_route_client_client_id', ['clientId'])
 @Unique('uq_route_client_route_client', ['routeId', 'clientId'])
 // Deferred to commit, so a reorder can swap two positions inside its transaction.
 @Unique('uq_route_client_route_visit_order', ['routeId', 'visitOrder'], {
@@ -38,7 +40,8 @@ export class RouteClientOrmEntity {
   })
   route?: RouteOrmEntity;
 
-  @ManyToOne(() => ClientOrmEntity, { onDelete: 'CASCADE' })
+  // Clients are deactivated, never deleted, while a route uses them.
+  @ManyToOne(() => ClientOrmEntity, { onDelete: 'RESTRICT' })
   @JoinColumn({
     name: 'client_id',
     foreignKeyConstraintName: 'fk_route_client_client',

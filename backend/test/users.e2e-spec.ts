@@ -30,6 +30,27 @@ import { UsersController } from '../src/modules/users/presentation/users.control
 import { AuthGuard } from '../src/modules/auth/infrastructure/guards/auth.guard.js';
 import { RolesGuard } from '../src/modules/auth/infrastructure/guards/roles.guard.js';
 import { NotFoundError } from '../src/shared/domain/errors/index.js';
+import {
+  ADVISOR_PROFILE_PORT,
+  AdvisorStatus,
+  type AdvisorProfileData,
+  type AdvisorProfilePort,
+} from '../src/modules/users/application/ports/advisor-profile.port.js';
+
+class InMemoryAdvisorProfiles implements AdvisorProfilePort {
+  readonly records = new Map<string, AdvisorProfileData>();
+
+  async save(data: AdvisorProfileData): Promise<void> {
+    this.records.set(data.userId, { ...data });
+  }
+
+  async deactivate(userId: string): Promise<void> {
+    const record = this.records.get(userId);
+    if (record) {
+      record.status = AdvisorStatus.Inactive;
+    }
+  }
+}
 
 class InMemoryAuthService implements AuthServicePort {
   private sessions = new Map<string, { user: AuthUser; session: AuthSession }>();
@@ -254,10 +275,12 @@ describe('Users API (e2e)', () => {
   let app: INestApplication<App>;
   let userRepo: InMemoryUserRepository;
   let authService: InMemoryAuthService;
+  let advisorProfiles: InMemoryAdvisorProfiles;
 
   beforeEach(async () => {
     userRepo = new InMemoryUserRepository();
     authService = new InMemoryAuthService();
+    advisorProfiles = new InMemoryAdvisorProfiles();
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [
@@ -271,6 +294,7 @@ describe('Users API (e2e)', () => {
       providers: [
         { provide: USER_REPOSITORY, useValue: userRepo },
         { provide: AUTH_SERVICE_PORT, useValue: authService },
+        { provide: ADVISOR_PROFILE_PORT, useValue: advisorProfiles },
         {
           provide: ListUsersUseCase,
           inject: [USER_REPOSITORY],
@@ -283,9 +307,12 @@ describe('Users API (e2e)', () => {
         },
         {
           provide: CreateUserUseCase,
-          inject: [USER_REPOSITORY, AUTH_SERVICE_PORT],
-          useFactory: (repo: UserRepository, auth: AuthServicePort) =>
-            new CreateUserUseCase(repo, auth),
+          inject: [USER_REPOSITORY, AUTH_SERVICE_PORT, ADVISOR_PROFILE_PORT],
+          useFactory: (
+            repo: UserRepository,
+            auth: AuthServicePort,
+            advisors: AdvisorProfilePort,
+          ) => new CreateUserUseCase(repo, auth, advisors),
         },
         {
           provide: UpdateUserUseCase,
@@ -294,13 +321,15 @@ describe('Users API (e2e)', () => {
         },
         {
           provide: ChangeUserRoleUseCase,
-          inject: [USER_REPOSITORY],
-          useFactory: (repo: UserRepository) => new ChangeUserRoleUseCase(repo),
+          inject: [USER_REPOSITORY, ADVISOR_PROFILE_PORT],
+          useFactory: (repo: UserRepository, advisors: AdvisorProfilePort) =>
+            new ChangeUserRoleUseCase(repo, advisors),
         },
         {
           provide: SetUserStatusUseCase,
-          inject: [USER_REPOSITORY],
-          useFactory: (repo: UserRepository) => new SetUserStatusUseCase(repo),
+          inject: [USER_REPOSITORY, ADVISOR_PROFILE_PORT],
+          useFactory: (repo: UserRepository, advisors: AdvisorProfilePort) =>
+            new SetUserStatusUseCase(repo, advisors),
         },
         AuthGuard,
         RolesGuard,
@@ -564,6 +593,68 @@ describe('Users API (e2e)', () => {
       expect(response.body.message).toContain(
         'Cannot deactivate the last active administrator',
       );
+    });
+  });
+
+  describe('Advisor record (advisor table)', () => {
+    it('creates the advisor record when an advisor user is created, and deactivates it on role change', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post('/api/users')
+        .set('Authorization', 'Bearer token_admin')
+        .send({
+          name: 'Asesor Ruta Norte',
+          email: 'asesor.norte@cmp.com',
+          password: 'Password123!',
+          role: 'ASESOR',
+        });
+
+      expect(createResponse.status).toBe(201);
+      const userId: string = createResponse.body.id;
+      expect(advisorProfiles.records.get(userId)).toEqual({
+        userId,
+        name: 'Asesor Ruta Norte',
+        email: 'asesor.norte@cmp.com',
+        status: AdvisorStatus.Active,
+      });
+
+      // The in-memory auth service does not share users with the repository.
+      userRepo.addDirect(
+        new User({
+          id: userId,
+          name: 'Asesor Ruta Norte',
+          email: 'asesor.norte@cmp.com',
+          role: UserRole.Advisor,
+          isActive: true,
+          emailVerified: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }),
+      );
+
+      const roleResponse = await request(app.getHttpServer())
+        .patch(`/api/users/${userId}/role`)
+        .set('Authorization', 'Bearer token_admin')
+        .send({ role: 'GERENTE' });
+
+      expect(roleResponse.status).toBe(200);
+      expect(advisorProfiles.records.get(userId)?.status).toBe(
+        AdvisorStatus.Inactive,
+      );
+    });
+
+    it('does not create an advisor record for a director user', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/users')
+        .set('Authorization', 'Bearer token_admin')
+        .send({
+          name: 'Nuevo Director',
+          email: 'nuevo.director@cmp.com',
+          password: 'Password123!',
+          role: 'GERENTE',
+        });
+
+      expect(response.status).toBe(201);
+      expect(advisorProfiles.records.size).toBe(0);
     });
   });
 });

@@ -4,7 +4,7 @@ import {
 } from '../../../shared/domain/errors/index.js';
 
 import type { RouteRepository } from '../domain/route.repository.js';
-import type { ClientRepository } from '../../clients/domain/client.repository.js';
+import type { ClientRepository } from '../../clients/domain/repositories/client.repository.js';
 
 export class AssociateClientUseCase {
   constructor(

@@ -8,9 +8,16 @@ export interface VisitOrderItem {
   visitOrder: number;
 }
 
+export interface RouteFilterOptions {
+  /** When set, only routes whose advisor has this betterAuth user id. */
+  advisorUserId?: string;
+}
+
 export interface RouteRepository {
-  findAll(): Promise<Route[]>;
+  findAll(options?: RouteFilterOptions): Promise<Route[]>;
   findById(id: number): Promise<Route | null>;
+  /** True when the route's advisor is linked to the given betterAuth user. */
+  isAssignedToAdvisorUser(routeId: number, userId: string): Promise<boolean>;
   save(route: Route): Promise<Route>;
   update(route: Route): Promise<Route>;
   findClients(routeId: number): Promise<RouteClient[]>;

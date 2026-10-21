@@ -1,4 +1,5 @@
 import {
+  DEVELOPMENT_BETTER_AUTH_SECRET,
   NodeEnvironment,
   parseCorsOrigins,
   validateEnv,
@@ -14,7 +15,44 @@ const validEnv = {
   DB_PASSWORD: 'cmp_password',
   DB_NAME: 'cmp_db',
   DB_SSL: 'true',
+  BETTER_AUTH_SECRET: 'test_only_production_secret_0123456789abcdef',
 };
+
+describe('validateEnv - BETTER_AUTH_SECRET', () => {
+  it('fails in production when the secret is missing', () => {
+    const env: Record<string, string> = { ...validEnv };
+    delete env.BETTER_AUTH_SECRET;
+
+    expect(() => validateEnv(env)).toThrow(/BETTER_AUTH_SECRET/);
+  });
+
+  it('fails in production with the .env.example secret', () => {
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        BETTER_AUTH_SECRET: DEVELOPMENT_BETTER_AUTH_SECRET,
+      }),
+    ).toThrow(/BETTER_AUTH_SECRET/);
+  });
+
+  it('fails in production with a secret shorter than 32 characters', () => {
+    expect(() =>
+      validateEnv({ ...validEnv, BETTER_AUTH_SECRET: 'too-short' }),
+    ).toThrow(/BETTER_AUTH_SECRET/);
+  });
+
+  it('falls back to the development secret outside production', () => {
+    const env: Record<string, string> = {
+      ...validEnv,
+      NODE_ENV: 'development',
+    };
+    delete env.BETTER_AUTH_SECRET;
+
+    expect(validateEnv(env).BETTER_AUTH_SECRET).toBe(
+      DEVELOPMENT_BETTER_AUTH_SECRET,
+    );
+  });
+});
 
 describe('validateEnv', () => {
   it('converts valid variables to their types', () => {

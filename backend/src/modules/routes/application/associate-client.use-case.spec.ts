@@ -2,8 +2,8 @@ import {
   ConflictError,
   NotFoundError,
 } from '../../../shared/domain/errors/index.js';
-import { Client } from '../../clients/domain/client.js';
-import type { ClientRepository } from '../../clients/domain/client.repository.js';
+import { Client } from '../../clients/domain/entities/client.js';
+import type { ClientRepository } from '../../clients/domain/repositories/client.repository.js';
 import { RouteClient } from '../domain/route-client.js';
 import { RouteStatus } from '../domain/route-status.js';
 import { Route } from '../domain/route.js';
@@ -33,29 +33,30 @@ function setup() {
     associate: vi.fn(),
   };
   const clientRepository = {
-    findById: vi
-      .fn()
-      .mockResolvedValue(
-        new Client(
-          7,
-          '900000007-1',
-          'Client',
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          true,
-          null,
-        ),
-      ),
+    findById: vi.fn().mockResolvedValue(
+      new Client({
+        id: 7,
+        nit: '900000007-1',
+        businessName: 'Client',
+        tradeName: null,
+        address: null,
+        department: null,
+        municipality: null,
+        neighborhood: null,
+        phone: null,
+        email: null,
+        zoneId: null,
+        clientTypeId: null,
+        clientPotentialId: null,
+        clientStatusId: null,
+        visitFrequencyDays: null,
+        latitude: null,
+        longitude: null,
+        active: true,
+        createdAt: null,
+        updatedAt: null,
+      }),
+    ),
   };
   const useCase = new AssociateClientUseCase(
     routeRepository as unknown as RouteRepository,

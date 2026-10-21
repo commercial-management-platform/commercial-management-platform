@@ -1,11 +1,17 @@
 import { NotFoundError } from '../../../shared/domain/errors/index.js';
-
+import type { CatalogLookupPort } from '../../catalogs/application/ports/catalog-lookup.port.js';
 import type { RouteRepository } from '../domain/route.repository.js';
 import { Route } from '../domain/route.js';
 import type { RouteStatus } from '../domain/route-status.js';
+import type { AdvisorLookupPort } from './ports/advisor-lookup.port.js';
+import { assertRouteReferencesActive } from './route-references.js';
 
 export class UpdateRouteUseCase {
-  constructor(private readonly routeRepository: RouteRepository) {}
+  constructor(
+    private readonly routeRepository: RouteRepository,
+    private readonly catalogs: CatalogLookupPort,
+    private readonly advisors: AdvisorLookupPort,
+  ) {}
 
   async execute(
     id: number,
@@ -27,6 +33,18 @@ export class UpdateRouteUseCase {
     if (!existing) {
       throw new NotFoundError('Route not found');
     }
+    // Only a changed id is checked: a route keeps a zone or advisor that was
+    // deactivated after it was assigned.
+    await assertRouteReferencesActive(this.catalogs, this.advisors, {
+      zoneId:
+        input.zoneId !== undefined && input.zoneId !== existing.zoneId
+          ? input.zoneId
+          : undefined,
+      advisorId:
+        input.advisorId !== undefined && input.advisorId !== existing.advisorId
+          ? input.advisorId
+          : undefined,
+    });
     const updated = new Route(
       existing.id,
       input.name ?? existing.name,

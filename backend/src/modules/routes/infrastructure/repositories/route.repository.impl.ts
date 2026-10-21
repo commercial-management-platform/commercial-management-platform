@@ -7,6 +7,7 @@ import { ConflictError } from '../../../../shared/domain/errors/index.js';
 import { Route } from '../../domain/route.js';
 import { RouteClient } from '../../domain/route-client.js';
 import {
+  type RouteFilterOptions,
   type RouteRepository,
   type VisitOrderItem,
 } from '../../domain/route.repository.js';
@@ -23,8 +24,15 @@ export class TypeOrmRouteRepository implements RouteRepository {
     private readonly routeClientRepository: Repository<RouteClientOrmEntity>,
   ) {}
 
-  async findAll(): Promise<Route[]> {
-    const entities = await this.routeRepository.find();
+  async findAll(options?: RouteFilterOptions): Promise<Route[]> {
+    const advisorUserId = options?.advisorUserId;
+    const entities = await this.routeRepository.find({
+      where:
+        advisorUserId === undefined
+          ? {}
+          : { advisor: { userId: advisorUserId } },
+      order: { id: 'ASC' },
+    });
     return entities.map((entity) => RouteMapper.toDomain(entity));
   }
 
@@ -34,6 +42,15 @@ export class TypeOrmRouteRepository implements RouteRepository {
       return null;
     }
     return RouteMapper.toDomain(entity);
+  }
+
+  async isAssignedToAdvisorUser(
+    routeId: number,
+    userId: string,
+  ): Promise<boolean> {
+    return this.routeRepository.exists({
+      where: { id: routeId, advisor: { userId } },
+    });
   }
 
   async save(route: Route): Promise<Route> {

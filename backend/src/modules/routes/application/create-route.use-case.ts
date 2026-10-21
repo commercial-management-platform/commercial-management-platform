@@ -1,9 +1,16 @@
+import type { CatalogLookupPort } from '../../catalogs/application/ports/catalog-lookup.port.js';
 import type { RouteRepository } from '../domain/route.repository.js';
 import { Route } from '../domain/route.js';
 import { RouteStatus } from '../domain/route-status.js';
+import type { AdvisorLookupPort } from './ports/advisor-lookup.port.js';
+import { assertRouteReferencesActive } from './route-references.js';
 
 export class CreateRouteUseCase {
-  constructor(private readonly routeRepository: RouteRepository) {}
+  constructor(
+    private readonly routeRepository: RouteRepository,
+    private readonly catalogs: CatalogLookupPort,
+    private readonly advisors: AdvisorLookupPort,
+  ) {}
 
   async execute(input: {
     name: string;
@@ -18,6 +25,10 @@ export class CreateRouteUseCase {
     endDate?: string | null;
     status?: RouteStatus;
   }): Promise<Route> {
+    await assertRouteReferencesActive(this.catalogs, this.advisors, {
+      zoneId: input.zoneId,
+      advisorId: input.advisorId,
+    });
     const route = new Route(
       null,
       input.name,

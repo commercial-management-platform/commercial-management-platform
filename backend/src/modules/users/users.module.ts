@@ -11,6 +11,12 @@ import {
   type UserRepository,
 } from './domain/ports/user.repository.js';
 import { TypeOrmUserRepository } from './infrastructure/persistence/typeorm-user.repository.js';
+import {
+  ADVISOR_PROFILE_PORT,
+  type AdvisorProfilePort,
+} from './application/ports/advisor-profile.port.js';
+import { TypeOrmAdvisorProfileAdapter } from './infrastructure/persistence/typeorm-advisor-profile.adapter.js';
+import { AdvisorOrmEntity } from './infrastructure/persistence/entities/advisor.orm-entity.js';
 import { ListUsersUseCase } from './application/use-cases/list-users.use-case.js';
 import { GetUserUseCase } from './application/use-cases/get-user.use-case.js';
 import { CreateUserUseCase } from './application/use-cases/create-user.use-case.js';
@@ -20,7 +26,10 @@ import { SetUserStatusUseCase } from './application/use-cases/set-user-status.us
 import { UsersController } from './presentation/users.controller.js';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([UserOrmEntity]), AuthModule],
+  imports: [
+    TypeOrmModule.forFeature([UserOrmEntity, AdvisorOrmEntity]),
+    AuthModule,
+  ],
   controllers: [UsersController],
   providers: [
     TypeOrmUserRepository,
@@ -38,11 +47,19 @@ import { UsersController } from './presentation/users.controller.js';
       inject: [USER_REPOSITORY],
       useFactory: (repo: UserRepository) => new GetUserUseCase(repo),
     },
+    TypeOrmAdvisorProfileAdapter,
+    {
+      provide: ADVISOR_PROFILE_PORT,
+      useExisting: TypeOrmAdvisorProfileAdapter,
+    },
     {
       provide: CreateUserUseCase,
-      inject: [USER_REPOSITORY, AUTH_SERVICE_PORT],
-      useFactory: (repo: UserRepository, auth: AuthServicePort) =>
-        new CreateUserUseCase(repo, auth),
+      inject: [USER_REPOSITORY, AUTH_SERVICE_PORT, ADVISOR_PROFILE_PORT],
+      useFactory: (
+        repo: UserRepository,
+        auth: AuthServicePort,
+        advisors: AdvisorProfilePort,
+      ) => new CreateUserUseCase(repo, auth, advisors),
     },
     {
       provide: UpdateUserUseCase,
@@ -51,13 +68,15 @@ import { UsersController } from './presentation/users.controller.js';
     },
     {
       provide: ChangeUserRoleUseCase,
-      inject: [USER_REPOSITORY],
-      useFactory: (repo: UserRepository) => new ChangeUserRoleUseCase(repo),
+      inject: [USER_REPOSITORY, ADVISOR_PROFILE_PORT],
+      useFactory: (repo: UserRepository, advisors: AdvisorProfilePort) =>
+        new ChangeUserRoleUseCase(repo, advisors),
     },
     {
       provide: SetUserStatusUseCase,
-      inject: [USER_REPOSITORY],
-      useFactory: (repo: UserRepository) => new SetUserStatusUseCase(repo),
+      inject: [USER_REPOSITORY, ADVISOR_PROFILE_PORT],
+      useFactory: (repo: UserRepository, advisors: AdvisorProfilePort) =>
+        new SetUserStatusUseCase(repo, advisors),
     },
   ],
   exports: [

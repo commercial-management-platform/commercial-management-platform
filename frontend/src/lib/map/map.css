@@ -1,0 +1,64 @@
+/* Estilos globales de los mapas Leaflet de la app */
+
+.k-map {
+  background: var(--map-bg);
+  font-family: var(--font-body);
+}
+
+/* Teñido suave hacia la paleta de mapa (--map-bg / --map-block) */
+.k-map .leaflet-tile-pane {
+  filter: grayscale(0.9) sepia(0.15) hue-rotate(95deg) saturate(0.8) brightness(1.04) contrast(0.9);
+}
+
+.k-truck {
+  display: grid;
+  place-items: center;
+  color: var(--brand-600);
+  background: #fff;
+  border: 3px solid var(--brand-600);
+  border-radius: 50%;
+  box-shadow: 0 6px 16px -4px rgba(0, 122, 85, 0.5);
+}
+
+.k-pin {
+  filter: drop-shadow(0 6px 8px rgba(0, 122, 85, 0.35));
+  cursor: pointer;
+}
+
+.k-dot {
+  display: grid;
+  place-items: center;
+  font: 700 12px var(--font-heading);
+  color: var(--brand-700);
+  background: #fff;
+  border: 2px solid var(--brand-600);
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2);
+  cursor: pointer;
+}
+
+.k-depot {
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--brand-900);
+  border: 2px solid #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px -2px rgba(7, 61, 49, 0.5);
+}
+
+.k-map .leaflet-control-zoom {
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px -6px rgba(15, 23, 42, 0.25);
+}
+
+.k-map .leaflet-control-zoom a {
+  color: var(--text-primary);
+}
+
+.k-map .leaflet-control-attribution {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.7);
+}
