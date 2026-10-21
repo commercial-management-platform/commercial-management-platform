@@ -7,6 +7,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { CatalogsModule } from './modules/catalogs/catalogs.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { HealthModule } from './modules/health/health.module.js';
+import { RoutesModule } from './modules/routes/routes.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 
 @Module({
@@ -18,6 +19,7 @@ import { UsersModule } from './modules/users/users.module.js';
     }),
     TypeOrmModule.forRootAsync(typeOrmConfig),
     HealthModule,
+    RoutesModule,
     AuthModule,
     ClientsModule,
     UsersModule,
