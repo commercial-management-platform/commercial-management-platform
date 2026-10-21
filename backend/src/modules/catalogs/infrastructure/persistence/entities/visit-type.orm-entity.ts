@@ -1,13 +1,16 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
-@Entity({ name: 'VISIT_TYPE' })
+// Case-insensitive unique index on LOWER(name), created by the migration.
+// TypeORM cannot describe functional indexes, so it must not synchronize it.
+@Entity({ name: 'visit_type' })
+@Index('uq_visit_type_name_lower', { synchronize: false })
 export class VisitTypeOrmEntity {
-  @PrimaryGeneratedColumn({ name: 'id_visit_type' })
+  @PrimaryGeneratedColumn({ name: 'id' })
   id: number;
 
-  @Column({ name: 'name', unique: true })
+  @Column({ name: 'name', type: 'varchar' })
   name: string;
 
-  @Column({ name: 'active', default: true })
+  @Column({ name: 'active', type: 'boolean', default: true })
   active: boolean;
 }

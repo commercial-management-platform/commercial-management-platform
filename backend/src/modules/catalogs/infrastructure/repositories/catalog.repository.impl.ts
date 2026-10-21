@@ -1,4 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { QueryFailedError } from 'typeorm';
+
+import { ConflictError } from '../../../../shared/domain/errors/index.js';
 
 import {
   CatalogEntry,
@@ -13,7 +16,12 @@ type CatalogPersistenceEntry = {
   name: string;
   active: boolean;
   order?: number;
+  description?: string | null;
 };
+
+interface PostgresDriverError {
+  code?: string;
+}
 
 @Injectable()
 export class CatalogRepositoryImpl implements CatalogRepository {
@@ -25,7 +33,24 @@ export class CatalogRepositoryImpl implements CatalogRepository {
       name: entity.name,
       active: entity.active,
       ...(entity.order !== undefined ? { order: entity.order } : {}),
+      ...(entity.description !== undefined
+        ? { description: entity.description }
+        : {}),
     };
+  }
+
+  // The uq_<table>_name_lower index still catches a duplicate that slips
+  // past the use case check through a concurrent request.
+  private translateUniqueViolation(error: unknown): unknown {
+    if (error instanceof QueryFailedError) {
+      const driverError = error.driverError as PostgresDriverError | undefined;
+      if (driverError?.code === '23505') {
+        return new ConflictError(
+          'A catalog entry with this name already exists',
+        );
+      }
+    }
+    return error;
   }
 
   async findAll(type: CatalogType): Promise<CatalogEntry[]> {
@@ -65,7 +90,12 @@ export class CatalogRepositoryImpl implements CatalogRepository {
       ...(entry.order !== undefined ? { order: entry.order } : {}),
     };
 
-    const savedEntity = await this.catalogDao.save(type, entity as any);
+    let savedEntity;
+    try {
+      savedEntity = await this.catalogDao.save(type, entity as any);
+    } catch (error) {
+      throw this.translateUniqueViolation(error);
+    }
 
     return this.toCatalogEntry(savedEntity);
   }
@@ -75,23 +105,22 @@ export class CatalogRepositoryImpl implements CatalogRepository {
       throw new Error('Catalog entry id is required for update');
     }
 
-    const savedEntity = await this.catalogDao.update(type, entry.id, {
-      name: entry.name,
-      active: entry.active,
-      ...(entry.order !== undefined ? { order: entry.order } : {}),
-    } as any);
+    let savedEntity;
+    try {
+      savedEntity = await this.catalogDao.update(type, entry.id, {
+        name: entry.name,
+        active: entry.active,
+        ...(entry.order !== undefined ? { order: entry.order } : {}),
+      } as any);
+    } catch (error) {
+      throw this.translateUniqueViolation(error);
+    }
 
     if (!savedEntity) {
       throw new Error(`Catalog entry ${entry.id} was not found`);
     }
 
     return this.toCatalogEntry(savedEntity);
-  }
-
-  async deactivate(type: CatalogType, id: number): Promise<void> {
-    await this.catalogDao.update(type, id, {
-      active: false,
-    } as any);
   }
 
   async setActive(

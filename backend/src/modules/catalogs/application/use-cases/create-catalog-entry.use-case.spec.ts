@@ -10,7 +10,6 @@ function createRepository(): CatalogRepository {
     findByName: vi.fn().mockResolvedValue(null),
     create: vi.fn().mockImplementation(async (_type, entry) => entry),
     update: vi.fn(),
-    deactivate: vi.fn(),
     setActive: vi.fn(),
   };
 }

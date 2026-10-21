@@ -6,25 +6,37 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiBearerAuth,
   ApiConflictResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
-import { CreateCatalogEntryUseCase } from '../../../application/use-cases/create-catalog-entry.use-case.js';
-import { GetCatalogEntriesUseCase } from '../../../application/use-cases/get-catalog-entries.use-case.js';
-import { SetCatalogEntryStatusUseCase } from '../../../application/use-cases/set-catalog-entry-status.use-case.js';
-import { UpdateCatalogEntryUseCase } from '../../../application/use-cases/update-catalog-entry.use-case.js';
-import { CreateCatalogEntryDto } from '../dtos/create-catalog-entry.dto.js';
-import { SetCatalogEntryStatusDto } from '../dtos/set-catalog-entry-status.dto.js';
-import { UpdateCatalogEntryDto } from '../dtos/update-catalog-entry.dto.js';
+import { AuthGuard } from '../../auth/infrastructure/guards/auth.guard.js';
+import { RolesGuard } from '../../auth/infrastructure/guards/roles.guard.js';
+import { Roles } from '../../auth/infrastructure/decorators/roles.decorator.js';
+import { UserRole } from '../../auth/domain/types/user-role.enum.js';
+import { CreateCatalogEntryUseCase } from '../application/use-cases/create-catalog-entry.use-case.js';
+import { GetCatalogEntriesUseCase } from '../application/use-cases/get-catalog-entries.use-case.js';
+import { SetCatalogEntryStatusUseCase } from '../application/use-cases/set-catalog-entry-status.use-case.js';
+import { UpdateCatalogEntryUseCase } from '../application/use-cases/update-catalog-entry.use-case.js';
+import { CreateCatalogEntryDto } from './dtos/create-catalog-entry.dto.js';
+import { SetCatalogEntryStatusDto } from './dtos/set-catalog-entry-status.dto.js';
+import { UpdateCatalogEntryDto } from './dtos/update-catalog-entry.dto.js';
 
+// Any authenticated user can read the catalogs; writes require the admin role.
 @ApiTags('Catalogs')
+@ApiBearerAuth()
+@UseGuards(AuthGuard, RolesGuard)
+@ApiUnauthorizedResponse({ description: 'Authentication required' })
 @Controller('catalogs')
 export class CatalogsController {
   constructor(
@@ -42,6 +54,10 @@ export class CatalogsController {
   }
 
   @Post('zones')
+  @Roles(UserRole.Admin)
+  @ApiForbiddenResponse({
+    description: 'Insufficient permissions (Admin role required)',
+  })
   @ApiOperation({
     summary: 'Create a zone',
     description: 'Example body: { "name": "Norte" }',
@@ -54,6 +70,10 @@ export class CatalogsController {
   }
 
   @Patch('zones/:id')
+  @Roles(UserRole.Admin)
+  @ApiForbiddenResponse({
+    description: 'Insufficient permissions (Admin role required)',
+  })
   @ApiOperation({
     summary: 'Update a zone',
     description: 'Example body: { "name": "Zona Metropolitana" }',
@@ -68,6 +88,10 @@ export class CatalogsController {
   }
 
   @Patch('zones/:id/status')
+  @Roles(UserRole.Admin)
+  @ApiForbiddenResponse({
+    description: 'Insufficient permissions (Admin role required)',
+  })
   @ApiOperation({
     summary: 'Activate or deactivate a zone',
     description: 'Example body: { "active": false }',
@@ -129,5 +153,12 @@ export class CatalogsController {
   @ApiOkResponse({ description: 'Returns visit types ordered by name.' })
   async getVisitTypes() {
     return this.getCatalogEntriesUseCase.execute('visitType');
+  }
+
+  @Get('portfolios')
+  @ApiOperation({ summary: 'List portfolios seeded by the application' })
+  @ApiOkResponse({ description: 'Returns portfolios ordered by name.' })
+  async getPortfolios() {
+    return this.getCatalogEntriesUseCase.execute('portfolio');
   }
 }

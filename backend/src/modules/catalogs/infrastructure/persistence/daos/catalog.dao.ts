@@ -9,6 +9,7 @@ import { ClientStatusOrmEntity } from '../entities/client-status.orm-entity.js';
 import { VisitResultOrmEntity } from '../entities/visit-result.orm-entity.js';
 import { VisitObjectiveOrmEntity } from '../entities/visit-objective.orm-entity.js';
 import { VisitTypeOrmEntity } from '../entities/visit-type.orm-entity.js';
+import { PortfolioOrmEntity } from '../entities/portfolio.orm-entity.js';
 
 type CatalogOrmEntity =
   | ZoneOrmEntity
@@ -17,7 +18,8 @@ type CatalogOrmEntity =
   | ClientStatusOrmEntity
   | VisitResultOrmEntity
   | VisitObjectiveOrmEntity
-  | VisitTypeOrmEntity;
+  | VisitTypeOrmEntity
+  | PortfolioOrmEntity;
 
 @Injectable()
 export class CatalogDao {
@@ -42,6 +44,9 @@ export class CatalogDao {
 
     @InjectRepository(VisitTypeOrmEntity)
     private readonly visitTypeRepository: Repository<VisitTypeOrmEntity>,
+
+    @InjectRepository(PortfolioOrmEntity)
+    private readonly portfolioRepository: Repository<PortfolioOrmEntity>,
   ) {}
 
   private getRepository(type: string): Repository<any> {
@@ -66,6 +71,9 @@ export class CatalogDao {
 
       case 'visitType':
         return this.visitTypeRepository;
+
+      case 'portfolio':
+        return this.portfolioRepository;
 
       default:
         throw new Error(`Unsupported catalog type: ${type}`);

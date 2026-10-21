@@ -1,13 +1,17 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { AuthModule } from '../auth/auth.module.js';
+
+import { CATALOG_LOOKUP } from './application/ports/catalog-lookup.port.js';
 import { CreateCatalogEntryUseCase } from './application/use-cases/create-catalog-entry.use-case.js';
 import { GetCatalogEntriesUseCase } from './application/use-cases/get-catalog-entries.use-case.js';
 import { SetCatalogEntryStatusUseCase } from './application/use-cases/set-catalog-entry-status.use-case.js';
 import { UpdateCatalogEntryUseCase } from './application/use-cases/update-catalog-entry.use-case.js';
 
-import { CatalogsController } from './infrastructure/http/controllers/catalogs.controller.js';
+import { CatalogsController } from './presentation/catalogs.controller.js';
 
+import { CatalogLookupAdapter } from './infrastructure/adapters/catalog-lookup.adapter.js';
 import { CatalogRepositoryImpl } from './infrastructure/repositories/catalog.repository.impl.js';
 
 import { CatalogDao } from './infrastructure/persistence/daos/catalog.dao.js';
@@ -19,6 +23,7 @@ import { ClientStatusOrmEntity } from './infrastructure/persistence/entities/cli
 import { VisitResultOrmEntity } from './infrastructure/persistence/entities/visit-result.orm-entity.js';
 import { VisitObjectiveOrmEntity } from './infrastructure/persistence/entities/visit-objective.orm-entity.js';
 import { VisitTypeOrmEntity } from './infrastructure/persistence/entities/visit-type.orm-entity.js';
+import { PortfolioOrmEntity } from './infrastructure/persistence/entities/portfolio.orm-entity.js';
 
 @Module({
   imports: [
@@ -30,7 +35,9 @@ import { VisitTypeOrmEntity } from './infrastructure/persistence/entities/visit-
       VisitResultOrmEntity,
       VisitObjectiveOrmEntity,
       VisitTypeOrmEntity,
+      PortfolioOrmEntity,
     ]),
+    AuthModule,
   ],
 
   controllers: [CatalogsController],
@@ -43,12 +50,18 @@ import { VisitTypeOrmEntity } from './infrastructure/persistence/entities/visit-
       useClass: CatalogRepositoryImpl,
     },
 
+    CatalogLookupAdapter,
+    {
+      provide: CATALOG_LOOKUP,
+      useExisting: CatalogLookupAdapter,
+    },
+
     GetCatalogEntriesUseCase,
     CreateCatalogEntryUseCase,
     UpdateCatalogEntryUseCase,
     SetCatalogEntryStatusUseCase,
   ],
 
-  exports: ['CatalogRepository'],
+  exports: ['CatalogRepository', CATALOG_LOOKUP],
 })
 export class CatalogsModule {}

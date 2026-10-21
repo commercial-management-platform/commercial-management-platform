@@ -5,13 +5,15 @@ export type CatalogType =
   | 'clientStatus'
   | 'visitResult'
   | 'visitObjective'
-  | 'visitType';
+  | 'visitType'
+  | 'portfolio';
 
 export interface CatalogEntry {
   id: number | null;
   name: string;
   active: boolean;
   order?: number;
+  description?: string | null;
 }
 
 export interface CatalogRepository {
@@ -24,8 +26,6 @@ export interface CatalogRepository {
   create(type: CatalogType, entry: CatalogEntry): Promise<CatalogEntry>;
 
   update(type: CatalogType, entry: CatalogEntry): Promise<CatalogEntry>;
-
-  deactivate(type: CatalogType, id: number): Promise<void>;
 
   setActive(type: CatalogType, id: number, active: boolean): Promise<void>;
 }

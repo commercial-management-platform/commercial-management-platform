@@ -1,65 +1,76 @@
-import { MigrationInterface, QueryRunner, Table } from 'typeorm';
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
-const catalogTables = [
-  ['ZONE', 'id_zone'],
-  ['CLIENT_TYPE', 'id_client_type'],
-  ['CLIENT_STATUS', 'id_client_status'],
-  ['VISIT_RESULT', 'id_visit_result'],
-  ['VISIT_OBJECTIVE', 'id_visit_objective'],
-  ['VISIT_TYPE', 'id_visit_type'],
+/**
+ * Creates the commercial catalog tables for HU-05.
+ *
+ * Same style as CreateClientTable: raw SQL with IF NOT EXISTS and named
+ * constraints. Names are unique case-insensitively through a functional
+ * index `uq_<table>_name_lower`; the catalogs seed relies on that index for
+ * its ON CONFLICT clause.
+ *
+ * The foreign keys from `client` to these tables are not created here; they
+ * are added by the clients module once it switches to the catalog lookup.
+ */
+const SIMPLE_CATALOGS = [
+  'zone',
+  'client_type',
+  'client_status',
+  'visit_result',
+  'visit_objective',
+  'visit_type',
+] as const;
+
+const ALL_CATALOGS = [
+  ...SIMPLE_CATALOGS,
+  'client_potential',
+  'portfolio',
 ] as const;
 
 export class CreateCommercialCatalogs1761000000000 implements MigrationInterface {
-  async up(queryRunner: QueryRunner): Promise<void> {
-    for (const [tableName, idColumn] of catalogTables) {
-      await queryRunner.createTable(
-        new Table({
-          name: tableName,
-          columns: [
-            {
-              name: idColumn,
-              type: 'integer',
-              isPrimary: true,
-              isGenerated: true,
-              generationStrategy: 'increment',
-            },
-            { name: 'name', type: 'varchar', isUnique: true },
-            { name: 'active', type: 'boolean', default: 'true' },
-          ],
-        }),
-      );
-      await queryRunner.query(
-        `CREATE UNIQUE INDEX "UQ_${tableName}_name_lower" ON "${tableName}" (LOWER("name"))`,
-      );
+  name = 'CreateCommercialCatalogs1761000000000';
+
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    for (const table of SIMPLE_CATALOGS) {
+      await queryRunner.query(`
+        CREATE TABLE IF NOT EXISTS "${table}" (
+          "id" SERIAL NOT NULL,
+          "name" varchar NOT NULL,
+          "active" boolean NOT NULL DEFAULT true,
+          CONSTRAINT "PK_${table}_id" PRIMARY KEY ("id")
+        );
+      `);
     }
 
-    await queryRunner.createTable(
-      new Table({
-        name: 'CLIENT_POTENTIAL',
-        columns: [
-          {
-            name: 'id_client_potential',
-            type: 'integer',
-            isPrimary: true,
-            isGenerated: true,
-            generationStrategy: 'increment',
-          },
-          { name: 'name', type: 'varchar', isUnique: true },
-          { name: 'catalog_order', type: 'integer' },
-          { name: 'active', type: 'boolean', default: 'true' },
-        ],
-      }),
-    );
-    await queryRunner.query(
-      'CREATE UNIQUE INDEX "UQ_CLIENT_POTENTIAL_name_lower" ON "CLIENT_POTENTIAL" (LOWER("name"))',
-    );
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "client_potential" (
+        "id" SERIAL NOT NULL,
+        "name" varchar NOT NULL,
+        "sort_order" integer NOT NULL,
+        "active" boolean NOT NULL DEFAULT true,
+        CONSTRAINT "PK_client_potential_id" PRIMARY KEY ("id")
+      );
+    `);
+
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "portfolio" (
+        "id" SERIAL NOT NULL,
+        "name" varchar NOT NULL,
+        "description" varchar,
+        "active" boolean NOT NULL DEFAULT true,
+        CONSTRAINT "PK_portfolio_id" PRIMARY KEY ("id")
+      );
+    `);
+
+    for (const table of ALL_CATALOGS) {
+      await queryRunner.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS "uq_${table}_name_lower" ON "${table}" (LOWER("name"));`,
+      );
+    }
   }
 
-  async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropTable('CLIENT_POTENTIAL');
-
-    for (const [tableName] of [...catalogTables].reverse()) {
-      await queryRunner.dropTable(tableName);
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    for (const table of [...ALL_CATALOGS].reverse()) {
+      await queryRunner.query(`DROP TABLE IF EXISTS "${table}";`);
     }
   }
 }
