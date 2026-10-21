@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { CreateUserUseCase } from './create-user.use-case.js';
 import { UserRepository } from '../../domain/ports/user.repository.js';
-import { User } from '../../domain/entities/user.entity.js';
+import { User, UserProps } from '../../domain/entities/user.entity.js';
 import { AuthServicePort } from '../../../auth/domain/ports/auth-service.port.js';
 import { AuthUser } from '../../../auth/domain/entities/auth-user.entity.js';
 import { AuthSession } from '../../../auth/domain/entities/auth-session.entity.js';
@@ -10,6 +10,31 @@ import {
   ConflictError,
   ValidationError,
 } from '../../../../shared/domain/errors/index.js';
+import {
+  AdvisorProfilePort,
+  AdvisorStatus,
+} from '../ports/advisor-profile.port.js';
+
+function createAdvisorProfiles(): AdvisorProfilePort {
+  return {
+    save: vi.fn().mockResolvedValue(undefined),
+    deactivate: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
+function copyUser(user: User, changes: Partial<UserProps>): User {
+  return new User({
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    isActive: user.isActive,
+    emailVerified: user.emailVerified,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    ...changes,
+  });
+}
 
 describe('CreateUserUseCase', () => {
   const dummyAuthUser = new AuthUser({
@@ -60,7 +85,11 @@ describe('CreateUserUseCase', () => {
       }),
     };
 
-    const useCase = new CreateUserUseCase(userRepository, authService);
+    const useCase = new CreateUserUseCase(
+      userRepository,
+      authService,
+      createAdvisorProfiles(),
+    );
     const result = await useCase.execute({
       name: 'New Advisor',
       email: 'newuser@example.com',
@@ -94,7 +123,11 @@ describe('CreateUserUseCase', () => {
       signUpEmail: vi.fn(),
     };
 
-    const useCase = new CreateUserUseCase(userRepository, authService);
+    const useCase = new CreateUserUseCase(
+      userRepository,
+      authService,
+      createAdvisorProfiles(),
+    );
 
     await expect(
       useCase.execute({
@@ -122,7 +155,11 @@ describe('CreateUserUseCase', () => {
       signUpEmail: vi.fn(),
     };
 
-    const useCase = new CreateUserUseCase(userRepository, authService);
+    const useCase = new CreateUserUseCase(
+      userRepository,
+      authService,
+      createAdvisorProfiles(),
+    );
 
     await expect(
       useCase.execute({
@@ -132,5 +169,79 @@ describe('CreateUserUseCase', () => {
         role: UserRole.Advisor,
       }),
     ).rejects.toThrow(ConflictError);
+  });
+
+  describe('advisor record', () => {
+    function createRepository(user: User): UserRepository {
+      return {
+        findAll: vi.fn(),
+        findById: vi.fn().mockResolvedValue(user),
+        findByEmail: vi.fn().mockResolvedValue(null),
+        countActiveAdmins: vi.fn(),
+        update: vi.fn(),
+      };
+    }
+
+    function createAuthService(): AuthServicePort {
+      return {
+        signInEmail: vi.fn(),
+        signOut: vi.fn(),
+        verifySession: vi.fn(),
+        signUpEmail: vi.fn().mockResolvedValue({
+          user: dummyAuthUser,
+          session: new AuthSession({
+            id: 'sess-1',
+            token: 'token-1',
+            userId: 'user-new',
+            expiresAt: new Date(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }),
+          token: 'token-1',
+        }),
+      };
+    }
+
+    it('creates the advisor record when the new user is an advisor', async () => {
+      const advisorProfiles = createAdvisorProfiles();
+      const useCase = new CreateUserUseCase(
+        createRepository(dummyUser),
+        createAuthService(),
+        advisorProfiles,
+      );
+
+      await useCase.execute({
+        name: 'New Advisor',
+        email: 'newuser@example.com',
+        password: 'StrongPassword123!',
+        role: UserRole.Advisor,
+      });
+
+      expect(advisorProfiles.save).toHaveBeenCalledWith({
+        userId: 'user-new',
+        name: 'New Advisor',
+        email: 'newuser@example.com',
+        status: AdvisorStatus.Active,
+      });
+    });
+
+    it('does not touch the advisor table for other roles', async () => {
+      const advisorProfiles = createAdvisorProfiles();
+      const useCase = new CreateUserUseCase(
+        createRepository(copyUser(dummyUser, { role: UserRole.Director })),
+        createAuthService(),
+        advisorProfiles,
+      );
+
+      await useCase.execute({
+        name: 'New Director',
+        email: 'newuser@example.com',
+        password: 'StrongPassword123!',
+        role: UserRole.Director,
+      });
+
+      expect(advisorProfiles.save).not.toHaveBeenCalled();
+      expect(advisorProfiles.deactivate).not.toHaveBeenCalled();
+    });
   });
 });

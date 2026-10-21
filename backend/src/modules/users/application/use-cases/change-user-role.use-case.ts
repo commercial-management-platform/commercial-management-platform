@@ -1,6 +1,8 @@
 import { UserRepository } from '../../domain/ports/user.repository.js';
 import { User } from '../../domain/entities/user.entity.js';
 import { UserRole } from '../../../auth/domain/types/user-role.enum.js';
+import { AdvisorProfilePort } from '../ports/advisor-profile.port.js';
+import { syncAdvisorProfile } from '../advisor-profile.sync.js';
 import {
   ConflictError,
   NotFoundError,
@@ -13,7 +15,10 @@ export interface ChangeUserRoleCommand {
 }
 
 export class ChangeUserRoleUseCase {
-  constructor(private readonly userRepository: UserRepository) {}
+  constructor(
+    private readonly userRepository: UserRepository,
+    private readonly advisorProfiles: AdvisorProfilePort,
+  ) {}
 
   async execute(command: ChangeUserRoleCommand): Promise<User> {
     if (!command.id || command.id.trim().length === 0) {
@@ -39,8 +44,13 @@ export class ChangeUserRoleUseCase {
       }
     }
 
-    return this.userRepository.update(command.id, {
+    const updatedUser = await this.userRepository.update(command.id, {
       role: command.role,
     });
+
+    // Advisor records are kept (inactive) when the role changes: routes and visits reference them.
+    await syncAdvisorProfile(this.advisorProfiles, updatedUser);
+
+    return updatedUser;
   }
 }

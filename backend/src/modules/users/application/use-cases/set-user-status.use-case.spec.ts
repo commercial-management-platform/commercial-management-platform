@@ -1,13 +1,38 @@
 import { describe, expect, it, vi } from 'vitest';
 import { SetUserStatusUseCase } from './set-user-status.use-case.js';
 import { UserRepository } from '../../domain/ports/user.repository.js';
-import { User } from '../../domain/entities/user.entity.js';
+import { User, UserProps } from '../../domain/entities/user.entity.js';
 import { UserRole } from '../../../auth/domain/types/user-role.enum.js';
 import {
   ConflictError,
   NotFoundError,
   ValidationError,
 } from '../../../../shared/domain/errors/index.js';
+import {
+  AdvisorProfilePort,
+  AdvisorStatus,
+} from '../ports/advisor-profile.port.js';
+
+function createAdvisorProfiles(): AdvisorProfilePort {
+  return {
+    save: vi.fn().mockResolvedValue(undefined),
+    deactivate: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
+function copyUser(user: User, changes: Partial<UserProps>): User {
+  return new User({
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    isActive: user.isActive,
+    emailVerified: user.emailVerified,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    ...changes,
+  });
+}
 
 describe('SetUserStatusUseCase', () => {
   const dummyAdvisor = new User({
@@ -52,7 +77,10 @@ describe('SetUserStatusUseCase', () => {
       update: vi.fn().mockResolvedValue(deactivatedUser),
     };
 
-    const useCase = new SetUserStatusUseCase(userRepository);
+    const useCase = new SetUserStatusUseCase(
+      userRepository,
+      createAdvisorProfiles(),
+    );
     const result = await useCase.execute({
       id: 'user-advisor',
       isActive: false,
@@ -84,7 +112,10 @@ describe('SetUserStatusUseCase', () => {
       update: vi.fn().mockResolvedValue(deactivatedAdmin),
     };
 
-    const useCase = new SetUserStatusUseCase(userRepository);
+    const useCase = new SetUserStatusUseCase(
+      userRepository,
+      createAdvisorProfiles(),
+    );
     const result = await useCase.execute({
       id: 'user-admin',
       isActive: false,
@@ -102,7 +133,10 @@ describe('SetUserStatusUseCase', () => {
       update: vi.fn(),
     };
 
-    const useCase = new SetUserStatusUseCase(userRepository);
+    const useCase = new SetUserStatusUseCase(
+      userRepository,
+      createAdvisorProfiles(),
+    );
 
     await expect(
       useCase.execute({
@@ -145,7 +179,10 @@ describe('SetUserStatusUseCase', () => {
       update: vi.fn().mockResolvedValue(activatedAdmin),
     };
 
-    const useCase = new SetUserStatusUseCase(userRepository);
+    const useCase = new SetUserStatusUseCase(
+      userRepository,
+      createAdvisorProfiles(),
+    );
     const result = await useCase.execute({
       id: 'user-admin-2',
       isActive: true,
@@ -163,7 +200,10 @@ describe('SetUserStatusUseCase', () => {
       update: vi.fn(),
     };
 
-    const useCase = new SetUserStatusUseCase(userRepository);
+    const useCase = new SetUserStatusUseCase(
+      userRepository,
+      createAdvisorProfiles(),
+    );
 
     await expect(
       useCase.execute({
@@ -171,5 +211,43 @@ describe('SetUserStatusUseCase', () => {
         isActive: false,
       }),
     ).rejects.toThrow(NotFoundError);
+  });
+
+  describe('advisor record', () => {
+    const activeAdvisor = new User({
+      id: 'user-advisor',
+      name: 'Advisor User',
+      email: 'advisor@example.com',
+      role: UserRole.Advisor,
+      isActive: true,
+      emailVerified: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    it('marks the advisor record inactive when the account is deactivated', async () => {
+      const userRepository: UserRepository = {
+        findAll: vi.fn(),
+        findById: vi.fn().mockResolvedValue(activeAdvisor),
+        findByEmail: vi.fn(),
+        countActiveAdmins: vi.fn(),
+        update: vi
+          .fn()
+          .mockResolvedValue(copyUser(activeAdvisor, { isActive: false })),
+      };
+      const advisorProfiles = createAdvisorProfiles();
+
+      await new SetUserStatusUseCase(userRepository, advisorProfiles).execute({
+        id: 'user-advisor',
+        isActive: false,
+      });
+
+      expect(advisorProfiles.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-advisor',
+          status: AdvisorStatus.Inactive,
+        }),
+      );
+    });
   });
 });
