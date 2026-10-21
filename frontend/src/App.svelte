@@ -13,10 +13,22 @@
   import AssignedRoutes from './pages/routes/AssignedRoutes.svelte'
   import CreateRoute from './pages/routes/CreateRoute.svelte'
 
+  import { onMount } from 'svelte'
+  import KestrelLogo from './lib/components/KestrelLogo.svelte'
+  import Toasts from './lib/components/Toasts.svelte'
+
   const pending: Partial<Record<Route, string>> = {}
+
+  // Si hay una sesión guardada, se confirma con el backend antes de mostrar la app.
+  onMount(() => session.verify())
 </script>
 
-{#if session.current}
+{#if session.status === 'checking'}
+  <div class="splash" role="status" aria-live="polite">
+    <KestrelLogo size={52} showWordmark={false} />
+    <p>Verificando tu sesión…</p>
+  </div>
+{:else if session.current}
   <AppShell>
     {#if router.route === 'dashboard'}
       <Dashboard />
@@ -42,3 +54,28 @@
   <!-- Tras iniciar sesión se queda en la ruta pedida (enlaces directos), o el dashboard por defecto. -->
   <Login onSuccess={(s) => session.signIn(s)} />
 {/if}
+
+<!-- Fuera del layout para que los avisos (p. ej. "sesión expirada") se vean también en el login. -->
+<Toasts />
+
+<style>
+  .splash {
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 16px;
+    min-height: 100vh;
+    color: var(--text-secondary);
+  }
+
+  .splash :global(.mark) {
+    animation: breathe 1.4s ease-in-out infinite;
+  }
+
+  @keyframes breathe {
+    50% {
+      transform: scale(0.92);
+      opacity: 0.7;
+    }
+  }
+</style>
