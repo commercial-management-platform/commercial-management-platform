@@ -7,5 +7,6 @@ export type CatalogName =
   | 'client_status';
 
 export interface CatalogValidatorPort {
+  /** True when `id` exists in `catalog` and can be assigned (it is active). */
   exists(catalog: CatalogName, id: number): Promise<boolean>;
 }

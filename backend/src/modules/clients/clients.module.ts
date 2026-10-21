@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module.js';
+import { CatalogsModule } from '../catalogs/catalogs.module.js';
 import {
   ADVISOR_CLIENT_ACCESS,
   type AdvisorClientAccessPort,
@@ -22,7 +23,7 @@ import {
   CLIENT_REPOSITORY,
   type ClientRepository,
 } from './domain/repositories/client.repository.js';
-import { DeferredCatalogValidatorAdapter } from './infrastructure/adapters/deferred-catalog-validator.adapter.js';
+import { CatalogLookupValidatorAdapter } from './infrastructure/adapters/catalog-lookup-validator.adapter.js';
 import { PendingActivityLogAdapter } from './infrastructure/adapters/pending-activity-log.adapter.js';
 import { TypeOrmAdvisorClientAccessAdapter } from './infrastructure/adapters/typeorm-advisor-client-access.adapter.js';
 import { ClientOrmEntity } from './infrastructure/persistence/entities/client.orm-entity.js';
@@ -33,18 +34,24 @@ import { ClientsController } from './presentation/clients.controller.js';
  * Composition root of the clients module (HU-03). It is the only file that
  * knows every layer: each port is wired to its infrastructure adapter.
  *
+ * CATALOG_VALIDATOR uses the catalog lookup exported by CatalogsModule
+ * (HU-05): only active catalog entries can be assigned.
+ *
  * Deferred adapters until other stories are merged:
- * - CATALOG_VALIDATOR → HU-05 (catalogs), shape check only for now.
  * - ADVISOR_CLIENT_ACCESS → HU-07 (advisors/routes), denies every advisor
  *   until those tables exist.
  * - ACTIVITY_LOG → HU-16 (activity log), no-op for now.
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([ClientOrmEntity]), AuthModule],
+  imports: [
+    TypeOrmModule.forFeature([ClientOrmEntity]),
+    AuthModule,
+    CatalogsModule,
+  ],
   controllers: [ClientsController],
   providers: [
     { provide: CLIENT_REPOSITORY, useClass: TypeOrmClientRepository },
-    { provide: CATALOG_VALIDATOR, useClass: DeferredCatalogValidatorAdapter },
+    { provide: CATALOG_VALIDATOR, useClass: CatalogLookupValidatorAdapter },
     {
       provide: ADVISOR_CLIENT_ACCESS,
       useClass: TypeOrmAdvisorClientAccessAdapter,
