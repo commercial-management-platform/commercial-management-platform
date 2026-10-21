@@ -80,11 +80,18 @@ export class UpdateClientUseCase {
       data.businessName = businessName;
     }
 
+    // Only ids that change are checked, so a client keeps a catalog entry
+    // that was deactivated after it was assigned.
+    const changed = (id: number | null | undefined, current: number | null) =>
+      id === current ? undefined : id;
     await assertCatalogsExist(this.catalogs, {
-      zone: data.zoneId,
-      client_type: data.clientTypeId,
-      client_potential: data.clientPotentialId,
-      client_status: data.clientStatusId,
+      zone: changed(data.zoneId, client.zoneId),
+      client_type: changed(data.clientTypeId, client.clientTypeId),
+      client_potential: changed(
+        data.clientPotentialId,
+        client.clientPotentialId,
+      ),
+      client_status: changed(data.clientStatusId, client.clientStatusId),
     });
 
     const updated = await this.clients.update(input.clientId, data);

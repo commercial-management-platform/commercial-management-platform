@@ -1,7 +1,8 @@
 import type { DataSource } from 'typeorm';
 import dataSource from '../../config/data-source.js';
-import { clientsSeed } from './clients.seed.js';
 import { usersSeed } from './users.seed.js';
+import { catalogsSeed } from './catalogs.seed.js';
+import { clientsSeed } from './clients.seed.js';
 
 export interface Seed {
   name: string;
@@ -9,7 +10,7 @@ export interface Seed {
 }
 
 /** Seeds run in this order. Catalogs are added here by their user stories. */
-const seeds: Seed[] = [usersSeed, clientsSeed];
+const seeds: Seed[] = [usersSeed, catalogsSeed, clientsSeed];
 
 async function runSeeds(): Promise<void> {
   await dataSource.initialize();
