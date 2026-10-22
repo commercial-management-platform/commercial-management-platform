@@ -4,6 +4,8 @@ import {
   businessDayRange,
   businessToday,
   businessWeekRange,
+  isoWeekNumber,
+  weekdayOf,
 } from './business-time.js';
 
 describe('business time (America/Bogota, UTC-05:00)', () => {
@@ -102,6 +104,33 @@ describe('business time (America/Bogota, UTC-05:00)', () => {
 
       expect(range.start.toISOString()).toBe('2026-12-28T05:00:00.000Z');
       expect(range.end.toISOString()).toBe('2027-01-04T05:00:00.000Z');
+    });
+  });
+
+  describe('weekdayOf', () => {
+    it.each([
+      ['2026-10-19', 'Monday'],
+      ['2026-10-22', 'Thursday'],
+      ['2026-10-25', 'Sunday'],
+    ])('names %s as %s', (date, expected) => {
+      expect(weekdayOf(date)).toBe(expected);
+    });
+  });
+
+  describe('isoWeekNumber', () => {
+    it.each([
+      // 2026-01-01 is a Thursday: ISO week 1 of 2026 includes it.
+      ['2026-01-01', 1],
+      ['2026-10-19', 43],
+      ['2026-10-25', 43],
+      // 2026-12-31 is a Thursday, so it belongs to ISO week 53 of 2026.
+      ['2026-12-31', 53],
+      // 2027-01-01 is a Friday in the same ISO week as 2026-12-31.
+      ['2027-01-01', 53],
+      // 2027-01-04 is a Monday: the first week of ISO 2027.
+      ['2027-01-04', 1],
+    ])('computes week %2$s for %s', (date, expected) => {
+      expect(isoWeekNumber(date)).toBe(expected);
     });
   });
 });

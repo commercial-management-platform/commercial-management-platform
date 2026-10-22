@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -28,17 +29,25 @@ import { AuthGuard } from '../../auth/infrastructure/guards/auth.guard.js';
 import { RolesGuard } from '../../auth/infrastructure/guards/roles.guard.js';
 import { CancelVisitUseCase } from '../application/cancel-visit.use-case.js';
 import { GetVisitAgendaUseCase } from '../application/get-visit-agenda.use-case.js';
+import { GetVisitFormUseCase } from '../application/get-visit-form.use-case.js';
 import { GetVisitUseCase } from '../application/get-visit.use-case.js';
 import { ListVisitsUseCase } from '../application/list-visits.use-case.js';
+import { RecordVisitOutcomeUseCase } from '../application/record-visit-outcome.use-case.js';
 import { RescheduleVisitUseCase } from '../application/reschedule-visit.use-case.js';
 import { ScheduleVisitUseCase } from '../application/schedule-visit.use-case.js';
+import { StartVisitUseCase } from '../application/start-visit.use-case.js';
 import type { VisitActor } from '../application/types/visit-actor.js';
 import { ListVisitsQueryDto } from './dtos/list-visits-query.dto.js';
 import { PaginatedVisitsResponseDto } from './dtos/paginated-visits-response.dto.js';
+import { RecordVisitOutcomeDto } from './dtos/record-visit-outcome.dto.js';
 import { RescheduleVisitDto } from './dtos/reschedule-visit.dto.js';
 import { ScheduleVisitDto } from './dtos/schedule-visit.dto.js';
+import { StartVisitDto } from './dtos/start-visit.dto.js';
+import { StartVisitResponseDto } from './dtos/start-visit-response.dto.js';
 import { VisitAgendaEntryResponseDto } from './dtos/visit-agenda-response.dto.js';
 import { VisitAgendaQueryDto } from './dtos/visit-agenda-query.dto.js';
+import { VisitFormResponseDto } from './dtos/visit-form-response.dto.js';
+import { VisitOutcomeResponseDto } from './dtos/visit-outcome-response.dto.js';
 import { VisitResponseDto } from './dtos/visit-response.dto.js';
 
 function toActor(user: AuthUser): VisitActor {
@@ -58,6 +67,9 @@ export class VisitsController {
     private readonly getVisit: GetVisitUseCase,
     private readonly rescheduleVisit: RescheduleVisitUseCase,
     private readonly cancelVisit: CancelVisitUseCase,
+    private readonly getVisitForm: GetVisitFormUseCase,
+    private readonly startVisit: StartVisitUseCase,
+    private readonly recordVisitOutcome: RecordVisitOutcomeUseCase,
   ) {}
 
   @Post()
@@ -168,5 +180,87 @@ export class VisitsController {
   ): Promise<VisitResponseDto> {
     const visit = await this.cancelVisit.execute(id);
     return VisitResponseDto.fromDomain(visit);
+  }
+
+  @Get(':id/form')
+  @Roles(UserRole.Advisor)
+  @ApiOperation({
+    summary:
+      "Pre-filled data for the advisor's visit form (advisor only, their own visit)",
+  })
+  @ApiOkResponse({ type: VisitFormResponseDto })
+  @ApiBadRequestResponse({ description: 'The id is not a number' })
+  @ApiForbiddenResponse({ description: 'Admin and director do not start visits' })
+  @ApiNotFoundResponse({ description: 'Visit does not exist or not visible' })
+  async form(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ): Promise<VisitFormResponseDto> {
+    const form = await this.getVisitForm.execute(toActor(user), id);
+    return VisitFormResponseDto.fromDomain(form);
+  }
+
+  @Post(':id/start')
+  @Roles(UserRole.Advisor)
+  @ApiOperation({
+    summary:
+      'Start a scheduled visit, the day it is due (advisor only, their own visit). The backend alone confirms the location',
+  })
+  @ApiOkResponse({ type: StartVisitResponseDto })
+  @ApiBadRequestResponse({
+    description:
+      'The visit is not scheduled, is not due today, or only one of latitude/longitude was sent',
+  })
+  @ApiForbiddenResponse({ description: 'Admin and director do not start visits' })
+  @ApiNotFoundResponse({ description: 'Visit does not exist or not visible' })
+  async start(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: StartVisitDto,
+    @CurrentUser() user: AuthUser,
+  ): Promise<StartVisitResponseDto> {
+    if ((dto.latitude === undefined) !== (dto.longitude === undefined)) {
+      throw new BadRequestException(
+        'latitude and longitude must be sent together',
+      );
+    }
+    const visit = await this.startVisit.execute(toActor(user), id, {
+      latitude: dto.latitude ?? null,
+      longitude: dto.longitude ?? null,
+    });
+    return StartVisitResponseDto.fromStart(
+      visit,
+      this.startVisit.checkInRadiusMeters,
+    );
+  }
+
+  @Post(':id/outcome')
+  @Roles(UserRole.Advisor)
+  @ApiOperation({
+    summary: 'Record the outcome of a visit (advisor only, their own visit)',
+  })
+  @ApiOkResponse({ type: VisitOutcomeResponseDto })
+  @ApiBadRequestResponse({
+    description:
+      'Invalid input, the visit is not scheduled or not due today, an unknown/inactive catalog id, or finishedAt before startedAt',
+  })
+  @ApiForbiddenResponse({ description: 'Admin and director do not record outcomes' })
+  @ApiNotFoundResponse({ description: 'Visit does not exist or not visible' })
+  async outcome(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: RecordVisitOutcomeDto,
+    @CurrentUser() user: AuthUser,
+  ): Promise<VisitOutcomeResponseDto> {
+    const result = await this.recordVisitOutcome.execute(toActor(user), id, {
+      visitObjectiveId: dto.visitObjectiveId,
+      visitTypeId: dto.visitTypeId,
+      visitResultId: dto.visitResultId,
+      interestLevel: dto.interestLevel,
+      interestReason: dto.interestReason ?? null,
+      observation: dto.observation,
+      competitorMentioned: dto.competitorMentioned ?? null,
+      startedAt: dto.startedAt ? new Date(dto.startedAt) : null,
+      finishedAt: dto.finishedAt ? new Date(dto.finishedAt) : null,
+    });
+    return VisitOutcomeResponseDto.fromOutcome(result);
   }
 }

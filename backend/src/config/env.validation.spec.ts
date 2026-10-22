@@ -64,7 +64,7 @@ describe('validateEnv', () => {
     expect(env.DB_SSL).toBe(true);
   });
 
-  it('applies defaults for NODE_ENV, PORT and DB_SSL', () => {
+  it('applies defaults for NODE_ENV, PORT, DB_SSL and VISIT_CHECKIN_RADIUS_METERS', () => {
     const required: Record<string, string> = { ...validEnv };
     delete required.NODE_ENV;
     delete required.PORT;
@@ -75,7 +75,24 @@ describe('validateEnv', () => {
     expect(env.NODE_ENV).toBe(NodeEnvironment.Development);
     expect(env.PORT).toBe(3000);
     expect(env.DB_SSL).toBe(false);
+    expect(env.VISIT_CHECKIN_RADIUS_METERS).toBe(15);
   });
+
+  it('reads a custom VISIT_CHECKIN_RADIUS_METERS', () => {
+    expect(
+      validateEnv({ ...validEnv, VISIT_CHECKIN_RADIUS_METERS: '25' })
+        .VISIT_CHECKIN_RADIUS_METERS,
+    ).toBe(25);
+  });
+
+  it.each(['0', '-5', 'abc'])(
+    'fails when VISIT_CHECKIN_RADIUS_METERS is invalid (%s)',
+    (value) => {
+      expect(() =>
+        validateEnv({ ...validEnv, VISIT_CHECKIN_RADIUS_METERS: value }),
+      ).toThrow(/Invalid environment variables/);
+    },
+  );
 
   it('reads DB_SSL="false" as false', () => {
     expect(validateEnv({ ...validEnv, DB_SSL: 'false' }).DB_SSL).toBe(false);
