@@ -5,6 +5,7 @@ import type { AdvisorClientAccessPort } from '../../../clients/application/ports
 import type { ActivityLogPort } from '../../../clients/application/ports/activity-log.port.js';
 import { findVisibleClient } from '../client-visibility.js';
 import {
+  assertContactMethod,
   normalizeEmail,
   normalizeJobTitle,
   normalizeName,
@@ -48,15 +49,22 @@ export class CreateContactUseCase {
       input.clientId,
     );
 
+    const name = normalizeName(input.name);
+    const jobTitle = normalizeJobTitle(input.jobTitle);
+    const phone = normalizePhone(input.phone, 'phone');
+    const mobile = normalizePhone(input.mobile, 'mobile');
+    const email = normalizeEmail(input.email);
+    assertContactMethod({ phone, mobile, email });
+
     const contact = await this.contacts.save(
       new Contact({
         id: null,
         clientId: input.clientId,
-        name: normalizeName(input.name),
-        jobTitle: normalizeJobTitle(input.jobTitle),
-        phone: normalizePhone(input.phone, 'phone'),
-        mobile: normalizePhone(input.mobile, 'mobile'),
-        email: normalizeEmail(input.email),
+        name,
+        jobTitle,
+        phone,
+        mobile,
+        email,
         isPrimary: input.isPrimary === true,
         active: true,
         createdAt: null,

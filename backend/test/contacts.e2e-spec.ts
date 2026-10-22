@@ -554,7 +554,7 @@ describe('Client contacts (HU-04) - e2e', () => {
       await request(context.app.getHttpServer())
         .post('/api/clients/1/contacts')
         .set('Authorization', 'Bearer token_director')
-        .send({ name: 'Carlos Ramírez' })
+        .send({ name: 'Carlos Ramírez', mobile: '3205551234' })
         .expect(201);
     });
 
@@ -569,6 +569,25 @@ describe('Client contacts (HU-04) - e2e', () => {
 
       expect(response.body).toMatchObject({ statusCode: 400 });
       expect(context.activityLog.entries).toHaveLength(0);
+    });
+
+    it('rejects a contact without phone, mobile or email with 400', async () => {
+      context = await createTestApp();
+
+      const response = await request(context.app.getHttpServer())
+        .post('/api/clients/1/contacts')
+        .set('Authorization', 'Bearer token_admin')
+        .send({ name: 'Carlos Ramírez', jobTitle: 'Jefe de Bodega' })
+        .expect(400);
+
+      expect(response.body).toMatchObject({ statusCode: 400 });
+      expect(context.activityLog.entries).toHaveLength(0);
+
+      const list = await request(context.app.getHttpServer())
+        .get('/api/clients/1/contacts')
+        .set('Authorization', 'Bearer token_admin')
+        .expect(200);
+      expect(list.body).toHaveLength(0);
     });
 
     it('rejects an invalid email or phone with 400', async () => {
@@ -652,7 +671,7 @@ describe('Client contacts (HU-04) - e2e', () => {
       await request(context.app.getHttpServer())
         .post('/api/clients/2/contacts')
         .set('Authorization', 'Bearer token_admin')
-        .send({ name: 'Pedro Torres' })
+        .send({ name: 'Pedro Torres', email: 'pedro.torres@example.com' })
         .expect(201);
 
       const first = await request(context.app.getHttpServer())
@@ -783,6 +802,44 @@ describe('Client contacts (HU-04) - e2e', () => {
       );
       expect(entry).toBeDefined();
       expect(entry?.clientId).toBe(1);
+    });
+
+    it('rejects an update that leaves the contact without phone, mobile or email with 400', async () => {
+      context = await createTestApp();
+      const id = await createContact(context);
+
+      await request(context.app.getHttpServer())
+        .patch(`/api/clients/1/contacts/${id}`)
+        .set('Authorization', 'Bearer token_admin')
+        .send({ phone: null, mobile: null, email: null })
+        .expect(400);
+
+      const response = await request(context.app.getHttpServer())
+        .get(`/api/clients/1/contacts/${id}`)
+        .set('Authorization', 'Bearer token_admin')
+        .expect(200);
+      expect(response.body).toMatchObject({
+        phone: '6015551234',
+        mobile: '3105551234',
+        email: 'compras@distribuidoraandina.co',
+      });
+    });
+
+    it('allows an update that keeps at least one contact method', async () => {
+      context = await createTestApp();
+      const id = await createContact(context);
+
+      const response = await request(context.app.getHttpServer())
+        .patch(`/api/clients/1/contacts/${id}`)
+        .set('Authorization', 'Bearer token_admin')
+        .send({ phone: null, mobile: null })
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        phone: null,
+        mobile: null,
+        email: 'compras@distribuidoraandina.co',
+      });
     });
 
     it('rejects an unknown field with 400', async () => {

@@ -135,6 +135,7 @@ describe('CreateContactUseCase', () => {
       actor,
       clientId: 7,
       name: 'María Fernanda Gómez',
+      email: 'compras@distribuidoraandina.co',
       isPrimary: true,
     });
 
@@ -195,6 +196,48 @@ describe('CreateContactUseCase', () => {
       useCase.execute({ actor, clientId: 7, name: '   ' }),
     ).rejects.toThrow(ValidationError);
     expect(contacts.save).not.toHaveBeenCalled();
+  });
+
+  it('throws ValidationError when no contact method is given', async () => {
+    const contacts = createContactRepositoryFixture();
+    const useCase = new CreateContactUseCase(
+      createClientRepositoryFixture(),
+      contacts,
+      createAdvisorAccessFixture(),
+      createActivityLogFixture(),
+    );
+
+    await expect(
+      useCase.execute({
+        actor,
+        clientId: 7,
+        name: 'María Fernanda Gómez',
+        phone: '  ',
+        email: null,
+      }),
+    ).rejects.toThrow(ValidationError);
+    expect(contacts.save).not.toHaveBeenCalled();
+  });
+
+  it('creates the contact with a single contact method', async () => {
+    const contacts = createContactRepositoryFixture();
+    const useCase = new CreateContactUseCase(
+      createClientRepositoryFixture(),
+      contacts,
+      createAdvisorAccessFixture(),
+      createActivityLogFixture(),
+    );
+
+    await useCase.execute({
+      actor,
+      clientId: 7,
+      name: 'María Fernanda Gómez',
+      mobile: '3105551234',
+    });
+
+    expect(contacts.save).toHaveBeenCalledWith(
+      expect.objectContaining({ mobile: '3105551234', phone: null, email: null }),
+    );
   });
 
   it('throws ValidationError for an invalid email or phone', async () => {

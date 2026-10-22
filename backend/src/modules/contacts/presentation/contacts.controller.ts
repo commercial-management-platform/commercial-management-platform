@@ -67,7 +67,10 @@ export class ContactsController {
     type: ContactResponseDto,
     description: 'Contact created successfully',
   })
-  @ApiBadRequestResponse({ description: 'Validation error on input fields' })
+  @ApiBadRequestResponse({
+    description:
+      'Validation error on input fields, or the contact would have no phone, mobile or email',
+  })
   @ApiNotFoundResponse({ description: 'Client does not exist or not visible' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid session' })
   @ApiForbiddenResponse({
@@ -154,7 +157,10 @@ export class ContactsController {
     description: 'Contact updated successfully',
   })
   @ApiNotFoundResponse({ description: 'Contact does not exist or not visible' })
-  @ApiBadRequestResponse({ description: 'Validation error on input fields' })
+  @ApiBadRequestResponse({
+    description:
+      'Validation error on input fields, or the contact would have no phone, mobile or email',
+  })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid session' })
   @ApiForbiddenResponse({
     description: 'Only admin and director can update contacts',

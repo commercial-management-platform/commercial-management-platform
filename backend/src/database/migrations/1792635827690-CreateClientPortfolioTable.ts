@@ -16,10 +16,10 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * associated to a portfolio only once. The use case checks it first and this
  * index is the guarantee against a race between two concurrent requests.
  */
-export class CreateClientPortfolioTable1761000000002
+export class CreateClientPortfolioTable1792635827690
   implements MigrationInterface
 {
-  name = 'CreateClientPortfolioTable1761000000002';
+  name = 'CreateClientPortfolioTable1792635827690';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`

@@ -15,8 +15,8 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * contact in the same transaction, and this index is the guarantee against a
  * race between two concurrent requests.
  */
-export class CreateContactTable1710000000002 implements MigrationInterface {
-  name = 'CreateContactTable1710000000002';
+export class CreateContactTable1792635551964 implements MigrationInterface {
+  name = 'CreateContactTable1792635551964';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`

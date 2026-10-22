@@ -32,7 +32,7 @@ export class CreateContactDto {
 
   @ApiPropertyOptional({
     example: '6015551234',
-    description: 'Landline phone number',
+    description: 'Landline phone number. At least one of phone, mobile or email is required',
   })
   @IsOptional()
   @IsString()
@@ -44,7 +44,7 @@ export class CreateContactDto {
 
   @ApiPropertyOptional({
     example: '3105551234',
-    description: 'Mobile phone number',
+    description: 'Mobile phone number. At least one of phone, mobile or email is required',
   })
   @IsOptional()
   @IsString()
@@ -56,7 +56,7 @@ export class CreateContactDto {
 
   @ApiPropertyOptional({
     example: 'compras@distribuidoraandina.co',
-    description: 'Email address of the contact',
+    description: 'Email address of the contact. At least one of phone, mobile or email is required',
   })
   @IsOptional()
   @IsEmail()

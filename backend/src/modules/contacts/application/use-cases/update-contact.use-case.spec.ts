@@ -255,6 +255,45 @@ describe('UpdateContactUseCase', () => {
     expect(contacts.update).not.toHaveBeenCalled();
   });
 
+  it('throws ValidationError when the update clears the last contact methods', async () => {
+    const contacts = createContactRepositoryFixture();
+    const useCase = new UpdateContactUseCase(
+      createClientRepositoryFixture(),
+      contacts,
+      createAdvisorAccessFixture(),
+      createActivityLogFixture(),
+    );
+
+    await expect(
+      useCase.execute({
+        actor,
+        clientId: 7,
+        contactId: 3,
+        data: { phone: null, email: '  ' },
+      }),
+    ).rejects.toThrow(ValidationError);
+    expect(contacts.update).not.toHaveBeenCalled();
+  });
+
+  it('allows clearing a contact method while another one remains', async () => {
+    const contacts = createContactRepositoryFixture();
+    const useCase = new UpdateContactUseCase(
+      createClientRepositoryFixture(),
+      contacts,
+      createAdvisorAccessFixture(),
+      createActivityLogFixture(),
+    );
+
+    await useCase.execute({
+      actor,
+      clientId: 7,
+      contactId: 3,
+      data: { phone: null },
+    });
+
+    expect(contacts.update).toHaveBeenCalledWith(3, { phone: null });
+  });
+
   it('throws NotFoundError when the advisor cannot reach the client', async () => {
     const contacts = createContactRepositoryFixture();
     const useCase = new UpdateContactUseCase(
