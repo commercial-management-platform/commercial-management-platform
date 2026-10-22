@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { validateEnv } from './config/env.validation.js';
 import { typeOrmConfig } from './config/typeorm.config.js';
+import { ActivityLogModule } from './modules/activity-log/activity-log.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { CatalogsModule } from './modules/catalogs/catalogs.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
@@ -30,6 +31,7 @@ import { VisitsModule } from './modules/visits/visits.module.js';
     CatalogsModule,
     PortfoliosModule,
     VisitsModule,
+    ActivityLogModule,
   ],
 })
 export class AppModule {}

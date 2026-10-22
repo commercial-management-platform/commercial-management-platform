@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ActivityLogWriterModule } from '../activity-log/activity-log-writer.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { CatalogsModule } from '../catalogs/catalogs.module.js';
 import {
@@ -24,7 +25,6 @@ import {
   type ClientRepository,
 } from './domain/repositories/client.repository.js';
 import { CatalogLookupValidatorAdapter } from './infrastructure/adapters/catalog-lookup-validator.adapter.js';
-import { PendingActivityLogAdapter } from './infrastructure/adapters/pending-activity-log.adapter.js';
 import { TypeOrmAdvisorClientAccessAdapter } from './infrastructure/adapters/typeorm-advisor-client-access.adapter.js';
 import { ClientOrmEntity } from './infrastructure/persistence/entities/client.orm-entity.js';
 import { TypeOrmClientRepository } from './infrastructure/repositories/typeorm-client.repository.js';
@@ -37,16 +37,19 @@ import { ClientsController } from './presentation/clients.controller.js';
  * CATALOG_VALIDATOR uses the catalog lookup exported by CatalogsModule
  * (HU-05): only active catalog entries can be assigned.
  *
+ * ACTIVITY_LOG comes from ActivityLogWriterModule (HU-16), which writes into
+ * activity_log; it is re-exported for contacts and portfolios.
+ *
  * Deferred adapters until other stories are merged:
  * - ADVISOR_CLIENT_ACCESS → HU-07 (advisors/routes), denies every advisor
  *   until those tables exist.
- * - ACTIVITY_LOG → HU-16 (activity log), no-op for now.
  */
 @Module({
   imports: [
     TypeOrmModule.forFeature([ClientOrmEntity]),
     AuthModule,
     CatalogsModule,
+    ActivityLogWriterModule,
   ],
   controllers: [ClientsController],
   providers: [
@@ -56,7 +59,6 @@ import { ClientsController } from './presentation/clients.controller.js';
       provide: ADVISOR_CLIENT_ACCESS,
       useClass: TypeOrmAdvisorClientAccessAdapter,
     },
-    { provide: ACTIVITY_LOG, useClass: PendingActivityLogAdapter },
     {
       provide: CreateClientUseCase,
       inject: [CLIENT_REPOSITORY, CATALOG_VALIDATOR, ACTIVITY_LOG],
@@ -110,7 +112,7 @@ import { ClientsController } from './presentation/clients.controller.js';
     // Exported for the contacts module (HU-04): it needs the advisor
     // visibility and the activity log of the client.
     ADVISOR_CLIENT_ACCESS,
-    ACTIVITY_LOG,
+    ActivityLogWriterModule,
     CreateClientUseCase,
     ListClientsUseCase,
     GetClientByIdUseCase,
