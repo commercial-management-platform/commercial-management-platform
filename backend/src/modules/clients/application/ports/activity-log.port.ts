@@ -8,7 +8,10 @@ export type ClientActivityAction =
   | 'contact.created'
   | 'contact.updated'
   | 'contact.status_changed'
-  | 'contact.primary_changed';
+  | 'contact.primary_changed'
+  // Portfolios of a client (HU-06).
+  | 'client.portfolio_added'
+  | 'client.portfolio_removed';
 
 export interface ActivityLogEntry {
   action: ClientActivityAction;
