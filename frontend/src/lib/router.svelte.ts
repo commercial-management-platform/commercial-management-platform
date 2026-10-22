@@ -40,6 +40,13 @@ class Router {
     const query = params ? `?${new URLSearchParams(params)}` : ''
     location.hash = `/${route}${query}`
   }
+
+  /** Como go(), pero sin dejar la ruta actual en el historial (para redirecciones). */
+  replace(route: Route) {
+    history.replaceState(history.state, '', `#/${route}`)
+    this.route = route
+    this.params = {}
+  }
 }
 
 export const router = new Router()

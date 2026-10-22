@@ -2,6 +2,7 @@
   import AnimatedNumber from "../lib/components/AnimatedNumber.svelte";
   import Icon, { type IconName } from "../lib/components/Icon.svelte";
   import KestrelLogo from "../lib/components/KestrelLogo.svelte";
+  import { can } from "../lib/permissions.svelte";
   import { router, type Route } from "../lib/router.svelte";
   import { dashboard } from "../lib/stores/dashboard.svelte";
   import { session } from "../lib/stores/session.svelte";
@@ -21,25 +22,38 @@
     label: string;
     icon: IconName;
     children?: { route: Route; label: string }[];
+    /** Perfil que ve la opción; sin valor, la ven todos. */
+    only?: "manager" | "advisor";
   }
 
-  const items: NavItem[] = [
+  const allItems: NavItem[] = [
     { route: "dashboard", label: "Dashboard", icon: "home" },
     {
       route: "rutas/crear",
       label: "Planeación de rutas",
       icon: "activity",
+      only: "manager",
       children: [
         { route: "rutas/crear", label: "Creación de rutas" },
         { route: "rutas/asignadas", label: "Rutas asignadas" },
         { route: "rutas/asesores", label: "Asesor asignado" },
       ],
     },
+    // El asesor no planea: solo consulta sus rutas, en un enlace directo.
+    { route: "rutas/asignadas", label: "Mis rutas", icon: "activity", only: "advisor" },
     { route: "clientes", label: "Clientes", icon: "users" },
     { route: "visitas", label: "Visitas", icon: "map-pin" },
     { route: "cotizaciones", label: "Cotizaciones", icon: "file-text" },
     { route: "pedidos", label: "Pedidos", icon: "package" },
   ];
+
+  let items = $derived(
+    allItems.filter(
+      (item) =>
+        !item.only ||
+        (item.only === "manager" ? can.isManager : can.isAdvisor),
+    ),
+  );
 
   const inGroup = (item: NavItem) =>
     !!item.children?.some((c) => c.route === router.route);
