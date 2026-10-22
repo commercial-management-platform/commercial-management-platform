@@ -1,0 +1,1001 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import { Test, TestingModule } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import request from 'supertest';
+import { App } from 'supertest/types.js';
+import { configureApp } from '../src/app.setup.js';
+import { validateEnv } from '../src/config/env.validation.js';
+import {
+  AUTH_SERVICE_PORT,
+  type AuthServicePort,
+} from '../src/modules/auth/domain/ports/auth-service.port.js';
+import { AuthSession } from '../src/modules/auth/domain/entities/auth-session.entity.js';
+import { AuthUser } from '../src/modules/auth/domain/entities/auth-user.entity.js';
+import { UserRole } from '../src/modules/auth/domain/types/user-role.enum.js';
+import { AuthGuard } from '../src/modules/auth/infrastructure/guards/auth.guard.js';
+import { RolesGuard } from '../src/modules/auth/infrastructure/guards/roles.guard.js';
+import { UnauthorizedError } from '../src/shared/domain/errors/index.js';
+import { businessDateTimeToInstant } from '../src/shared/domain/time/business-time.js';
+
+import { CancelVisitUseCase } from '../src/modules/visits/application/cancel-visit.use-case.js';
+import { GenerateRouteVisitsUseCase } from '../src/modules/visits/application/generate-route-visits.use-case.js';
+import { GetVisitAgendaUseCase } from '../src/modules/visits/application/get-visit-agenda.use-case.js';
+import { GetVisitUseCase } from '../src/modules/visits/application/get-visit.use-case.js';
+import { ListVisitsUseCase } from '../src/modules/visits/application/list-visits.use-case.js';
+import {
+  VISIT_REFERENCES,
+  type AdvisorReference,
+  type ClientReference,
+  type RouteClientReference,
+  type RouteReference,
+  type VisitReferencesPort,
+} from '../src/modules/visits/application/ports/visit-references.port.js';
+import { RescheduleVisitUseCase } from '../src/modules/visits/application/reschedule-visit.use-case.js';
+import { ScheduleVisitUseCase } from '../src/modules/visits/application/schedule-visit.use-case.js';
+import { VisitAgendaEntry } from '../src/modules/visits/domain/visit-agenda-entry.js';
+import { VisitStatus } from '../src/modules/visits/domain/visit-status.js';
+import { Visit } from '../src/modules/visits/domain/visit.js';
+import {
+  VISIT_REPOSITORY,
+  type VisitFilterOptions,
+  type VisitRepository,
+} from '../src/modules/visits/domain/visit.repository.js';
+import { RouteVisitsController } from '../src/modules/visits/presentation/route-visits.controller.js';
+import { VisitsController } from '../src/modules/visits/presentation/visits.controller.js';
+
+// ---------------------------------------------------------------------------
+// Fakes
+// ---------------------------------------------------------------------------
+
+function authUser(id: string, role: UserRole): AuthUser {
+  return new AuthUser({
+    id,
+    email: `${id}@cmp.com`,
+    name: id,
+    role,
+    emailVerified: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+}
+
+const adminUser = authUser('usr_admin_1', UserRole.Admin);
+const directorUser = authUser('usr_director_1', UserRole.Director);
+const advisorUser = authUser('usr_advisor_1', UserRole.Advisor);
+
+const TOKEN_BY_USER: Record<string, string> = {
+  [adminUser.id]: 'token_admin',
+  [directorUser.id]: 'token_director',
+  [advisorUser.id]: 'token_advisor',
+};
+
+class InMemoryAuthService implements AuthServicePort {
+  private readonly sessions = new Map<
+    string,
+    { user: AuthUser; session: AuthSession }
+  >();
+
+  constructor(users: AuthUser[]) {
+    for (const user of users) {
+      const token = TOKEN_BY_USER[user.id];
+      const session = new AuthSession({
+        id: `sess_${user.id}`,
+        token,
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 3600 * 1000),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      this.sessions.set(token, { user, session });
+    }
+  }
+
+  async signInEmail(): Promise<never> {
+    throw new UnauthorizedError('Not implemented in this test');
+  }
+
+  async signOut(): Promise<void> {}
+
+  async signUpEmail(): Promise<never> {
+    throw new UnauthorizedError('Not implemented in this test');
+  }
+
+  async verifySession(
+    headersOrToken: Record<string, string | string[] | undefined> | string,
+  ) {
+    let token: string | undefined;
+    if (typeof headersOrToken === 'string') {
+      token = headersOrToken;
+    } else {
+      const authHeader = headersOrToken.authorization;
+      if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+        token = authHeader.slice(7);
+      }
+    }
+    if (!token) return null;
+    return this.sessions.get(token) ?? null;
+  }
+}
+
+/** Advisor fixtures: advisor.id -> betterAuth user id and status. */
+const ADVISORS = new Map<number, AdvisorReference & { userId: string }>([
+  [1, { id: 1, userId: advisorUser.id, active: true }],
+  [2, { id: 2, userId: 'usr_advisor_2', active: true }],
+  [3, { id: 3, userId: 'usr_advisor_3', active: false }],
+]);
+
+/** Client fixtures, with the zone used by the zoneId filter. */
+const CLIENTS = new Map<number, ClientReference & { zoneId: number }>([
+  [1, { id: 1, active: true, zoneId: 1 }],
+  [2, { id: 2, active: true, zoneId: 1 }],
+  [3, { id: 3, active: false, zoneId: 2 }],
+]);
+
+/** Primary active contact, per client; absent clients have none. */
+const CONTACTS = new Map<
+  number,
+  { name: string; phone: string | null; mobile: string | null; email: string | null }
+>([[1, { name: 'Maria Rodriguez', phone: '6011111', mobile: '3001111111', email: 'maria@cliente1.co' }]]);
+
+/** client_potential catalog entry, per client. */
+const POTENTIALS = new Map<number, { id: number; name: string }>([
+  [1, { id: 1, name: 'Alto' }],
+]);
+
+interface RouteFixture extends RouteReference {
+  clients: RouteClientReference[];
+}
+
+/** Route fixtures. Route 10 belongs to the session advisor, 11 is inactive,
+ * 12 belongs to the inactive advisor, 13 has no suggestedStartTime and a
+ * mix of active/inactive clients. */
+const ROUTES = new Map<number, RouteFixture>([
+  [
+    10,
+    {
+      id: 10,
+      advisorId: 1,
+      active: true,
+      suggestedStartTime: '08:00',
+      clients: [
+        { clientId: 1, visitOrder: 1, clientActive: true },
+        { clientId: 2, visitOrder: 2, clientActive: true },
+      ],
+    },
+  ],
+  [
+    11,
+    {
+      id: 11,
+      advisorId: 1,
+      active: false,
+      suggestedStartTime: '08:00',
+      clients: [{ clientId: 1, visitOrder: 1, clientActive: true }],
+    },
+  ],
+  [
+    12,
+    {
+      id: 12,
+      advisorId: 3,
+      active: true,
+      suggestedStartTime: '08:00',
+      clients: [{ clientId: 1, visitOrder: 1, clientActive: true }],
+    },
+  ],
+  [
+    13,
+    {
+      id: 13,
+      advisorId: 1,
+      active: true,
+      suggestedStartTime: null,
+      clients: [
+        { clientId: 1, visitOrder: 1, clientActive: true },
+        { clientId: 3, visitOrder: 2, clientActive: false },
+      ],
+    },
+  ],
+]);
+
+function fakeReferences(): VisitReferencesPort {
+  return {
+    findClient: async (clientId) => CLIENTS.get(clientId) ?? null,
+    findAdvisor: async (advisorId) => ADVISORS.get(advisorId) ?? null,
+    findRoute: async (routeId) => ROUTES.get(routeId) ?? null,
+    isClientOnRoute: async (routeId, clientId) =>
+      ROUTES.get(routeId)?.clients.some((c) => c.clientId === clientId) ??
+      false,
+    findRouteClients: async (routeId) => ROUTES.get(routeId)?.clients ?? [],
+  };
+}
+
+class InMemoryVisitRepository implements VisitRepository {
+  private readonly visits = new Map<number, Visit>();
+  private nextId = 1;
+
+  async findById(id: number): Promise<Visit | null> {
+    const visit = this.visits.get(id);
+    // A fresh copy, like a real repository returns from a query: the use
+    // case can mutate it in place without also mutating what is stored.
+    return visit ? new Visit({ ...visit }) : null;
+  }
+
+  async isAssignedToAdvisorUser(
+    visitId: number,
+    userId: string,
+  ): Promise<boolean> {
+    const visit = this.visits.get(visitId);
+    return !!visit && ADVISORS.get(visit.advisorId)?.userId === userId;
+  }
+
+  async findPage(
+    filter: VisitFilterOptions,
+    page: { page: number; limit: number },
+  ) {
+    const all = [...this.visits.values()].filter((visit) => {
+      if (
+        filter.scheduledWithin &&
+        (visit.scheduledDate < filter.scheduledWithin.start ||
+          visit.scheduledDate >= filter.scheduledWithin.end)
+      ) {
+        return false;
+      }
+      if (filter.advisorId !== undefined && visit.advisorId !== filter.advisorId) {
+        return false;
+      }
+      if (
+        filter.advisorUserId !== undefined &&
+        ADVISORS.get(visit.advisorId)?.userId !== filter.advisorUserId
+      ) {
+        return false;
+      }
+      if (
+        filter.zoneId !== undefined &&
+        CLIENTS.get(visit.clientId)?.zoneId !== filter.zoneId
+      ) {
+        return false;
+      }
+      if (filter.status !== undefined && visit.status !== filter.status) {
+        return false;
+      }
+      return true;
+    });
+    all.sort((a, b) => {
+      const byDate = a.scheduledDate.getTime() - b.scheduledDate.getTime();
+      if (byDate !== 0) return byDate;
+      return (a.visitOrder ?? 0) - (b.visitOrder ?? 0);
+    });
+    const start = (page.page - 1) * page.limit;
+    return { items: all.slice(start, start + page.limit), total: all.length };
+  }
+
+  async findAgenda(
+    userId: string,
+    range: { start: Date; end: Date },
+  ): Promise<VisitAgendaEntry[]> {
+    const advisorId = [...ADVISORS.values()].find((a) => a.userId === userId)?.id;
+    return [...this.visits.values()]
+      .filter(
+        (visit) =>
+          visit.advisorId === advisorId &&
+          visit.scheduledDate >= range.start &&
+          visit.scheduledDate < range.end,
+      )
+      .sort((a, b) => {
+        const byDate = a.scheduledDate.getTime() - b.scheduledDate.getTime();
+        if (byDate !== 0) return byDate;
+        return (a.visitOrder ?? 0) - (b.visitOrder ?? 0);
+      })
+      .map((visit) => {
+        const client = CLIENTS.get(visit.clientId)!;
+        const contact = CONTACTS.get(visit.clientId) ?? null;
+        const potential = POTENTIALS.get(visit.clientId) ?? null;
+        return {
+          id: visit.id!,
+          routeId: visit.routeId,
+          scheduledDate: visit.scheduledDate,
+          visitOrder: visit.visitOrder,
+          actualDate: visit.actualDate,
+          status: visit.status,
+          client: {
+            id: client.id,
+            businessName: `Client ${client.id}`,
+            address: `Address ${client.id}`,
+          },
+          primaryContact: contact,
+          potential,
+        };
+      });
+  }
+
+  async findClientIdsWithScheduledVisit(
+    clientIds: number[],
+    range: { start: Date; end: Date },
+  ): Promise<number[]> {
+    return [...this.visits.values()]
+      .filter(
+        (visit) =>
+          clientIds.includes(visit.clientId) &&
+          visit.status === VisitStatus.Scheduled &&
+          visit.scheduledDate >= range.start &&
+          visit.scheduledDate < range.end,
+      )
+      .map((visit) => visit.clientId);
+  }
+
+  async save(visit: Visit): Promise<Visit> {
+    const saved = new Visit({ ...visit, id: this.nextId++ });
+    this.visits.set(saved.id!, saved);
+    return saved;
+  }
+
+  async saveAll(visits: Visit[]): Promise<Visit[]> {
+    return Promise.all(visits.map((visit) => this.save(visit)));
+  }
+
+  async updateIfStatus(
+    visit: Visit,
+    expected: VisitStatus,
+  ): Promise<Visit | null> {
+    const current = this.visits.get(visit.id!);
+    if (!current || current.status !== expected) return null;
+    this.visits.set(visit.id!, visit);
+    return visit;
+  }
+
+  /** Test helper: seeds a visit directly, bypassing the use cases. */
+  seed(props: {
+    clientId: number;
+    advisorId: number;
+    routeId?: number | null;
+    scheduledDate: Date;
+    visitOrder?: number | null;
+    status?: VisitStatus;
+  }): Visit {
+    const visit = new Visit({
+      id: this.nextId++,
+      clientId: props.clientId,
+      advisorId: props.advisorId,
+      routeId: props.routeId ?? null,
+      scheduledDate: props.scheduledDate,
+      visitOrder: props.visitOrder ?? null,
+      actualDate: null,
+      status: props.status ?? VisitStatus.Scheduled,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    this.visits.set(visit.id!, visit);
+    return visit;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// App factory
+// ---------------------------------------------------------------------------
+
+interface TestContext {
+  app: INestApplication<App>;
+  visits: InMemoryVisitRepository;
+  /** A visit already scheduled for the session advisor (advisor 1), tomorrow. */
+  ownVisit: Visit;
+  /** A visit of another advisor (advisor 2). */
+  otherVisit: Visit;
+}
+
+// A fixed instant far in the future, so the suite never depends on "today".
+const TOMORROW = businessDateTimeToInstant('2099-01-02', '09:00');
+const YESTERDAY = businessDateTimeToInstant('2099-01-01', '09:00');
+
+async function createTestApp(): Promise<TestContext> {
+  const visits = new InMemoryVisitRepository();
+  const ownVisit = visits.seed({
+    clientId: 1,
+    advisorId: 1,
+    scheduledDate: TOMORROW,
+  });
+  const otherVisit = visits.seed({
+    clientId: 2,
+    advisorId: 2,
+    scheduledDate: TOMORROW,
+  });
+
+  const references = fakeReferences();
+
+  const moduleFixture: TestingModule = await Test.createTestingModule({
+    imports: [
+      ConfigModule.forRoot({
+        isGlobal: true,
+        cache: true,
+        validate: validateEnv,
+      }),
+    ],
+    controllers: [VisitsController, RouteVisitsController],
+    providers: [
+      {
+        provide: AUTH_SERVICE_PORT,
+        useValue: new InMemoryAuthService([
+          adminUser,
+          directorUser,
+          advisorUser,
+        ]),
+      },
+      { provide: VISIT_REPOSITORY, useValue: visits },
+      { provide: VISIT_REFERENCES, useValue: references },
+      {
+        provide: ScheduleVisitUseCase,
+        inject: [VISIT_REPOSITORY, VISIT_REFERENCES],
+        useFactory: (r: VisitRepository, p: VisitReferencesPort) =>
+          new ScheduleVisitUseCase(r, p),
+      },
+      {
+        provide: GenerateRouteVisitsUseCase,
+        inject: [VISIT_REPOSITORY, VISIT_REFERENCES],
+        useFactory: (r: VisitRepository, p: VisitReferencesPort) =>
+          new GenerateRouteVisitsUseCase(r, p),
+      },
+      {
+        provide: ListVisitsUseCase,
+        inject: [VISIT_REPOSITORY],
+        useFactory: (r: VisitRepository) => new ListVisitsUseCase(r),
+      },
+      {
+        provide: GetVisitAgendaUseCase,
+        inject: [VISIT_REPOSITORY],
+        useFactory: (r: VisitRepository) => new GetVisitAgendaUseCase(r),
+      },
+      {
+        provide: GetVisitUseCase,
+        inject: [VISIT_REPOSITORY],
+        useFactory: (r: VisitRepository) => new GetVisitUseCase(r),
+      },
+      {
+        provide: RescheduleVisitUseCase,
+        inject: [VISIT_REPOSITORY],
+        useFactory: (r: VisitRepository) => new RescheduleVisitUseCase(r),
+      },
+      {
+        provide: CancelVisitUseCase,
+        inject: [VISIT_REPOSITORY],
+        useFactory: (r: VisitRepository) => new CancelVisitUseCase(r),
+      },
+      AuthGuard,
+      RolesGuard,
+    ],
+  }).compile();
+
+  const app = moduleFixture.createNestApplication<INestApplication<App>>();
+  configureApp(app);
+  await app.init();
+
+  return { app, visits, ownVisit, otherVisit };
+}
+
+const validSchedule = {
+  clientId: 1,
+  advisorId: 1,
+  scheduledDate: '2099-01-02T09:00:00-05:00',
+};
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('Visit scheduling and agenda (HU-08) - e2e', () => {
+  let context: TestContext;
+
+  afterEach(async () => {
+    if (context?.app) {
+      await context.app.close();
+    }
+  });
+
+  describe('Authentication', () => {
+    it.each([
+      ['get', '/api/visits'],
+      ['post', '/api/visits'],
+      ['get', '/api/visits/1'],
+      ['get', '/api/visits/agenda'],
+      ['patch', '/api/visits/1/reschedule'],
+      ['patch', '/api/visits/1/cancel'],
+      ['post', '/api/routes/10/visits'],
+    ] as const)('rejects %s %s without a token with 401', async (method, url) => {
+      context = await createTestApp();
+
+      const response = await request(context.app.getHttpServer())
+        [method](url)
+        .send({})
+        .expect(401);
+
+      expect(response.body).toMatchObject({
+        statusCode: 401,
+        error: 'Unauthorized',
+      });
+    });
+  });
+
+  describe('POST /api/visits', () => {
+    it.each([
+      ['admin', 'token_admin'],
+      ['director', 'token_director'],
+    ])('lets the %s schedule a visit', async (_role, token) => {
+      context = await createTestApp();
+
+      const response = await request(context.app.getHttpServer())
+        .post('/api/visits')
+        .set('Authorization', `Bearer ${token}`)
+        .send(validSchedule)
+        .expect(201);
+
+      expect(response.body).toMatchObject({
+        clientId: 1,
+        advisorId: 1,
+        routeId: null,
+        status: 'scheduled',
+      });
+      expect(typeof response.body.id).toBe('number');
+    });
+
+    it('rejects an advisor with 403', async () => {
+      context = await createTestApp();
+
+      const response = await request(context.app.getHttpServer())
+        .post('/api/visits')
+        .set('Authorization', 'Bearer token_advisor')
+        .send(validSchedule)
+        .expect(403);
+
+      expect(response.body).toMatchObject({ statusCode: 403, error: 'Forbidden' });
+    });
+
+    it('rejects a past scheduledDate with 400', async () => {
+      context = await createTestApp();
+
+      await request(context.app.getHttpServer())
+        .post('/api/visits')
+        .set('Authorization', 'Bearer token_admin')
+        .send({ ...validSchedule, scheduledDate: '2020-01-01T09:00:00-05:00' })
+        .expect(400);
+    });
+
+    it.each([
+      ['an inactive client', { clientId: 3 }],
+      ['a client that does not exist', { clientId: 999 }],
+      ['an inactive advisor', { advisorId: 3 }],
+      ['an advisor that does not exist', { advisorId: 999 }],
+    ])('rejects %s with 400', async (_case, override) => {
+      context = await createTestApp();
+
+      await request(context.app.getHttpServer())
+        .post('/api/visits')
+        .set('Authorization', 'Bearer token_admin')
+        .send({ ...validSchedule, ...override })
+        .expect(400);
+    });
+
+    it('rejects a client that is not on the given route with 400', async () => {
+      context = await createTestApp();
+
+      await request(context.app.getHttpServer())
+        .post('/api/visits')
+        .set('Authorization', 'Bearer token_admin')
+        .send({ ...validSchedule, clientId: 2, routeId: 13 })
+        .expect(400);
+    });
+
+    it('accepts a route whose client it belongs to', async () => {
+      context = await createTestApp();
+
+      const response = await request(context.app.getHttpServer())
+        .post('/api/visits')
+        .set('Authorization', 'Bearer token_admin')
+        .send({ ...validSchedule, clientId: 1, routeId: 10 })
+        .expect(201);
+
+      expect(response.body).toMatchObject({ routeId: 10 });
+    });
+  });
+
+  describe('POST /api/routes/:routeId/visits', () => {
+    it.each([
+      ['admin', 'token_admin'],
+      ['director', 'token_director'],
+    ])('lets the %s generate the visits of a route', async (_role, token) => {
+      context = await createTestApp();
+
+      const response = await request(context.app.getHttpServer())
+        .post('/api/routes/10/visits')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ date: '2099-02-01' })
+        .expect(201);
+
+      expect(response.body.created).toHaveLength(2);
+      expect(response.body.created[0]).toMatchObject({
+        clientId: 1,
+        advisorId: 1,
+        routeId: 10,
+        visitOrder: 1,
+      });
+      expect(response.body.skipped).toEqual([]);
+    });
+
+    it('rejects an advisor with 403', async () => {
+      context = await createTestApp();
+
+      await request(context.app.getHttpServer())
+        .post('/api/routes/10/visits')
+        .set('Authorization', 'Bearer token_advisor')
+        .send({ date: '2099-02-01' })
+        .expect(403);
+    });
+
+    it('answers 404 for a route that does not exist', async () => {
+      context = await createTestApp();
+
+      await request(context.app.getHttpServer())
+        .post('/api/routes/999/visits')
+        .set('Authorization', 'Bearer token_admin')
+        .send({ date: '2099-02-01' })
+        .expect(404);
+    });
+
+    it('rejects an inactive route with 400', async () => {
+      context = await createTestApp();
+
+      await request(context.app.getHttpServer())
+        .post('/api/routes/11/visits')
+        .set('Authorization', 'Bearer token_admin')
+        .send({ date: '2099-02-01' })
+        .expect(400);
+    });
+
+    it("rejects a route whose advisor is inactive with 400", async () => {
+      context = await createTestApp();
+
+      await request(context.app.getHttpServer())
+        .post('/api/routes/12/visits')
+        .set('Authorization', 'Bearer token_admin')
+        .send({ date: '2099-02-01' })
+        .expect(400);
+    });
+
+    it('uses the body time when the route has none, and rejects when neither is present', async () => {
+      context = await createTestApp();
+
+      await request(context.app.getHttpServer())
+        .post('/api/routes/13/visits')
+        .set('Authorization', 'Bearer token_admin')
+        .send({ date: '2099-02-01' })
+        .expect(400);
+
+      const response = await request(context.app.getHttpServer())
+        .post('/api/routes/13/visits')
+        .set('Authorization', 'Bearer token_admin')
+        .send({ date: '2099-02-01', time: '10:00' })
+        .expect(201);
+
+      // Client 1 is active and created; client 3 is inactive and skipped.
+      expect(response.body.created).toHaveLength(1);
+      expect(response.body.created[0]).toMatchObject({ clientId: 1 });
+      expect(response.body.skipped).toEqual([
+        { clientId: 3, reason: 'inactive_client' },
+      ]);
+    });
+
+    it('skips a client that already has a visit scheduled that day', async () => {
+      context = await createTestApp();
+      context.visits.seed({
+        clientId: 2,
+        advisorId: 1,
+        scheduledDate: businessDateTimeToInstant('2099-03-01', '07:00'),
+      });
+
+      const response = await request(context.app.getHttpServer())
+        .post('/api/routes/10/visits')
+        .set('Authorization', 'Bearer token_admin')
+        .send({ date: '2099-03-01' })
+        .expect(201);
+
+      expect(response.body.created).toHaveLength(1);
+      expect(response.body.created[0]).toMatchObject({ clientId: 1 });
+      expect(response.body.skipped).toEqual([
+        { clientId: 2, reason: 'already_scheduled' },
+      ]);
+    });
+  });
+
+  describe('GET /api/visits', () => {
+    it('lists every visit for an admin, paginated', async () => {
+      context = await createTestApp();
+
+      const response = await request(context.app.getHttpServer())
+        .get('/api/visits')
+        .query({ page: 1, limit: 1 })
+        .set('Authorization', 'Bearer token_admin')
+        .expect(200);
+
+      expect(response.body).toMatchObject({ total: 2, page: 1, limit: 1 });
+      expect(response.body.data).toHaveLength(1);
+    });
+
+    it('only lists the visits of the session advisor, ignoring advisorId', async () => {
+      context = await createTestApp();
+
+      const response = await request(context.app.getHttpServer())
+        .get('/api/visits')
+        .query({ advisorId: 2 })
+        .set('Authorization', 'Bearer token_advisor')
+        .expect(200);
+
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.data[0]).toMatchObject({ advisorId: 1 });
+    });
+
+    it('filters by zoneId', async () => {
+      context = await createTestApp();
+
+      const response = await request(context.app.getHttpServer())
+        .get('/api/visits')
+        .query({ zoneId: 1 })
+        .set('Authorization', 'Bearer token_director')
+        .expect(200);
+
+      // Both seeded visits are for clients in zone 1.
+      expect(response.body.total).toBe(2);
+    });
+
+    it('rejects sending date and week together with 400', async () => {
+      context = await createTestApp();
+
+      await request(context.app.getHttpServer())
+        .get('/api/visits')
+        .query({ date: '2099-01-02', week: '2099-01-02' })
+        .set('Authorization', 'Bearer token_admin')
+        .expect(400);
+    });
+
+    it('rejects a limit above the maximum with 400', async () => {
+      context = await createTestApp();
+
+      await request(context.app.getHttpServer())
+        .get('/api/visits')
+        .query({ limit: 101 })
+        .set('Authorization', 'Bearer token_admin')
+        .expect(400);
+    });
+  });
+
+  describe('GET /api/visits/agenda', () => {
+    it("returns the session advisor's visits for the day", async () => {
+      context = await createTestApp();
+
+      const response = await request(context.app.getHttpServer())
+        .get('/api/visits/agenda')
+        .query({ date: '2099-01-02' })
+        .set('Authorization', 'Bearer token_advisor')
+        .expect(200);
+
+      expect(response.body).toHaveLength(1);
+      expect(response.body[0]).toMatchObject({
+        client: { id: 1, businessName: 'Client 1' },
+        primaryContact: {
+          name: 'Maria Rodriguez',
+          phone: '6011111',
+        },
+        potential: { id: 1, name: 'Alto' },
+      });
+    });
+
+    it('returns null contact and potential when the client has none', async () => {
+      context = await createTestApp();
+      context.visits.seed({
+        clientId: 2,
+        advisorId: 1,
+        scheduledDate: TOMORROW,
+      });
+
+      const response = await request(context.app.getHttpServer())
+        .get('/api/visits/agenda')
+        .query({ date: '2099-01-02' })
+        .set('Authorization', 'Bearer token_advisor')
+        .expect(200);
+
+      const entryForClient2 = response.body.find(
+        (entry: { client: { id: number } }) => entry.client.id === 2,
+      );
+      expect(entryForClient2).toMatchObject({
+        primaryContact: null,
+        potential: null,
+      });
+    });
+
+    it('returns the week when period=week', async () => {
+      context = await createTestApp();
+
+      const response = await request(context.app.getHttpServer())
+        .get('/api/visits/agenda')
+        .query({ period: 'week', date: '2099-01-02' })
+        .set('Authorization', 'Bearer token_advisor')
+        .expect(200);
+
+      expect(response.body).toHaveLength(1);
+    });
+
+    it('rejects admin and director with 403', async () => {
+      context = await createTestApp();
+
+      await request(context.app.getHttpServer())
+        .get('/api/visits/agenda')
+        .set('Authorization', 'Bearer token_admin')
+        .expect(403);
+    });
+  });
+
+  describe('GET /api/visits/:id', () => {
+    it('returns any visit to the director', async () => {
+      context = await createTestApp();
+
+      await request(context.app.getHttpServer())
+        .get(`/api/visits/${context.otherVisit.id}`)
+        .set('Authorization', 'Bearer token_director')
+        .expect(200);
+    });
+
+    it('returns their own visit to an advisor', async () => {
+      context = await createTestApp();
+
+      const response = await request(context.app.getHttpServer())
+        .get(`/api/visits/${context.ownVisit.id}`)
+        .set('Authorization', 'Bearer token_advisor')
+        .expect(200);
+
+      expect(response.body).toMatchObject({ advisorId: 1 });
+    });
+
+    it("answers 404 to an advisor for another advisor's visit", async () => {
+      context = await createTestApp();
+
+      const response = await request(context.app.getHttpServer())
+        .get(`/api/visits/${context.otherVisit.id}`)
+        .set('Authorization', 'Bearer token_advisor')
+        .expect(404);
+
+      expect(response.body).toMatchObject({ statusCode: 404, error: 'Not Found' });
+    });
+
+    it('answers 404 for a visit that does not exist', async () => {
+      context = await createTestApp();
+
+      await request(context.app.getHttpServer())
+        .get('/api/visits/999')
+        .set('Authorization', 'Bearer token_admin')
+        .expect(404);
+    });
+
+    it('answers 400 for a non-numeric id', async () => {
+      context = await createTestApp();
+
+      await request(context.app.getHttpServer())
+        .get('/api/visits/abc')
+        .set('Authorization', 'Bearer token_admin')
+        .expect(400);
+    });
+  });
+
+  describe('PATCH /api/visits/:id/reschedule', () => {
+    it('reschedules a scheduled visit', async () => {
+      context = await createTestApp();
+
+      const response = await request(context.app.getHttpServer())
+        .patch(`/api/visits/${context.ownVisit.id}/reschedule`)
+        .set('Authorization', 'Bearer token_director')
+        .send({ scheduledDate: '2099-01-10T09:00:00-05:00' })
+        .expect(200);
+
+      expect(new Date(response.body.scheduledDate)).toEqual(
+        businessDateTimeToInstant('2099-01-10', '09:00'),
+      );
+    });
+
+    it('rejects a past date with 400', async () => {
+      context = await createTestApp();
+
+      await request(context.app.getHttpServer())
+        .patch(`/api/visits/${context.ownVisit.id}/reschedule`)
+        .set('Authorization', 'Bearer token_admin')
+        .send({ scheduledDate: '2020-01-01T09:00:00-05:00' })
+        .expect(400);
+    });
+
+    it('rejects a cancelled visit with 400', async () => {
+      context = await createTestApp();
+      await request(context.app.getHttpServer())
+        .patch(`/api/visits/${context.ownVisit.id}/cancel`)
+        .set('Authorization', 'Bearer token_admin')
+        .expect(200);
+
+      await request(context.app.getHttpServer())
+        .patch(`/api/visits/${context.ownVisit.id}/reschedule`)
+        .set('Authorization', 'Bearer token_admin')
+        .send({ scheduledDate: '2099-01-10T09:00:00-05:00' })
+        .expect(400);
+    });
+
+    it('rejects an advisor with 403', async () => {
+      context = await createTestApp();
+
+      await request(context.app.getHttpServer())
+        .patch(`/api/visits/${context.ownVisit.id}/reschedule`)
+        .set('Authorization', 'Bearer token_advisor')
+        .send({ scheduledDate: '2099-01-10T09:00:00-05:00' })
+        .expect(403);
+    });
+
+    it('answers 404 when the visit does not exist', async () => {
+      context = await createTestApp();
+
+      await request(context.app.getHttpServer())
+        .patch('/api/visits/999/reschedule')
+        .set('Authorization', 'Bearer token_admin')
+        .send({ scheduledDate: '2099-01-10T09:00:00-05:00' })
+        .expect(404);
+    });
+  });
+
+  describe('PATCH /api/visits/:id/cancel', () => {
+    it('cancels a scheduled visit', async () => {
+      context = await createTestApp();
+
+      const response = await request(context.app.getHttpServer())
+        .patch(`/api/visits/${context.ownVisit.id}/cancel`)
+        .set('Authorization', 'Bearer token_admin')
+        .expect(200);
+
+      expect(response.body).toMatchObject({ status: 'cancelled' });
+    });
+
+    it('rejects cancelling an already cancelled visit with 400', async () => {
+      context = await createTestApp();
+      await request(context.app.getHttpServer())
+        .patch(`/api/visits/${context.ownVisit.id}/cancel`)
+        .set('Authorization', 'Bearer token_admin')
+        .expect(200);
+
+      await request(context.app.getHttpServer())
+        .patch(`/api/visits/${context.ownVisit.id}/cancel`)
+        .set('Authorization', 'Bearer token_admin')
+        .expect(400);
+    });
+
+    it('rejects an advisor with 403', async () => {
+      context = await createTestApp();
+
+      await request(context.app.getHttpServer())
+        .patch(`/api/visits/${context.ownVisit.id}/cancel`)
+        .set('Authorization', 'Bearer token_advisor')
+        .expect(403);
+    });
+  });
+
+  describe('Swagger documentation', () => {
+    it('documents the visits endpoints with bearer auth', async () => {
+      context = await createTestApp();
+
+      const response = await request(context.app.getHttpServer())
+        .get('/api/docs-json')
+        .expect(200);
+
+      const paths = response.body.paths;
+      expect(paths).toHaveProperty('/api/visits');
+      expect(paths).toHaveProperty('/api/visits/{id}');
+      expect(paths).toHaveProperty('/api/visits/agenda');
+      expect(paths).toHaveProperty('/api/visits/{id}/reschedule');
+      expect(paths).toHaveProperty('/api/visits/{id}/cancel');
+      expect(paths).toHaveProperty('/api/routes/{routeId}/visits');
+      expect(paths['/api/visits'].post.tags).toContain('visits');
+      expect(paths['/api/visits'].post.security).toBeDefined();
+      expect(paths['/api/visits'].post.responses).toHaveProperty('403');
+    });
+  });
+});
