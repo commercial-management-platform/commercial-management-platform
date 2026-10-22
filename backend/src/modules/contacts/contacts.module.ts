@@ -14,6 +14,7 @@ import {
   type ClientRepository,
 } from '../clients/domain/repositories/client.repository.js';
 import { ClientsModule } from '../clients/clients.module.js';
+import { AuthModule } from '../auth/auth.module.js';
 import { ChangeContactStatusUseCase } from './application/use-cases/change-contact-status.use-case.js';
 import { CreateContactUseCase } from './application/use-cases/create-contact.use-case.js';
 import { GetContactUseCase } from './application/use-cases/get-contact.use-case.js';
@@ -33,9 +34,18 @@ import { ContactsController } from './presentation/contacts.controller.js';
  *
  * The client repository, the advisor visibility and the activity log come
  * from the clients module (HU-03): a contact always belongs to a client.
+ *
+ * AuthModule is imported because the controller uses the AuthGuard and the
+ * RolesGuard: Nest builds the guards in the context of the module that
+ * declares the controller, so the port of the auth service has to be visible
+ * here.
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([ContactOrmEntity]), ClientsModule],
+  imports: [
+    TypeOrmModule.forFeature([ContactOrmEntity]),
+    AuthModule,
+    ClientsModule,
+  ],
   controllers: [ContactsController],
   providers: [
     { provide: CONTACT_REPOSITORY, useClass: TypeOrmContactRepository },
