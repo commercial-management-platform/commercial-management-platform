@@ -277,7 +277,7 @@ class InMemoryActivityLog implements ActivityLogPort {
   }
 }
 
-/** Catalog fake: only ids 1 and 2 exist (as HU-05 seeds will do). */
+/** Catalog fake: only ids 1 and 2 exist and are active. */
 const catalogValidator: CatalogValidatorPort = {
   exists: async (catalog: CatalogName, id: number): Promise<boolean> =>
     id === 1 || id === 2,
@@ -541,7 +541,7 @@ describe('Client management (HU-03) - e2e', () => {
 
       expect(response.body).toMatchObject({
         statusCode: 400,
-        message: "Unknown zone id '999'",
+        message: "Unknown or inactive zone id '999'",
       });
     });
 
@@ -764,7 +764,7 @@ describe('Client management (HU-03) - e2e', () => {
 
       expect(response.body).toMatchObject({
         statusCode: 400,
-        message: "Unknown client_type id '777'",
+        message: "Unknown or inactive client_type id '777'",
       });
     });
 

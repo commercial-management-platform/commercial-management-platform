@@ -3,7 +3,6 @@ import type { Response } from 'express';
 import { AuthController } from './auth.controller.js';
 import { LoginUseCase } from '../application/use-cases/login.use-case.js';
 import { LogoutUseCase } from '../application/use-cases/logout.use-case.js';
-import { RegisterUseCase } from '../application/use-cases/register.use-case.js';
 import { AuthUser } from '../domain/entities/auth-user.entity.js';
 import { AuthSession } from '../domain/entities/auth-session.entity.js';
 import { UserRole } from '../domain/types/user-role.enum.js';
@@ -50,13 +49,8 @@ describe('AuthController', () => {
 
     const loginUseCase = new LoginUseCase(authService);
     const logoutUseCase = new LogoutUseCase(authService);
-    const registerUseCase = new RegisterUseCase(authService);
 
-    const controller = new AuthController(
-      loginUseCase,
-      logoutUseCase,
-      registerUseCase,
-    );
+    const controller = new AuthController(loginUseCase, logoutUseCase);
     const mockRes = createMockResponse();
 
     const response = await controller.login(
@@ -84,13 +78,8 @@ describe('AuthController', () => {
 
     const loginUseCase = new LoginUseCase(authService);
     const logoutUseCase = new LogoutUseCase(authService);
-    const registerUseCase = new RegisterUseCase(authService);
 
-    const controller = new AuthController(
-      loginUseCase,
-      logoutUseCase,
-      registerUseCase,
-    );
+    const controller = new AuthController(loginUseCase, logoutUseCase);
     const mockRes = createMockResponse();
 
     const req = {
@@ -108,11 +97,7 @@ describe('AuthController', () => {
   });
 
   it('getProfile returns user profile with role for authenticated user', () => {
-    const controller = new AuthController(
-      {} as any,
-      {} as any,
-      {} as any,
-    );
+    const controller = new AuthController({} as any, {} as any);
 
     const profile = controller.getProfile(dummyUser);
 

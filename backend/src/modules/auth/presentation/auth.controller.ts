@@ -12,8 +12,6 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
-  ApiConflictResponse,
-  ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -22,13 +20,11 @@ import {
 import type { Request, Response } from 'express';
 import { LoginUseCase } from '../application/use-cases/login.use-case.js';
 import { LogoutUseCase } from '../application/use-cases/logout.use-case.js';
-import { RegisterUseCase } from '../application/use-cases/register.use-case.js';
 import { AuthUser } from '../domain/entities/auth-user.entity.js';
 import { AuthGuard } from '../infrastructure/guards/auth.guard.js';
 import { CurrentUser } from '../infrastructure/decorators/current-user.decorator.js';
 import { Public } from '../infrastructure/decorators/public.decorator.js';
 import { LoginDto } from './dtos/login.dto.js';
-import { RegisterDto } from './dtos/register.dto.js';
 import { AuthResponseDto } from './dtos/auth-response.dto.js';
 import { UserProfileDto } from './dtos/user-profile.dto.js';
 import { LogoutResponseDto } from './dtos/logout-response.dto.js';
@@ -39,7 +35,6 @@ export class AuthController {
   constructor(
     private readonly loginUseCase: LoginUseCase,
     private readonly logoutUseCase: LogoutUseCase,
-    private readonly registerUseCase: RegisterUseCase,
   ) {}
 
   @Public()
@@ -117,34 +112,5 @@ export class AuthController {
   })
   getProfile(@CurrentUser() user: AuthUser): UserProfileDto {
     return UserProfileDto.fromDomain(user);
-  }
-
-  @Public()
-  @Post('register')
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Register a new user account' })
-  @ApiCreatedResponse({
-    type: AuthResponseDto,
-    description: 'User registered and authenticated',
-  })
-  @ApiConflictResponse({ description: 'Email address already registered' })
-  @ApiBadRequestResponse({ description: 'Validation error on input fields' })
-  async register(
-    @Body() dto: RegisterDto,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<AuthResponseDto> {
-    const result = await this.registerUseCase.execute(dto);
-
-    res.cookie('better-auth.session_token', result.token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-    });
-
-    return {
-      token: result.token,
-      user: UserProfileDto.fromDomain(result.user),
-    };
   }
 }

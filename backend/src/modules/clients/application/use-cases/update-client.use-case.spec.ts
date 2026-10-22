@@ -260,6 +260,29 @@ describe('UpdateClientUseCase', () => {
     expect(repository.update).not.toHaveBeenCalled();
   });
 
+  it('does not re-check a catalog id that does not change', async () => {
+    const repository = createRepositoryFixture();
+    // zone 1 was deactivated after being assigned to the client.
+    const catalogs: CatalogValidatorPort = {
+      exists: vi.fn().mockResolvedValue(false),
+    };
+    const useCase = new UpdateClientUseCase(
+      repository,
+      catalogs,
+      createAccessFixture(),
+      createActivityLogFixture(),
+    );
+
+    await useCase.execute({
+      actor: { id: 'usr_admin_1', role: UserRole.Admin },
+      clientId: 7,
+      data: { zoneId: 1, phone: '6015551234' },
+    });
+
+    expect(catalogs.exists).not.toHaveBeenCalled();
+    expect(repository.update).toHaveBeenCalledTimes(1);
+  });
+
   it('ignores fields delivered as explicit undefined (not sent)', async () => {
     const repository = createRepositoryFixture({
       update: vi.fn().mockResolvedValue(new Client(existingProps)),
