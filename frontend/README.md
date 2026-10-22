@@ -1,47 +1,73 @@
-# Svelte + TS + Vite
+# Kestrel · Frontend
 
-This template should help get you started developing with Svelte and TypeScript in Vite.
+SPA en **Svelte 5 + TypeScript + Vite** para la plataforma de gestión comercial.
 
-## Recommended IDE Setup
+## Puesta en marcha
 
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode).
-
-## Need an official Svelte framework?
-
-Check out [SvelteKit](https://github.com/sveltejs/kit#readme), which is also powered by Vite. Deploy anywhere with its serverless-first approach and adapt to various platforms, with out of the box support for TypeScript, SCSS, and Less, and easily-added support for mdsvex, GraphQL, PostCSS, Tailwind CSS, and more.
-
-## Technical considerations
-
-**Why use this over SvelteKit?**
-
-- It brings its own routing solution which might not be preferable for some users.
-- It is first and foremost a framework that just happens to use Vite under the hood, not a Vite app.
-
-This template contains as little as possible to get started with Vite + TypeScript + Svelte, while taking into account the developer experience with regards to HMR and intellisense. It demonstrates capabilities on par with the other `create-vite` templates and is a good starting point for beginners dipping their toes into a Vite + Svelte project.
-
-Should you later need the extended capabilities and extensibility provided by SvelteKit, the template has been structured similarly to SvelteKit so that it is easy to migrate.
-
-**Why `global.d.ts` instead of `compilerOptions.types` inside `jsconfig.json` or `tsconfig.json`?**
-
-Setting `compilerOptions.types` shuts out all other types not explicitly listed in the configuration. Using triple-slash references keeps the default TypeScript setting of accepting type information from the entire workspace, while also adding `svelte` and `vite/client` type information.
-
-**Why include `.vscode/extensions.json`?**
-
-Other templates indirectly recommend extensions via the README, but this file allows VS Code to prompt the user to install the recommended extension upon opening the project.
-
-**Why enable `allowJs` in the TS template?**
-
-While `allowJs: false` would indeed prevent the use of `.js` files in the project, it does not prevent the use of JavaScript syntax in `.svelte` files. In addition, it would force `checkJs: false`, bringing the worst of both worlds: not being able to guarantee the entire codebase is TypeScript, and also having worse typechecking for the existing JavaScript. In addition, there are valid use cases in which a mixed codebase may be relevant.
-
-**Why is HMR not preserving my local component state?**
-
-HMR state preservation comes with a number of gotchas! It has been disabled by default in both `svelte-hmr` and `@sveltejs/vite-plugin-svelte` due to its often surprising behavior. You can read the details [here](https://github.com/rixo/svelte-hmr#svelte-hmr).
-
-If you have state that's important to retain within a component, consider creating an external store which would not be replaced by HMR.
-
-```ts
-// store.ts
-// An extremely simple external store
-import { writable } from 'svelte/store'
-export default writable(0)
+```bash
+cd frontend
+cp .env.example .env      # opcional: los valores por defecto sirven en local
+npm install
+npm run dev               # http://localhost:5173
 ```
+
+El frontend necesita el backend corriendo para iniciar sesión (ver `../backend`):
+
+```bash
+docker compose up -d            # PostgreSQL (desde la raíz del repo)
+cd backend
+cp .env.example .env
+npm install
+npm run migration:run
+npm run seed                    # crea admin, director y asesor con las credenciales SEED_* del .env
+npm run start:dev               # http://localhost:3000/api
+```
+
+Inicia sesión con cualquiera de los usuarios creados por el seed.
+
+## Conexión con el backend
+
+| Variable          | Por defecto             | Uso                                                        |
+| ----------------- | ----------------------- | ---------------------------------------------------------- |
+| `VITE_API_URL`    | `/api`                  | URL base de la API que usa el navegador.                    |
+| `VITE_API_PROXY`  | `http://localhost:3000` | Backend al que el servidor de desarrollo redirige `/api`.   |
+
+En desarrollo Vite redirige `/api` al backend (`vite.config.ts`), así el navegador ve un solo
+origen y no hace falta configurar CORS. En producción, sirve el frontend y el backend bajo el
+mismo dominio (p. ej. Nginx con `/api` hacia NestJS) o define `VITE_API_URL` con la URL del backend
+y agrega el dominio del frontend a `CORS_ORIGIN` en el backend.
+
+## Autenticación
+
+Usa los endpoints de Better Auth expuestos por el backend:
+
+- `POST /api/auth/login` → devuelve `{ token, user }`. El token se envía en cada petición como
+  `Authorization: Bearer <token>` (plugin `bearer` de Better Auth).
+- `GET /api/auth/me` → al abrir la app se valida la sesión guardada.
+- `POST /api/auth/logout` → invalida la sesión en el servidor.
+
+"Recordarme" guarda la sesión en `localStorage`; si no se marca, dura lo que la pestaña
+(`sessionStorage`). Si el backend responde 401 a cualquier petición, la sesión se cierra y se
+vuelve al login conservando la página a la que se quería ir.
+
+## Estructura
+
+```
+src/
+  lib/services/http.ts      Cliente HTTP: token, errores ({ statusCode, message }) y 401
+  lib/services/auth.ts      Login, perfil y logout contra /api/auth
+  lib/services/api.ts       Acceso a datos de los módulos (hoy servidor simulado en mock/)
+  lib/stores/               Estado reactivo (runes) y conexión en tiempo real
+  pages/                    Vistas por módulo
+  layout/                   Sidebar, barra superior y modales globales
+```
+
+Los módulos que aún no tienen endpoints en el backend (dashboard, rutas, visitas, cotizaciones,
+pedidos) usan el servidor simulado de `src/lib/services/mock`, que emite eventos en tiempo real con
+el mismo contrato que tendrá el backend.
+
+## Scripts
+
+- `npm run dev`: servidor de desarrollo.
+- `npm run build`: build de producción en `dist/`.
+- `npm run check`: verificación de tipos (svelte-check + tsc).

@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onDestroy, onMount, type Snippet } from 'svelte'
-  import Toasts from '../lib/components/Toasts.svelte'
   import { dashboard } from '../lib/stores/dashboard.svelte'
   import { ui } from '../lib/stores/ui.svelte'
   import { router } from '../lib/router.svelte'
+  import AppFooter from './AppFooter.svelte'
   import RegisterVisitModal from './RegisterVisitModal.svelte'
   import Sidebar from './Sidebar.svelte'
   import Topbar from './Topbar.svelte'
@@ -54,6 +54,7 @@
     <main class="content">
       {@render children()}
     </main>
+    <AppFooter />
   </div>
 </div>
 
@@ -62,7 +63,6 @@
   presetClientId={ui.registerVisit.clientId}
   onclose={() => ui.closeRegisterVisit()}
 />
-<Toasts />
 
 <style>
   .shell {
@@ -71,8 +71,11 @@
   }
 
   .main {
+    display: flex;
     flex: 1;
+    flex-direction: column;
     min-width: 0;
+    min-height: 100vh;
   }
 
   .content {

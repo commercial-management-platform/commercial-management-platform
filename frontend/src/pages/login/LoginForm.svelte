@@ -1,7 +1,7 @@
 <script lang="ts">
   import Icon from '../../lib/components/Icon.svelte'
   import KestrelLogo from '../../lib/components/KestrelLogo.svelte'
-  import { AuthError, DEMO_CREDENTIALS, login, type Session } from '../../lib/services/auth'
+  import { AuthError, login, type Session } from '../../lib/services/auth'
 
   interface Props {
     onSuccess: (session: Session) => void
@@ -28,7 +28,7 @@
 
   let passwordError = $derived.by(() => {
     if (!password) return 'Ingresa tu contraseña.'
-    if (password.length < 6) return 'La contraseña debe tener al menos 6 caracteres.'
+    if (password.length < 8) return 'La contraseña debe tener al menos 8 caracteres.'
     return ''
   })
 
@@ -151,11 +151,6 @@
     Acceso seguro y datos protegidos
   </p>
 
-  {#if import.meta.env.DEV}
-    <p class="demo-hint">
-      Demo: <code>{DEMO_CREDENTIALS.email}</code> / <code>{DEMO_CREDENTIALS.password}</code>
-    </p>
-  {/if}
 </div>
 
 <style>
@@ -391,19 +386,6 @@
     color: var(--text-muted);
   }
 
-  .demo-hint {
-    margin-top: 12px;
-    font-size: 0.78rem;
-    text-align: center;
-    color: var(--text-muted);
-  }
-
-  .demo-hint code {
-    padding: 1px 6px;
-    border-radius: 6px;
-    background: var(--bg-page);
-    color: var(--text-secondary);
-  }
 
   @media (max-width: 480px) {
     .card {

@@ -40,6 +40,17 @@ const SEED_ACCOUNTS: SeedAccount[] = [
   },
 ];
 
+/**
+ * Demo advisors (fictitious names used across the UI designs). They share the
+ * SEED_DEMO_PASSWORD password and are skipped when it is not set.
+ */
+const DEMO_ADVISORS: { name: string; email: string }[] = [
+  { name: 'Andrea Méndez', email: 'andrea.mendez@kestrel.demo' },
+  { name: 'Carlos Núñez', email: 'carlos.nunez@kestrel.demo' },
+  { name: 'Laura Ruiz', email: 'laura.ruiz@kestrel.demo' },
+  { name: 'Miguel Torres', email: 'miguel.torres@kestrel.demo' },
+];
+
 // Same rule as CreateUserUseCase.
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -75,6 +86,41 @@ export const usersSeed: Seed = {
       dataSource.getRepository(AdvisorOrmEntity),
     );
 
+    /** Creates the user if its email is new and, for advisors, ensures the advisor record. */
+    const ensureAccount = async (
+      role: UserRole,
+      email: string,
+      password: string,
+      name: string,
+    ): Promise<void> => {
+      let user = await findUserByEmail(dataSource, email);
+      if (user) {
+        console.log(`  [users] ${role}: ${email} already exists, not created`);
+      } else {
+        await getAuth().api.createUser({
+          body: {
+            email,
+            password,
+            name,
+            // The admin plugin types roles as its defaults ('user' | 'admin').
+            role: role as unknown as 'admin',
+          },
+        });
+        user = await findUserByEmail(dataSource, email);
+        console.log(`  [users] ${role}: ${email} created`);
+      }
+
+      if (user && user.role === UserRole.Advisor) {
+        await advisorProfiles.save({
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+          status: user.banned ? AdvisorStatus.Inactive : AdvisorStatus.Active,
+        });
+        console.log(`  [users] advisor record ensured for ${email}`);
+      }
+    };
+
     try {
       for (const account of SEED_ACCOUNTS) {
         const email = process.env[`${account.envPrefix}_EMAIL`]
@@ -99,33 +145,22 @@ export const usersSeed: Seed = {
           continue;
         }
 
-        let user = await findUserByEmail(dataSource, email);
-        if (user) {
-          console.log(
-            `  [users] ${account.role}: ${email} already exists, not created`,
-          );
-        } else {
-          await getAuth().api.createUser({
-            body: {
-              email,
-              password,
-              name,
-              // The admin plugin types roles as its defaults ('user' | 'admin').
-              role: account.role as unknown as 'admin',
-            },
-          });
-          user = await findUserByEmail(dataSource, email);
-          console.log(`  [users] ${account.role}: ${email} created`);
-        }
+        await ensureAccount(account.role, email, password, name);
+      }
 
-        if (user && user.role === UserRole.Advisor) {
-          await advisorProfiles.save({
-            userId: user.id,
-            name: user.name,
-            email: user.email,
-            status: user.banned ? AdvisorStatus.Inactive : AdvisorStatus.Active,
-          });
-          console.log(`  [users] advisor record ensured for ${email}`);
+      const demoPassword = process.env.SEED_DEMO_PASSWORD;
+      if (!demoPassword || demoPassword.length < MIN_PASSWORD_LENGTH) {
+        console.warn(
+          `  [users] demo advisors: skipped, SEED_DEMO_PASSWORD is not set or has fewer than ${MIN_PASSWORD_LENGTH} characters`,
+        );
+      } else {
+        for (const advisor of DEMO_ADVISORS) {
+          await ensureAccount(
+            UserRole.Advisor,
+            advisor.email,
+            demoPassword,
+            advisor.name,
+          );
         }
       }
     } finally {
