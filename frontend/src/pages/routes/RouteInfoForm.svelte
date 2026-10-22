@@ -72,11 +72,11 @@
   </div>
   {#if e.horaFin}<small class="error">{e.horaFin}</small>{/if}
 
-  <label class="field">
+  <label class="field span">
     <span>Descripción</span>
     <textarea
       class="input"
-      rows="4"
+      rows="3"
       bind:value={planner.info.descripcion}
       placeholder="Objetivo o notas de la ruta"
     ></textarea>
@@ -85,15 +85,25 @@
 
 <style>
   .panel {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-    padding: 20px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 24px;
+    padding: 28px;
+  }
+
+  .panel > :global(h2),
+  .panel > :global(.span),
+  .panel > :global(.error) {
+    grid-column: 1 / -1;
+  }
+
+  .hours {
+    grid-column: span 2;
   }
 
   h2 {
-    font-size: 15px;
-    line-height: 22px;
+    font-size: 18px;
+    line-height: 26px;
   }
 
   .field {
@@ -104,13 +114,13 @@
   }
 
   .field span {
-    font: 600 12px/18px var(--font-heading);
+    font: 600 13px/18px var(--font-heading);
   }
 
   .field :global(.input),
   .field :global(.select) {
     width: 100%;
-    height: 40px;
+    height: 44px;
   }
 
   textarea.input {
@@ -126,7 +136,7 @@
   }
 
   .hours {
-    gap: 8px;
+    gap: 24px;
   }
 
   .hours .select {
@@ -139,12 +149,28 @@
   }
 
   .error {
-    margin-top: -10px;
-    font-size: 12px;
+    margin-top: -16px;
+    font-size: 13px;
     color: var(--danger);
   }
 
   .field .error {
     margin-top: 0;
+  }
+
+  @media (max-width: 900px) {
+    .panel {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .hours {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .panel {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 </style>

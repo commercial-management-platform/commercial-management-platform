@@ -31,31 +31,28 @@
     <p class="subtitle">Esto es lo que está pasando con tu operación comercial.</p>
   </header>
 
-  <PortfolioOverview />
-
   <!-- Visitas, rutas, cotizaciones y pedidos aún no existen en el backend:
        esta sección usa el servidor simulado (lib/services/mock) con el mismo contrato. -->
-  <div class="section-head">
-    <div>
-      <h2>Operación comercial</h2>
-      <p><span class="pill demo">Demostración</span> Visitas, entregas y pedidos simulados hasta conectar esos módulos del backend.</p>
+  <section class="operation" aria-labelledby="operation-title">
+    <div class="section-head">
+      <div>
+        <h2 id="operation-title">Operación comercial</h2>
+        <p><span class="pill demo">Demostración</span> Visitas, entregas y pedidos simulados hasta conectar esos módulos del backend.</p>
+      </div>
+      <div class="period">
+        <label for="period">Periodo</label>
+        <select id="period" class="select" bind:value={dashboard.period}>
+          {#each Object.entries(periodLabel) as [value, label] (value)}
+            <option {value}>{label}</option>
+          {/each}
+        </select>
+      </div>
     </div>
-  </div>
-
-  <div class="period">
-    <label for="period">Periodo</label>
-    <select id="period" class="select" bind:value={dashboard.period}>
-      {#each Object.entries(periodLabel) as [value, label] (value)}
-        <option {value}>{label}</option>
-      {/each}
-    </select>
-  </div>
 
   {#if dashboard.status === 'loading' || dashboard.status === 'idle'}
     <div class="kpis" aria-busy="true">
       {#each Array(6) as _, i (i)}<div class="skeleton kpi-skeleton"></div>{/each}
     </div>
-    <div class="skeleton block-skeleton"></div>
   {:else if dashboard.status === 'error'}
     <div class="card error">
       <p>No pudimos cargar el dashboard.</p>
@@ -114,7 +111,14 @@
         flash={h['kpi:facturacion']}
       />
     </div>
+  {/if}
+  </section>
 
+  <PortfolioOverview />
+
+  {#if dashboard.status === 'loading' || dashboard.status === 'idle'}
+    <div class="skeleton block-skeleton"></div>
+  {:else if dashboard.status === 'ready'}
     <DeliveryRoutes />
     <ActivityTable />
   {/if}
@@ -124,21 +128,30 @@
   .dashboard {
     display: flex;
     flex-direction: column;
-    gap: 28px;
-    max-width: 1240px;
+    gap: var(--space-4);
+    width: 100%;
+    max-width: var(--content-max);
+    margin-inline: auto;
+  }
+
+  .operation {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
   }
 
   h1 {
-    margin-top: 10px;
+    margin-top: var(--space-1);
     font-size: clamp(1.7rem, 2.6vw, 2.1rem);
     font-weight: 700;
     letter-spacing: -0.02em;
   }
 
   .section-head {
-    margin-top: 8px;
-    padding-top: 24px;
-    border-top: 1px solid var(--border-default);
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-2);
   }
 
   .section-head h2 {
@@ -152,21 +165,21 @@
     flex-wrap: wrap;
     gap: 10px;
     margin-top: 4px;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--text-muted);
   }
 
   .pill.demo {
     padding: 2px 10px;
-    font: 700 11px/18px var(--font-heading);
-    color: #b45309;
+    font: 700 12px/18px var(--font-heading);
+    color: #92400e;
     border-radius: 999px;
     background: #fffbeb;
   }
 
   .subtitle {
     margin-top: 6px;
-    font-size: 0.92rem;
+    font-size: 1rem;
     color: var(--text-secondary);
   }
 
@@ -174,9 +187,8 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 10px;
-    margin-bottom: -12px;
-    font-size: 0.85rem;
+    gap: var(--space-1);
+    font-size: 0.875rem;
     color: var(--text-secondary);
   }
 
@@ -215,20 +227,31 @@
     padding: 20px 24px;
   }
 
+  /* 6 columnas en pantallas amplias, 3×2 en portátil (≈1366 px) y 2×3 en tablet */
   @media (max-width: 1400px) {
     .kpis {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 900px) {
     .kpis {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 640px) {
+    .kpis {
       gap: 12px;
     }
 
+    .section-head {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
     .period {
-      margin-bottom: 0;
+      justify-content: flex-start;
     }
   }
 </style>

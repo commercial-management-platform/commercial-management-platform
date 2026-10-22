@@ -2,7 +2,8 @@
   import { onMount } from 'svelte'
   import Icon from '../../lib/components/Icon.svelte'
   import { router } from '../../lib/router.svelte'
-  import { planner } from '../../lib/stores/routePlanner.svelte'
+  import { fromMinutes } from '../../lib/utils/format'
+  import { MIN_STOPS, ZONAS, planner } from '../../lib/stores/routePlanner.svelte'
   import { toasts } from '../../lib/stores/toasts.svelte'
   import AssignAdvisor from './AssignAdvisor.svelte'
   import ClientPicker from './ClientPicker.svelte'
@@ -25,19 +26,31 @@
     }
   })
 
-  /** Lleva al usuario a la sección de cada paso. */
-  function goToStep(index: number) {
-    if (index === 0) {
-      const el = document.getElementById('route-info')
-      el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      el?.querySelector<HTMLElement>('input, select')?.focus({ preventScroll: true })
-    } else if (index === 1) {
-      picker?.focus()
-    } else {
-      const select = document.getElementById('asesor-select')
-      select?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      select?.focus({ preventScroll: true })
+  /** Paso visible: 0 datos, 1 paradas, 2 asignación y confirmación. */
+  let step = $state(0)
+
+  const stepValid = (i: number) => planner.steps[i].done
+  const canReach = (i: number) => planner.steps.slice(0, i).every((st) => st.done)
+
+  function goToStep(i: number) {
+    if (i > step && !canReach(i)) {
+      planner.showErrors = true
+      return
     }
+    planner.showErrors = false
+    step = i
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function next() {
+    if (!stepValid(step)) {
+      planner.showErrors = true
+      if (step === 1) {
+        toasts.push({ tone: 'warning', icon: 'alert-circle', title: 'Faltan paradas', message: `Agrega al menos ${MIN_STOPS} clientes a la ruta.` })
+      }
+      return
+    }
+    goToStep(step + 1)
   }
 
   function saveDraft() {
@@ -52,7 +65,7 @@
     try {
       const invalidStep = await planner.submit()
       if (invalidStep !== null) {
-        goToStep(invalidStep)
+        step = Math.min(invalidStep, 2)
         return
       }
       toasts.push({ tone: 'success', icon: 'check', title: 'Ruta creada y asignada', message: `${nombre} · ${asesor}` })
@@ -64,7 +77,7 @@
 
   function newRoute() {
     planner.reset()
-    goToStep(0)
+    step = 0
   }
 </script>
 
@@ -83,36 +96,60 @@
   </header>
 
   {#if planner.status === 'ready'}
-    <Stepper steps={planner.steps} current={planner.currentStep} onselect={goToStep} />
+    <Stepper steps={planner.steps} current={step} onselect={goToStep} />
 
-    <div class="layout">
-      <div class="info"><RouteInfoForm /></div>
-
-      <div class="main">
-        <RouteDesignCard />
-        <StopsList onadd={() => picker?.focus()} />
-        <div class="actions">
-          {#if planner.savedAt}
-            <span class="saved"><Icon name="check" size={14} /> Borrador guardado</span>
-          {/if}
-          <button class="btn btn-outline" onclick={saveDraft}>Guardar borrador</button>
-          <button class="btn btn-primary" onclick={submit} disabled={planner.submitting}>
-            {#if planner.submitting}
-              Creando…
-            {:else if planner.currentStep === 3}
-              Crear y asignar ruta
-            {:else}
-              Continuar <Icon name="chevron-right" size={16} />
-            {/if}
-          </button>
+    {#if step === 0}
+      <RouteInfoForm />
+    {:else if step === 1}
+      <div class="stops-layout">
+        <div class="picker"><ClientPicker bind:this={picker} /></div>
+        <div class="main">
+          <RouteDesignCard />
+          <StopsList onadd={() => picker?.focus()} />
         </div>
       </div>
-
-      <div class="side">
-        <ClientPicker bind:this={picker} />
-        <AssignAdvisor />
-        <RouteSummary />
+    {:else}
+      <div class="confirm-layout">
+        <div class="side">
+          <AssignAdvisor />
+          <RouteSummary />
+        </div>
+        <section class="card recap" aria-labelledby="recap-title">
+          <h2 id="recap-title">Resumen de {planner.info.nombre || 'la ruta'}</h2>
+          <dl>
+            <div><dt>Zona</dt><dd>{ZONAS.find((z) => z.value === planner.info.zona)?.label ?? '—'}</dd></div>
+            <div><dt>Día</dt><dd>{planner.info.dia || '—'} · {planner.info.frecuencia.toLowerCase()}</dd></div>
+            <div><dt>Horario</dt><dd>{planner.info.horaInicio} – {planner.info.horaFin}</dd></div>
+          </dl>
+          <ol class="recap-stops">
+            {#each planner.schedule as stop, i (stop.clientId)}
+              <li>
+                <span class="n">{i + 1}</span>
+                <span class="name">{stop.client.nombre}</span>
+                <span class="time">{fromMinutes(stop.llegada)}</span>
+              </li>
+            {/each}
+          </ol>
+        </section>
       </div>
+    {/if}
+
+    <div class="actions">
+      <button class="btn btn-outline" onclick={() => goToStep(step - 1)} disabled={step === 0}>
+        <Icon name="chevron-left" size={16} /> Atrás
+      </button>
+      <span class="spacer"></span>
+      {#if planner.savedAt}
+        <span class="saved"><Icon name="check" size={14} /> Borrador guardado</span>
+      {/if}
+      <button class="btn btn-outline" onclick={saveDraft}>Guardar borrador</button>
+      {#if step < 2}
+        <button class="btn btn-primary" onclick={next}>Continuar <Icon name="chevron-right" size={16} /></button>
+      {:else}
+        <button class="btn btn-primary" onclick={submit} disabled={planner.submitting}>
+          {planner.submitting ? 'Creando…' : 'Crear y asignar ruta'}
+        </button>
+      {/if}
     </div>
   {:else if planner.status === 'error'}
     <div class="card error">
@@ -121,11 +158,7 @@
     </div>
   {:else}
     <div class="skeleton" style:height="64px"></div>
-    <div class="layout">
-      <div class="skeleton info" style:height="620px"></div>
-      <div class="skeleton main" style:height="620px"></div>
-      <div class="skeleton side" style:height="620px"></div>
-    </div>
+    <div class="skeleton" style:height="420px"></div>
   {/if}
 </div>
 
@@ -134,7 +167,6 @@
     display: flex;
     flex-direction: column;
     gap: 24px;
-    max-width: 1240px;
   }
 
   .intro {
@@ -156,38 +188,118 @@
     color: var(--text-secondary);
   }
 
-  .layout {
+  .stops-layout {
     display: grid;
-    grid-template-columns: 220px minmax(0, 1fr) 260px;
-    grid-template-areas: 'info main side';
+    grid-template-columns: 340px minmax(0, 1fr);
     align-items: start;
-    gap: 20px;
+    gap: 24px;
   }
 
-  .info {
-    grid-area: info;
+  .picker {
+    position: sticky;
+    top: 104px;
   }
 
   .main {
-    grid-area: main;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 24px;
     min-width: 0;
   }
 
+  .confirm-layout {
+    display: grid;
+    grid-template-columns: 400px minmax(0, 1fr);
+    align-items: start;
+    gap: 24px;
+  }
+
   .side {
-    grid-area: side;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 24px;
+  }
+
+  .recap {
+    padding: 28px;
+  }
+
+  .recap h2 {
+    font-size: 18px;
+    line-height: 26px;
+  }
+
+  .recap dl {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin: 20px 0 0;
+  }
+
+  .recap dt {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .recap dd {
+    margin: 2px 0 0;
+    font: 700 15px/22px var(--font-heading);
+  }
+
+  .recap-stops {
+    display: flex;
+    flex-direction: column;
+    margin: 24px 0 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--border-default);
+  }
+
+  .recap-stops li {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .recap-stops .n {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    font: 700 13px var(--font-heading);
+    color: var(--brand-700);
+    border-radius: 50%;
+    background: var(--brand-50);
+  }
+
+  .recap-stops .name {
+    flex: 1;
+    font: 600 15px/22px var(--font-heading);
+  }
+
+  .recap-stops .time {
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-secondary);
   }
 
   .actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
     display: flex;
     align-items: center;
-    justify-content: flex-end;
     gap: 12px;
+    margin-inline: -4px;
+    padding: 16px 4px;
+    border-top: 1px solid var(--border-default);
+    background: var(--bg-page);
+  }
+
+  .spacer {
+    flex: 1;
   }
 
   .actions .btn {
@@ -200,8 +312,7 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    margin-right: auto;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--text-brand);
   }
 
@@ -225,12 +336,14 @@
     padding: 20px 24px;
   }
 
-  @media (max-width: 1280px) {
-    .layout {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      grid-template-areas:
-        'main main'
-        'info side';
+  @media (max-width: 1100px) {
+    .stops-layout,
+    .confirm-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .picker {
+      position: static;
     }
   }
 
@@ -240,12 +353,8 @@
       align-items: flex-start;
     }
 
-    .layout {
+    .recap dl {
       grid-template-columns: minmax(0, 1fr);
-      grid-template-areas:
-        'info'
-        'main'
-        'side';
     }
 
     .actions {
@@ -254,6 +363,10 @@
 
     .actions .btn {
       flex: 1;
+    }
+
+    .spacer {
+      display: none;
     }
   }
 </style>

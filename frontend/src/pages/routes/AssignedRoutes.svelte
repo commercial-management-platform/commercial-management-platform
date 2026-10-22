@@ -214,7 +214,9 @@
     display: flex;
     flex-direction: column;
     gap: 24px;
-    max-width: 1240px;
+    width: 100%;
+    max-width: var(--content-max);
+    margin-inline: auto;
   }
 
   .intro {

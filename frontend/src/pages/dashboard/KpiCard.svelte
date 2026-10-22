@@ -61,6 +61,7 @@
       box-shadow 0.2s;
   }
 
+  .kpi:focus-within,
   .kpi:hover {
     transform: translateY(-2px);
     box-shadow: 0 12px 24px -16px rgba(15, 23, 42, 0.25);
@@ -114,7 +115,9 @@
 
   .detail {
     margin-top: 10px;
-    font-size: 0.72rem;
+    font-size: 0.8125rem;
+    line-height: 1.35;
+    font-variant-numeric: tabular-nums;
     color: var(--text-secondary);
   }
 
@@ -144,6 +147,6 @@
 
   .featured .label,
   .featured .detail {
-    color: rgba(255, 255, 255, 0.88);
+    color: rgba(255, 255, 255, 0.92);
   }
 </style>
