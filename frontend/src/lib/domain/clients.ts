@@ -12,6 +12,18 @@ export const clientStatusLabel: Record<ClientStatus, string> = {
   inactivo: 'Inactivo',
 }
 
+/**
+ * Clase de color para un estado del catálogo del backend (client-statuses).
+ * El catálogo es editable, así que un nombre desconocido usa el tono neutro.
+ */
+export function clientStatusTone(name: string): ClientStatus | 'neutral' {
+  const key = name
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+  return (Object.keys(clientStatusLabel) as ClientStatus[]).find((s) => s === key) ?? 'neutral'
+}
+
 /** Clientes "en proceso": aún no compran de forma recurrente. */
 export const EN_PROCESO: ClientStatus[] = ['seguimiento', 'prospecto']
 

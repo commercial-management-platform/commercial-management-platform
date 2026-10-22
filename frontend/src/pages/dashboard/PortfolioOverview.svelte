@@ -3,7 +3,7 @@
   import { clientDisplayName } from '../../lib/services/clientsApi'
   import { dashboard } from '../../lib/stores/dashboard.svelte'
   import { portfolio, useLivePortfolio } from '../../lib/stores/portfolio.svelte'
-  import { session } from '../../lib/stores/session.svelte'
+  import { can } from '../../lib/permissions.svelte'
   import { formatTime, percent } from '../../lib/utils/format'
   import ClientsMap from './ClientsMap.svelte'
   import KpiCard from './KpiCard.svelte'
@@ -57,7 +57,7 @@
     <div class="card empty">
       <span class="empty-icon"><Icon name="users" size={22} /></span>
       <div class="empty-text">
-        {#if session.hasRole('advisor')}
+        {#if can.isAdvisor}
           <strong>Aún no tienes clientes asignados</strong>
           <p>Aparecerán aquí cuando te asignen rutas con clientes.</p>
         {:else}
@@ -65,8 +65,8 @@
           <p>Ejecuta <code>npm run seed</code> en el backend para cargar datos de ejemplo.</p>
         {/if}
       </div>
-      <a class="btn btn-soft" href={session.hasRole('advisor') ? '#/rutas/asignadas' : '#/clientes'}>
-        {session.hasRole('advisor') ? 'Ver rutas' : 'Ir a clientes'}
+      <a class="btn btn-soft" href={can.isAdvisor ? '#/rutas/asignadas' : '#/clientes'}>
+        {can.isAdvisor ? 'Ver rutas' : 'Ir a clientes'}
       </a>
     </div>
   {:else}

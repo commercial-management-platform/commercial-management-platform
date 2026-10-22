@@ -1,4 +1,5 @@
 import { untrack } from 'svelte'
+import { can } from '../permissions.svelte'
 import { listClients, type ApiClient } from '../services/clientsApi'
 import { ApiError } from '../services/http'
 import { listUsers, type ApiUser } from '../services/usersApi'
@@ -17,7 +18,7 @@ class PortfolioStore {
   status = $state<'idle' | 'loading' | 'ready' | 'error'>('idle')
   error = $state('')
   clients = $state<ApiClient[]>([])
-  /** Solo se cargan si el usuario es admin (GET /users es exclusivo de ese rol). */
+  /** Solo se cargan si el rol puede consultar usuarios (ver `can.listUsers`). */
   users = $state<ApiUser[] | null>(null)
   updatedAt = $state<Date | null>(null)
   highlights = $state<Record<string, boolean>>({})
@@ -69,7 +70,7 @@ class PortfolioStore {
     try {
       const [clients, users] = await Promise.all([
         listClients(),
-        session.hasRole('admin') ? listUsers().catch(() => null) : Promise.resolve(null),
+        can.listUsers ? listUsers().catch(() => null) : Promise.resolve(null),
       ])
       if (this.status === 'ready') this.#flashChanges(clients)
       this.clients = clients
