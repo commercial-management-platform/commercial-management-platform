@@ -107,6 +107,10 @@ import { ClientsController } from './presentation/clients.controller.js';
   ],
   exports: [
     CLIENT_REPOSITORY,
+    // Exported for the contacts module (HU-04): it needs the advisor
+    // visibility and the activity log of the client.
+    ADVISOR_CLIENT_ACCESS,
+    ACTIVITY_LOG,
     CreateClientUseCase,
     ListClientsUseCase,
     GetClientByIdUseCase,
