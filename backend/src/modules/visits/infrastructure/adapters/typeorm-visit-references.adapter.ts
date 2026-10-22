@@ -2,11 +2,16 @@ import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 import type {
+  AdvisorDetails,
   AdvisorReference,
+  ClientDetails,
   ClientReference,
+  PrimaryContactReference,
   RouteClientReference,
+  RouteNameReference,
   RouteReference,
   VisitReferencesPort,
+  ZoneReference,
 } from '../../application/ports/visit-references.port.js';
 
 /**
@@ -82,5 +87,67 @@ export class TypeOrmVisitReferencesAdapter implements VisitReferencesPort {
       visitOrder: row.visit_order,
       clientActive: row.active,
     }));
+  }
+
+  async findClientDetails(clientId: number): Promise<ClientDetails | null> {
+    const rows: {
+      id: number;
+      business_name: string;
+      trade_name: string | null;
+      address: string | null;
+      latitude: number | null;
+      longitude: number | null;
+      zone_id: number | null;
+    }[] = await this.dataSource.query(
+      `SELECT "id", "business_name", "trade_name", "address", "latitude", "longitude", "zone_id"
+         FROM "client" WHERE "id" = $1 LIMIT 1`,
+      [clientId],
+    );
+    if (!rows[0]) return null;
+    return {
+      id: rows[0].id,
+      businessName: rows[0].business_name,
+      tradeName: rows[0].trade_name,
+      address: rows[0].address,
+      latitude: rows[0].latitude,
+      longitude: rows[0].longitude,
+      zoneId: rows[0].zone_id,
+    };
+  }
+
+  async findZone(zoneId: number): Promise<ZoneReference | null> {
+    const rows: ZoneReference[] = await this.dataSource.query(
+      `SELECT "id", "name" FROM "zone" WHERE "id" = $1 LIMIT 1`,
+      [zoneId],
+    );
+    return rows[0] ?? null;
+  }
+
+  async findRouteName(routeId: number): Promise<RouteNameReference | null> {
+    const rows: RouteNameReference[] = await this.dataSource.query(
+      `SELECT "id", "name" FROM "route" WHERE "id" = $1 LIMIT 1`,
+      [routeId],
+    );
+    return rows[0] ?? null;
+  }
+
+  async findAdvisorDetails(advisorId: number): Promise<AdvisorDetails | null> {
+    const rows: AdvisorDetails[] = await this.dataSource.query(
+      `SELECT "id", "name" FROM "advisor" WHERE "id" = $1 LIMIT 1`,
+      [advisorId],
+    );
+    return rows[0] ?? null;
+  }
+
+  async findPrimaryContact(
+    clientId: number,
+  ): Promise<PrimaryContactReference | null> {
+    const rows: PrimaryContactReference[] = await this.dataSource.query(
+      `SELECT "name", "phone", "mobile", "email" FROM "contact"
+        WHERE "client_id" = $1 AND "is_primary" = true AND "active" = true
+        LIMIT 1`,
+      [clientId],
+    );
+    return rows[0] ?? null;
   }
 }

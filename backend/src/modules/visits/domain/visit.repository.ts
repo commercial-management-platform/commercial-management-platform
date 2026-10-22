@@ -1,6 +1,7 @@
 import type { PageRequest } from '../../../shared/application/pagination.js';
 import type { InstantRange } from '../../../shared/domain/time/business-time.js';
 import type { VisitAgendaEntry } from './visit-agenda-entry.js';
+import type { VisitOutcome } from './visit-outcome.js';
 import type { VisitStatus } from './visit-status.js';
 import type { Visit } from './visit.js';
 
@@ -37,8 +38,19 @@ export interface VisitRepository {
   /** Saves every visit in one transaction: all or none. */
   saveAll(visits: Visit[]): Promise<Visit[]>;
   /**
-   * Saves the schedule and status of an existing visit only if its stored
-   * status is still `expected`. Returns null when it changed meanwhile.
+   * Saves every mutable column of an existing visit, only if its stored
+   * status is still `expected`. Returns null when it changed meanwhile
+   * (e.g. a concurrent cancellation).
    */
   updateIfStatus(visit: Visit, expected: VisitStatus): Promise<Visit | null>;
+  /**
+   * Saves the visit and its new outcome in one transaction, only if the
+   * visit's stored status is still `expected`. Returns null when it changed
+   * meanwhile (e.g. a concurrent outcome already recorded).
+   */
+  recordOutcome(
+    visit: Visit,
+    outcome: VisitOutcome,
+    expected: VisitStatus,
+  ): Promise<{ visit: Visit; outcome: VisitOutcome } | null>;
 }

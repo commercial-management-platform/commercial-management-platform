@@ -12,6 +12,17 @@ export class VisitMapper {
       visitOrder: entity.visitOrder,
       actualDate: entity.actualDate,
       status: entity.status,
+      startedAt: entity.startedAt,
+      finishedAt: entity.finishedAt,
+      checkInLatitude: entity.checkInLatitude,
+      checkInLongitude: entity.checkInLongitude,
+      checkInDistanceMeters: entity.checkInDistanceMeters,
+      locationConfirmed: entity.locationConfirmed,
+      visitObjectiveId: entity.visitObjectiveId,
+      visitTypeId: entity.visitTypeId,
+      interestLevel: entity.interestLevel,
+      interestReason: entity.interestReason,
+      competitorMentioned: entity.competitorMentioned,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
     });
@@ -29,6 +40,17 @@ export class VisitMapper {
     entity.visitOrder = visit.visitOrder;
     entity.actualDate = visit.actualDate;
     entity.status = visit.status;
+    entity.startedAt = visit.startedAt;
+    entity.finishedAt = visit.finishedAt;
+    entity.checkInLatitude = visit.checkInLatitude;
+    entity.checkInLongitude = visit.checkInLongitude;
+    entity.checkInDistanceMeters = visit.checkInDistanceMeters;
+    entity.locationConfirmed = visit.locationConfirmed;
+    entity.visitObjectiveId = visit.visitObjectiveId;
+    entity.visitTypeId = visit.visitTypeId;
+    entity.interestLevel = visit.interestLevel;
+    entity.interestReason = visit.interestReason;
+    entity.competitorMentioned = visit.competitorMentioned;
     return entity;
   }
 }

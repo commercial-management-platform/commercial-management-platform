@@ -5,13 +5,16 @@ import { Repository } from 'typeorm';
 import type { PageRequest } from '../../../../shared/application/pagination.js';
 import { pageOffset } from '../../../../shared/application/pagination.js';
 import type { VisitAgendaEntry } from '../../domain/visit-agenda-entry.js';
+import { VisitOutcome } from '../../domain/visit-outcome.js';
 import { VisitStatus } from '../../domain/visit-status.js';
 import { Visit } from '../../domain/visit.js';
 import type {
   VisitFilterOptions,
   VisitRepository,
 } from '../../domain/visit.repository.js';
+import { VisitOutcomeMapper } from '../mappers/visit-outcome.mapper.js';
 import { VisitMapper } from '../mappers/visit.mapper.js';
+import { VisitOutcomeOrmEntity } from '../persistence/entities/visit-outcome.orm-entity.js';
 import { VisitOrmEntity } from '../persistence/entities/visit.orm-entity.js';
 
 interface AgendaRow {
@@ -200,10 +203,7 @@ export class TypeOrmVisitRepository implements VisitRepository {
     const result = await this.visitRepository
       .createQueryBuilder()
       .update(VisitOrmEntity)
-      .set({
-        scheduledDate: visit.scheduledDate,
-        status: visit.status,
-      })
+      .set(mutableColumns(visit))
       .where('id = :id AND status = :expected', {
         id: visit.id,
         expected,
@@ -217,4 +217,60 @@ export class TypeOrmVisitRepository implements VisitRepository {
     // re-read to answer the same entity another request would see.
     return this.findById(visit.id!);
   }
+
+  async recordOutcome(
+    visit: Visit,
+    outcome: VisitOutcome,
+    expected: VisitStatus,
+  ): Promise<{ visit: Visit; outcome: VisitOutcome } | null> {
+    return this.visitRepository.manager.transaction(async (manager) => {
+      const result = await manager
+        .createQueryBuilder()
+        .update(VisitOrmEntity)
+        .set(mutableColumns(visit))
+        .where('id = :id AND status = :expected', {
+          id: visit.id,
+          expected,
+        })
+        .execute();
+
+      if (result.affected !== 1) {
+        // Nothing was written; the transaction commits with no effect.
+        return null;
+      }
+
+      const savedOutcome = await manager.save(
+        VisitOutcomeOrmEntity,
+        VisitOutcomeMapper.toPersistence(outcome),
+      );
+      const savedVisit = await manager.findOneBy(VisitOrmEntity, {
+        id: visit.id!,
+      });
+      return {
+        visit: VisitMapper.toDomain(savedVisit!),
+        outcome: VisitOutcomeMapper.toDomain(savedOutcome),
+      };
+    });
+  }
+}
+
+/** Every column of a visit that a use case can change after it was scheduled. */
+function mutableColumns(visit: Visit) {
+  const entity = VisitMapper.toPersistence(visit);
+  return {
+    scheduledDate: entity.scheduledDate,
+    status: entity.status,
+    startedAt: entity.startedAt,
+    finishedAt: entity.finishedAt,
+    checkInLatitude: entity.checkInLatitude,
+    checkInLongitude: entity.checkInLongitude,
+    checkInDistanceMeters: entity.checkInDistanceMeters,
+    locationConfirmed: entity.locationConfirmed,
+    visitObjectiveId: entity.visitObjectiveId,
+    visitTypeId: entity.visitTypeId,
+    interestLevel: entity.interestLevel,
+    interestReason: entity.interestReason,
+    competitorMentioned: entity.competitorMentioned,
+    actualDate: entity.actualDate,
+  };
 }

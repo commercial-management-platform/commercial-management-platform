@@ -70,6 +70,39 @@ export function businessWeekRange(date: string): InstantRange {
   return { start, end: new Date(start.getTime() + 7 * DAY_MS) };
 }
 
+const WEEKDAY_NAMES = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+] as const;
+
+/** Weekday name of a YYYY-MM-DD business-time date (e.g. 'Thursday'). */
+export function weekdayOf(date: string): (typeof WEEKDAY_NAMES)[number] {
+  const [year, month, day] = parseDate(date);
+  return WEEKDAY_NAMES[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
+}
+
+/** ISO-8601 week number (1-53) of a YYYY-MM-DD business-time date. */
+export function isoWeekNumber(date: string): number {
+  const [year, month, day] = parseDate(date);
+  // The ISO week-year is the year of the Thursday that falls in this week.
+  const thursday = new Date(Date.UTC(year, month - 1, day));
+  const sinceMonday = (thursday.getUTCDay() + 6) % 7;
+  thursday.setUTCDate(thursday.getUTCDate() - sinceMonday + 3);
+
+  const firstThursday = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 4));
+  const firstSinceMonday = (firstThursday.getUTCDay() + 6) % 7;
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - firstSinceMonday + 3);
+
+  return (
+    1 + Math.round((thursday.getTime() - firstThursday.getTime()) / (7 * DAY_MS))
+  );
+}
+
 function parseDate(date: string): [number, number, number] {
   const parts = DATE_ONLY_PATTERN.test(date)
     ? date.split('-').map(Number)
