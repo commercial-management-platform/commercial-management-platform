@@ -9,6 +9,7 @@ import type {
 } from '../../domain/repositories/contact.repository.js';
 import { findVisibleClient } from '../client-visibility.js';
 import {
+  assertContactMethod,
   normalizeEmail,
   normalizeJobTitle,
   normalizeName,
@@ -81,6 +82,14 @@ export class UpdateContactUseCase {
     if (data.email !== undefined) {
       data.email = normalizeEmail(data.email);
     }
+
+    // The rule applies to the resulting contact: a partial update that does
+    // not touch the contact methods is valid, but it cannot clear the last one.
+    assertContactMethod({
+      phone: data.phone !== undefined ? data.phone : contact.phone,
+      mobile: data.mobile !== undefined ? data.mobile : contact.mobile,
+      email: data.email !== undefined ? data.email : contact.email,
+    });
 
     // Promoting or demoting a contact changes the main contact of the
     // client, which is tracked apart from the plain update.

@@ -66,3 +66,20 @@ export function normalizePhone(
   }
   return phone;
 }
+
+/**
+ * A contact needs at least one way to reach it: phone, mobile or email
+ * (CA-02). Receives the already normalized values, where an empty value is
+ * null.
+ */
+export function assertContactMethod(methods: {
+  phone: string | null;
+  mobile: string | null;
+  email: string | null;
+}): void {
+  if (!methods.phone && !methods.mobile && !methods.email) {
+    throw new ValidationError(
+      'at least one contact method is required: phone, mobile or email',
+    );
+  }
+}
