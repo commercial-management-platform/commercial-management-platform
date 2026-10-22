@@ -112,16 +112,16 @@
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    padding: 20px 20px 16px;
+    padding: 24px 24px 18px;
   }
 
   h2 {
-    font-size: 15px;
+    font-size: 16px;
     line-height: 22px;
   }
 
   header p {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--text-muted);
   }
 
@@ -135,7 +135,7 @@
     gap: 8px;
     margin: 0 20px 12px;
     padding: 10px 12px;
-    font-size: 13px;
+    font-size: 14px;
     color: #b45309;
     border-radius: 10px;
     background: #fffbeb;
@@ -153,7 +153,7 @@
     grid-template-columns: 20px 30px minmax(0, 1.2fr) minmax(0, 1fr) 64px auto;
     align-items: center;
     gap: 14px;
-    padding: 12px 20px 12px 12px;
+    padding: 14px 24px 14px 16px;
     border-bottom: 1px solid var(--border-default);
     background: var(--bg-surface);
     transition: background 0.15s;
@@ -196,7 +196,7 @@
     place-items: center;
     width: 30px;
     height: 30px;
-    font: 700 12px var(--font-heading);
+    font: 700 13px var(--font-heading);
     color: #fff;
     border-radius: 50%;
     background: var(--brand-700);
@@ -211,16 +211,16 @@
   }
 
   .client strong {
-    font: 700 13px/18px var(--font-heading);
+    font: 700 14px/18px var(--font-heading);
   }
 
   small {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--text-muted);
   }
 
   .address {
-    font-size: 13px;
+    font-size: 14px;
     color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
@@ -232,7 +232,7 @@
   }
 
   .time strong {
-    font: 700 13px/18px var(--font-heading);
+    font: 700 14px/18px var(--font-heading);
     font-variant-numeric: tabular-nums;
   }
 
@@ -244,7 +244,7 @@
 
   .edit {
     padding: 4px 6px;
-    font-size: 15px;
+    font-size: 16px;
     color: var(--text-brand);
     border: 0;
     background: none;
@@ -272,7 +272,7 @@
 
   .empty {
     padding: 28px 20px;
-    font-size: 13px;
+    font-size: 14px;
     text-align: center;
     color: var(--text-muted);
   }

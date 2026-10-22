@@ -133,7 +133,7 @@
     gap: 8px;
     margin-left: auto;
     padding: 5px 12px;
-    font-size: 0.78rem;
+    font-size: 0.8125rem;
     font-weight: 600;
     white-space: nowrap;
     color: var(--brand-700);
@@ -255,7 +255,7 @@
 
   .status {
     margin-top: 4px;
-    font-size: 0.72rem;
+    font-size: 0.75rem;
     font-weight: 600;
     color: var(--text-secondary);
   }
@@ -304,7 +304,7 @@
   }
 
   .overline {
-    font-size: 0.62rem;
+    font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -329,7 +329,7 @@
     align-items: center;
     gap: 6px;
     margin-top: 6px;
-    font-size: 0.78rem;
+    font-size: 0.8125rem;
     color: var(--text-secondary);
   }
 
@@ -364,7 +364,7 @@
   }
 
   .remaining {
-    font-size: 0.72rem;
+    font-size: 0.75rem;
     color: var(--brand-600);
   }
 

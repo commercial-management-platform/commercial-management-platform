@@ -39,10 +39,11 @@
       class="live"
       class:paused={!dashboard.live}
       onclick={() => dashboard.toggleLive()}
-      title={dashboard.live ? 'Pausar actualizaciones en vivo' : 'Reanudar actualizaciones en vivo'}
+      title={dashboard.live ? 'Datos en tiempo real. Clic para pausar las actualizaciones' : 'Actualizaciones pausadas. Clic para reanudarlas'}
+      aria-pressed={!dashboard.live}
     >
       <span class="dot"></span>
-      {dashboard.live ? 'En vivo' : 'En pausa'}
+      {dashboard.live ? 'En vivo' : 'Actualización pausada'}
       <Icon name={dashboard.live ? 'pause' : 'play'} size={12} />
     </button>
 
@@ -51,7 +52,7 @@
       <input type="search" placeholder="Buscar cliente…" bind:value={dashboard.query} />
     </label>
 
-    <div class="week">
+    <div class="week" title="Semana en curso">
       <span>Semana</span>
       <strong>{week}</strong>
     </div>
@@ -117,7 +118,7 @@
     gap: 8px;
     height: 32px;
     padding: 0 12px;
-    font-size: 0.78rem;
+    font-size: 0.8125rem;
     font-weight: 600;
     color: var(--brand-700);
     border: 1px solid var(--brand-100);
@@ -211,7 +212,7 @@
   }
 
   .week span {
-    font-size: 0.6rem;
+    font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -219,7 +220,7 @@
   }
 
   .week strong {
-    font-size: 0.8rem;
+    font-size: 0.8125rem;
     font-weight: 500;
     white-space: nowrap;
   }

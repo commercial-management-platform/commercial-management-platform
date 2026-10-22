@@ -74,7 +74,7 @@
     flex-shrink: 0;
     width: 32px;
     height: 32px;
-    font: 700 13px var(--font-heading);
+    font: 700 14px var(--font-heading);
     color: var(--text-muted);
     border-radius: 50%;
     background: var(--bg-surface-soft);
@@ -104,11 +104,11 @@
   }
 
   strong {
-    font: 700 13px/18px var(--font-heading);
+    font: 700 14px/18px var(--font-heading);
   }
 
   small {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--text-muted);
   }
 
@@ -123,7 +123,7 @@
     }
 
     strong {
-      font-size: 12px;
+      font-size: 13px;
     }
   }
 
