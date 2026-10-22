@@ -58,14 +58,14 @@
 
 <style>
   .summary {
-    padding: 20px 16px;
+    padding: 24px 20px;
   }
 
   h2 {
     display: flex;
     align-items: center;
     gap: 10px;
-    font-size: 15px;
+    font-size: 16px;
     line-height: 22px;
   }
 
@@ -95,14 +95,14 @@
 
   dd {
     margin: 0;
-    font: 800 15px/22px var(--font-heading);
+    font: 800 16px/22px var(--font-heading);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
 
   dt {
     margin-top: 4px;
-    font-size: 10px;
+    font-size: 12px;
     color: var(--text-muted);
   }
 
@@ -112,7 +112,7 @@
     gap: 6px;
     margin-top: 16px;
     padding: 8px 10px;
-    font-size: 12px;
+    font-size: 13px;
     line-height: 18px;
     color: var(--text-brand);
     border-radius: 8px;
@@ -133,7 +133,7 @@
     display: flex;
     gap: 12px;
     padding: 16px;
-    font-size: 11px;
+    font-size: 12px;
     line-height: 17px;
     color: var(--text-brand);
     border: 1px solid var(--brand-100);

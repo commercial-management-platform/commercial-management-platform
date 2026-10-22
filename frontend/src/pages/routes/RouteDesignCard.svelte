@@ -105,7 +105,7 @@
   }
 
   header p {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--text-secondary);
   }
 
@@ -115,7 +115,7 @@
     gap: 8px;
     margin-left: auto;
     padding: 5px 12px;
-    font: 700 12px/18px var(--font-heading);
+    font: 700 13px/18px var(--font-heading);
     white-space: nowrap;
     color: var(--text-brand);
     border-radius: 999px;
@@ -161,7 +161,7 @@
     display: flex;
     gap: 12px;
     width: 100%;
-    padding: 14px 12px;
+    padding: 16px 14px;
     text-align: left;
     border: 0;
     border-radius: 12px;
@@ -184,7 +184,7 @@
     flex-shrink: 0;
     width: 34px;
     height: 34px;
-    font: 700 13px var(--font-heading);
+    font: 700 14px var(--font-heading);
     color: var(--text-secondary);
     border-radius: 50%;
     background: var(--neutral-100);
@@ -210,17 +210,17 @@
   }
 
   .row strong {
-    font: 700 14px/20px var(--font-heading);
+    font: 700 15px/20px var(--font-heading);
   }
 
   time {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
   }
 
   .meta {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -229,7 +229,7 @@
 
   .leg {
     margin-top: 4px;
-    font: 600 12px/18px var(--font-heading);
+    font: 600 13px/18px var(--font-heading);
     color: var(--text-secondary);
   }
 
@@ -244,7 +244,7 @@
     gap: 8px;
     padding: 40px 16px;
     text-align: center;
-    font-size: 13px;
+    font-size: 14px;
     color: var(--text-muted);
   }
 
@@ -267,7 +267,7 @@
   }
 
   .overline {
-    font: 600 10px/14px var(--font-heading);
+    font: 600 12px/14px var(--font-heading);
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--text-muted);
@@ -282,7 +282,7 @@
   .destination strong {
     display: block;
     margin-top: 4px;
-    font: 700 14px/20px var(--font-heading);
+    font: 700 15px/20px var(--font-heading);
   }
 
   .address {
@@ -290,7 +290,7 @@
     align-items: center;
     gap: 6px;
     margin-top: 4px;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--text-secondary);
   }
 
@@ -319,7 +319,7 @@
   }
 
   .eta strong {
-    font: 800 15px/22px var(--font-heading);
+    font: 800 16px/22px var(--font-heading);
     font-variant-numeric: tabular-nums;
   }
 

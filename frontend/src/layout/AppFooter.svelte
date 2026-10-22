@@ -78,7 +78,9 @@
     align-items: center;
     justify-content: space-between;
     gap: 24px;
-    max-width: 1240px;
+    width: 100%;
+    max-width: var(--content-max);
+    margin-inline: auto;
   }
 
   .brand {

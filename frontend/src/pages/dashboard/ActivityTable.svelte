@@ -212,7 +212,7 @@
     min-width: 20px;
     height: 20px;
     padding: 0 6px;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     font-weight: 700;
     color: #fff;
     border-radius: 999px;
@@ -236,7 +236,7 @@
   }
 
   .popover-title {
-    font-size: 0.72rem;
+    font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -281,7 +281,7 @@
 
   th {
     padding: 12px 16px;
-    font-size: 0.68rem;
+    font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.06em;
     text-align: left;
@@ -321,7 +321,7 @@
   .badge {
     display: inline-block;
     padding: 3px 10px;
-    font-size: 0.72rem;
+    font-size: 0.75rem;
     font-weight: 600;
     white-space: nowrap;
     border-radius: 999px;
