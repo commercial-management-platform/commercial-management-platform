@@ -17,6 +17,26 @@ import { AuthGuard } from '../src/modules/auth/infrastructure/guards/auth.guard.
 import { RolesGuard } from '../src/modules/auth/infrastructure/guards/roles.guard.js';
 import { UnauthorizedError } from '../src/shared/domain/errors/index.js';
 import {
+  ACTIVITY_LOG,
+  type ActivityLogEntry,
+  type ActivityLogPort,
+} from '../src/shared/application/ports/activity-log.port.js';
+import {
+  ACTIVITY_LOG_REPOSITORY,
+  type ActivityLogRepository,
+} from '../src/modules/activity-log/domain/ports/activity-log.repository.js';
+import { ActivityLogRecord } from '../src/modules/activity-log/domain/entities/activity-log-record.js';
+import { GetClientActivityUseCase } from '../src/modules/activity-log/application/use-cases/get-client-activity.use-case.js';
+import { ClientActivityController } from '../src/modules/activity-log/presentation/client-activity.controller.js';
+import {
+  CLIENT_REPOSITORY,
+  type ClientRepository,
+} from '../src/modules/clients/domain/repositories/client.repository.js';
+import {
+  ADVISOR_CLIENT_ACCESS,
+  type AdvisorClientAccessPort,
+} from '../src/modules/clients/application/ports/advisor-client-access.port.js';
+import {
   businessDateTimeToInstant,
   businessToday,
 } from '../src/shared/domain/time/business-time.js';
@@ -520,6 +540,7 @@ interface TestContext {
   otherVisit: Visit;
   /** A visit of the session advisor (advisor 1) scheduled for today, for HU-09. */
   todayVisit: Visit;
+  activityEntries: ActivityLogEntry[];
 }
 
 // A fixed instant far in the future, so the suite never depends on "today".
@@ -549,6 +570,43 @@ async function createTestApp(): Promise<TestContext> {
 
   const references = fakeReferences();
   const catalogs = fakeCatalogs();
+  const activityEntries: ActivityLogEntry[] = [];
+  let nextActivityId = 1;
+  const activityLog: ActivityLogPort = {
+    record: async (entry) => {
+      activityEntries.push(entry);
+    },
+  };
+  const activityLogRepository: ActivityLogRepository = {
+    findPageByClient: async (clientId, filter, page) => {
+      const records = activityEntries
+        .filter((entry) => entry.clientId === clientId)
+        .filter((entry) => !filter.action || entry.action === filter.action)
+        .map((entry) => new ActivityLogRecord({
+          id: nextActivityId++,
+          clientId: entry.clientId,
+          action: entry.action,
+          userId: entry.userId,
+          userName: null,
+          description: entry.description,
+          createdAt: entry.occurredAt,
+        }))
+        .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+      const start = (page.page - 1) * page.limit;
+      return { items: records.slice(start, start + page.limit), total: records.length };
+    },
+  };
+  const clients: ClientRepository = {
+    findAll: async () => [],
+    findById: async (id) => id === 1 ? ({ id, active: true } as never) : null,
+    findByNit: async () => null,
+    save: async (client) => client,
+    update: async () => { throw new Error('Not used by visits e2e'); },
+  };
+  const advisorAccess: AdvisorClientAccessPort = {
+    canAccess: async () => true,
+    getAccessibleClientIds: async () => [1, 2, 3],
+  };
 
   const moduleFixture: TestingModule = await Test.createTestingModule({
     imports: [
@@ -558,7 +616,7 @@ async function createTestApp(): Promise<TestContext> {
         validate: validateEnv,
       }),
     ],
-    controllers: [VisitsController, RouteVisitsController],
+    controllers: [VisitsController, RouteVisitsController, ClientActivityController],
     providers: [
       {
         provide: AUTH_SERVICE_PORT,
@@ -571,17 +629,27 @@ async function createTestApp(): Promise<TestContext> {
       { provide: VISIT_REPOSITORY, useValue: visits },
       { provide: VISIT_REFERENCES, useValue: references },
       { provide: CATALOG_LOOKUP, useValue: catalogs },
+      { provide: ACTIVITY_LOG, useValue: activityLog },
+      { provide: ACTIVITY_LOG_REPOSITORY, useValue: activityLogRepository },
+      { provide: CLIENT_REPOSITORY, useValue: clients },
+      { provide: ADVISOR_CLIENT_ACCESS, useValue: advisorAccess },
+      {
+        provide: GetClientActivityUseCase,
+        inject: [CLIENT_REPOSITORY, ADVISOR_CLIENT_ACCESS, ACTIVITY_LOG_REPOSITORY],
+        useFactory: (clientRepo: ClientRepository, access: AdvisorClientAccessPort, repo: ActivityLogRepository) =>
+          new GetClientActivityUseCase(clientRepo, access, repo),
+      },
       {
         provide: ScheduleVisitUseCase,
-        inject: [VISIT_REPOSITORY, VISIT_REFERENCES],
-        useFactory: (r: VisitRepository, p: VisitReferencesPort) =>
-          new ScheduleVisitUseCase(r, p),
+        inject: [VISIT_REPOSITORY, VISIT_REFERENCES, ACTIVITY_LOG],
+        useFactory: (r: VisitRepository, p: VisitReferencesPort, log: ActivityLogPort) =>
+          new ScheduleVisitUseCase(r, p, log),
       },
       {
         provide: GenerateRouteVisitsUseCase,
-        inject: [VISIT_REPOSITORY, VISIT_REFERENCES],
-        useFactory: (r: VisitRepository, p: VisitReferencesPort) =>
-          new GenerateRouteVisitsUseCase(r, p),
+        inject: [VISIT_REPOSITORY, VISIT_REFERENCES, ACTIVITY_LOG],
+        useFactory: (r: VisitRepository, p: VisitReferencesPort, log: ActivityLogPort) =>
+          new GenerateRouteVisitsUseCase(r, p, log),
       },
       {
         provide: ListVisitsUseCase,
@@ -600,13 +668,13 @@ async function createTestApp(): Promise<TestContext> {
       },
       {
         provide: RescheduleVisitUseCase,
-        inject: [VISIT_REPOSITORY],
-        useFactory: (r: VisitRepository) => new RescheduleVisitUseCase(r),
+        inject: [VISIT_REPOSITORY, ACTIVITY_LOG],
+        useFactory: (r: VisitRepository, log: ActivityLogPort) => new RescheduleVisitUseCase(r, log),
       },
       {
         provide: CancelVisitUseCase,
-        inject: [VISIT_REPOSITORY],
-        useFactory: (r: VisitRepository) => new CancelVisitUseCase(r),
+        inject: [VISIT_REPOSITORY, ACTIVITY_LOG],
+        useFactory: (r: VisitRepository, log: ActivityLogPort) => new CancelVisitUseCase(r, log),
       },
       {
         provide: GetVisitFormUseCase,
@@ -622,9 +690,9 @@ async function createTestApp(): Promise<TestContext> {
       },
       {
         provide: RecordVisitOutcomeUseCase,
-        inject: [VISIT_REPOSITORY, CATALOG_LOOKUP],
-        useFactory: (r: VisitRepository, c: CatalogLookupPort) =>
-          new RecordVisitOutcomeUseCase(r, c),
+        inject: [VISIT_REPOSITORY, CATALOG_LOOKUP, ACTIVITY_LOG],
+        useFactory: (r: VisitRepository, c: CatalogLookupPort, log: ActivityLogPort) =>
+          new RecordVisitOutcomeUseCase(r, c, log),
       },
       AuthGuard,
       RolesGuard,
@@ -635,7 +703,7 @@ async function createTestApp(): Promise<TestContext> {
   configureApp(app);
   await app.init();
 
-  return { app, visits, ownVisit, otherVisit, todayVisit };
+  return { app, visits, ownVisit, otherVisit, todayVisit, activityEntries };
 }
 
 const validSchedule = {
@@ -1318,6 +1386,34 @@ describe('Visit scheduling and agenda (HU-08) - e2e', () => {
       interestLevel: 'high',
       observation: 'Interested in a bulk order next month',
     };
+
+    it('shows scheduled and completed visit actions in the client activity endpoint', async () => {
+      context = await createTestApp();
+      const scheduledDate = new Date(Date.now() + 3 * 60_000).toISOString();
+      const scheduled = await request(context.app.getHttpServer())
+        .post('/api/visits')
+        .set('Authorization', 'Bearer token_admin')
+        .send({ ...validSchedule, scheduledDate })
+        .expect(201);
+
+      await request(context.app.getHttpServer())
+        .post(`/api/visits/${scheduled.body.id}/outcome`)
+        .set('Authorization', 'Bearer token_advisor')
+        .send(validOutcome)
+        .expect(201);
+
+      const activity = await request(context.app.getHttpServer())
+        .get('/api/clients/1/activity')
+        .set('Authorization', 'Bearer token_advisor')
+        .expect(200);
+
+      expect(activity.body.data.map((entry: { action: string }) => entry.action))
+        .toEqual(['visit.completed', 'visit.scheduled']);
+      expect(activity.body.data.every((entry: { clientId: number }) => entry.clientId === 1))
+        .toBe(true);
+      expect(activity.body.data.find((entry: { action: string }) => entry.action === 'visit.completed')?.user.id)
+        .toBe(advisorUser.id);
+    });
 
     it('records the outcome and marks the visit visited, even without /start', async () => {
       context = await createTestApp();

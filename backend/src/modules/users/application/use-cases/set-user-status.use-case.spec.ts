@@ -6,7 +6,6 @@ import { UserRole } from '../../../auth/domain/types/user-role.enum.js';
 import {
   ConflictError,
   NotFoundError,
-  ValidationError,
 } from '../../../../shared/domain/errors/index.js';
 import {
   AdvisorProfilePort,
@@ -35,6 +34,8 @@ function copyUser(user: User, changes: Partial<UserProps>): User {
 }
 
 describe('SetUserStatusUseCase', () => {
+  const adminActor = { id: 'admin-1', role: UserRole.Admin };
+  const directorActor = { id: 'director-1', role: UserRole.Director };
   const dummyAdvisor = new User({
     id: 'user-advisor',
     name: 'Advisor User',
@@ -82,6 +83,7 @@ describe('SetUserStatusUseCase', () => {
       createAdvisorProfiles(),
     );
     const result = await useCase.execute({
+      actor: adminActor,
       id: 'user-advisor',
       isActive: false,
     });
@@ -117,6 +119,7 @@ describe('SetUserStatusUseCase', () => {
       createAdvisorProfiles(),
     );
     const result = await useCase.execute({
+      actor: adminActor,
       id: 'user-admin',
       isActive: false,
     });
@@ -140,6 +143,7 @@ describe('SetUserStatusUseCase', () => {
 
     await expect(
       useCase.execute({
+        actor: adminActor,
         id: 'user-admin',
         isActive: false,
       }),
@@ -184,6 +188,7 @@ describe('SetUserStatusUseCase', () => {
       createAdvisorProfiles(),
     );
     const result = await useCase.execute({
+      actor: adminActor,
       id: 'user-admin-2',
       isActive: true,
     });
@@ -207,6 +212,7 @@ describe('SetUserStatusUseCase', () => {
 
     await expect(
       useCase.execute({
+        actor: adminActor,
         id: 'non-existent',
         isActive: false,
       }),
@@ -238,6 +244,7 @@ describe('SetUserStatusUseCase', () => {
       const advisorProfiles = createAdvisorProfiles();
 
       await new SetUserStatusUseCase(userRepository, advisorProfiles).execute({
+        actor: adminActor,
         id: 'user-advisor',
         isActive: false,
       });
@@ -249,5 +256,21 @@ describe('SetUserStatusUseCase', () => {
         }),
       );
     });
+  });
+
+  it('hides non-advisor accounts from directors', async () => {
+    const userRepository: UserRepository = {
+      findAll: vi.fn(),
+      findById: vi.fn().mockResolvedValue(dummyAdmin),
+      findByEmail: vi.fn(),
+      countActiveAdmins: vi.fn(),
+      update: vi.fn(),
+    };
+    const useCase = new SetUserStatusUseCase(userRepository, createAdvisorProfiles());
+
+    await expect(
+      useCase.execute({ actor: directorActor, id: 'user-admin', isActive: false }),
+    ).rejects.toThrow(NotFoundError);
+    expect(userRepository.update).not.toHaveBeenCalled();
   });
 });

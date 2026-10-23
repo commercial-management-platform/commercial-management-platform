@@ -43,16 +43,18 @@ function setup(visit: Visit = todayVisit()) {
     })),
   };
   const catalogs = { isActive: vi.fn().mockResolvedValue(true) };
+  const activityLog = { record: vi.fn().mockResolvedValue(undefined) };
   const useCase = new RecordVisitOutcomeUseCase(
     visitRepository as unknown as VisitRepository,
     catalogs,
+    activityLog,
   );
-  return { visitRepository, catalogs, useCase };
+  return { visitRepository, catalogs, activityLog, useCase };
 }
 
 describe('RecordVisitOutcomeUseCase', () => {
   it('records the outcome and marks the visit visited', async () => {
-    const { visitRepository, useCase } = setup();
+    const { visitRepository, activityLog, useCase } = setup();
 
     const result = await useCase.execute(advisorActor, 1, input);
 
@@ -67,6 +69,10 @@ describe('RecordVisitOutcomeUseCase', () => {
       expect.objectContaining({ visitResultId: 3 }),
       VisitStatus.Scheduled,
     );
+    expect(activityLog.record).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'visit.completed', userId: advisorActor.id, clientId: 10,
+      description: "Visit completed with result '3'",
+    }));
   });
 
   it('trims the observation', async () => {
@@ -124,12 +130,13 @@ describe('RecordVisitOutcomeUseCase', () => {
       scheduledDate: businessDateTimeToInstant('2099-01-02', '09:00'),
       visitOrder: null,
     });
-    const { visitRepository, useCase } = setup(other);
+    const { visitRepository, activityLog, useCase } = setup(other);
 
     await expect(useCase.execute(advisorActor, 1, input)).rejects.toThrow(
       ValidationError,
     );
     expect(visitRepository.recordOutcome).not.toHaveBeenCalled();
+    expect(activityLog.record).not.toHaveBeenCalled();
   });
 
   it('rejects a visit that is not scheduled (already visited)', async () => {

@@ -316,8 +316,9 @@ describe('Users API (e2e)', () => {
         },
         {
           provide: UpdateUserUseCase,
-          inject: [USER_REPOSITORY],
-          useFactory: (repo: UserRepository) => new UpdateUserUseCase(repo),
+          inject: [USER_REPOSITORY, ADVISOR_PROFILE_PORT],
+          useFactory: (repo: UserRepository, advisors: AdvisorProfilePort) =>
+            new UpdateUserUseCase(repo, advisors),
         },
         {
           provide: ChangeUserRoleUseCase,
@@ -361,13 +362,46 @@ describe('Users API (e2e)', () => {
       expect(response.body.message).toContain('lacks permission');
     });
 
-    it('rejects non-admin (director) requests with 403 Forbidden', async () => {
+    it('allows directors to list only advisors', async () => {
       const response = await request(app.getHttpServer())
         .get('/api/users')
         .set('Authorization', 'Bearer token_director');
 
-      expect(response.status).toBe(403);
-      expect(response.body.message).toContain('lacks permission');
+      expect(response.status).toBe(200);
+      expect(response.body.map((user: User) => user.role)).toEqual([UserRole.Advisor]);
+    });
+
+    it('returns no users when a director explicitly filters for another role', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/users?role=ADMINISTRADOR')
+        .set('Authorization', 'Bearer token_director');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual([]);
+    });
+
+    it('keeps advisors forbidden from every users operation', async () => {
+      const getUsers = await request(app.getHttpServer())
+        .get('/api/users')
+        .set('Authorization', 'Bearer token_advisor');
+      const createUser = await request(app.getHttpServer())
+        .post('/api/users')
+        .set('Authorization', 'Bearer token_advisor')
+        .send({ name: 'Blocked', email: 'blocked@example.com', password: 'Password123!', role: 'ASESOR' });
+      const getUser = await request(app.getHttpServer())
+        .get('/api/users/usr_advisor_1')
+        .set('Authorization', 'Bearer token_advisor');
+      const updateUser = await request(app.getHttpServer())
+        .patch('/api/users/usr_advisor_1')
+        .set('Authorization', 'Bearer token_advisor')
+        .send({ name: 'Blocked' });
+      const setStatus = await request(app.getHttpServer())
+        .patch('/api/users/usr_advisor_1/status')
+        .set('Authorization', 'Bearer token_advisor')
+        .send({ isActive: false });
+
+      expect([getUsers.status, createUser.status, getUser.status, updateUser.status, setStatus.status])
+        .toEqual([403, 403, 403, 403, 403]);
     });
   });
 
@@ -391,6 +425,68 @@ describe('Users API (e2e)', () => {
       expect(response.body.length).toBe(1);
       expect(response.body[0].email).toBe('director@cmp.com');
       expect(response.body[0].role).toBe(UserRole.Director);
+    });
+  });
+
+  describe('Director scope (CA-13)', () => {
+    it('allows a director to create, edit, and deactivate an advisor with profile sync', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post('/api/users')
+        .set('Authorization', 'Bearer token_director')
+        .send({ name: 'Advisor Managed', email: 'managed@cmp.com', password: 'Password123!', role: 'ASESOR' });
+
+      expect(createResponse.status).toBe(201);
+      const userId: string = createResponse.body.id;
+      expect(advisorProfiles.records.get(userId)?.status).toBe(AdvisorStatus.Active);
+      userRepo.addDirect(new User({
+        id: userId, name: 'Advisor Managed', email: 'managed@cmp.com',
+        role: UserRole.Advisor, isActive: true, emailVerified: true,
+        createdAt: new Date(), updatedAt: new Date(),
+      }));
+
+      const updateResponse = await request(app.getHttpServer())
+        .patch(`/api/users/${userId}`)
+        .set('Authorization', 'Bearer token_director')
+        .send({ name: 'Advisor Updated' });
+      expect(updateResponse.status).toBe(200);
+      expect(advisorProfiles.records.get(userId)?.name).toBe('Advisor Updated');
+
+      const statusResponse = await request(app.getHttpServer())
+        .patch(`/api/users/${userId}/status`)
+        .set('Authorization', 'Bearer token_director')
+        .send({ isActive: false });
+      expect(statusResponse.status).toBe(200);
+      expect(advisorProfiles.records.get(userId)?.status).toBe(AdvisorStatus.Inactive);
+    });
+
+    it('forbids directors from creating non-advisor users or changing a role', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post('/api/users')
+        .set('Authorization', 'Bearer token_director')
+        .send({ name: 'New Admin', email: 'newadmin@cmp.com', password: 'Password123!', role: 'ADMINISTRADOR' });
+      const roleResponse = await request(app.getHttpServer())
+        .patch('/api/users/usr_advisor_1/role')
+        .set('Authorization', 'Bearer token_director')
+        .send({ role: 'GERENTE' });
+
+      expect(createResponse.status).toBe(403);
+      expect(roleResponse.status).toBe(403);
+    });
+
+    it('hides non-advisor accounts from directors on read, update, and status changes', async () => {
+      const getResponse = await request(app.getHttpServer())
+        .get('/api/users/usr_admin_1')
+        .set('Authorization', 'Bearer token_director');
+      const updateResponse = await request(app.getHttpServer())
+        .patch('/api/users/usr_admin_1')
+        .set('Authorization', 'Bearer token_director')
+        .send({ name: 'Changed' });
+      const statusResponse = await request(app.getHttpServer())
+        .patch('/api/users/usr_admin_1/status')
+        .set('Authorization', 'Bearer token_director')
+        .send({ isActive: false });
+
+      expect([getResponse.status, updateResponse.status, statusResponse.status]).toEqual([404, 404, 404]);
     });
   });
 

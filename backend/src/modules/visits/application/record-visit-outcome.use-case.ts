@@ -1,4 +1,5 @@
 import { ValidationError } from '../../../shared/domain/errors/index.js';
+import type { ActivityLogPort } from '../../../shared/application/ports/activity-log.port.js';
 import type {
   CatalogLookupPort,
   CatalogName,
@@ -20,6 +21,7 @@ export class RecordVisitOutcomeUseCase {
   constructor(
     private readonly visitRepository: VisitRepository,
     private readonly catalogs: CatalogLookupPort,
+    private readonly activityLog: ActivityLogPort,
   ) {}
 
   async execute(
@@ -81,7 +83,13 @@ export class RecordVisitOutcomeUseCase {
       );
     }
 
-    // HU-16: registrar visit_completed
+    await this.activityLog.record({
+      action: 'visit.completed',
+      userId: actor.id,
+      clientId: result.visit.clientId,
+      description: `Visit completed with result '${result.outcome.visitResultId}'`,
+      occurredAt: new Date(),
+    });
     // HU-10: crear el follow_up si viene próximo seguimiento
     // HU-12 y HU-14: cotización y pedido vinculados con visit_id
 

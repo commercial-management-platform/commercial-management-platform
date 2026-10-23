@@ -1,6 +1,9 @@
 import { ValidationError } from '../../../shared/domain/errors/index.js';
+import type { ActivityLogPort } from '../../../shared/application/ports/activity-log.port.js';
+import { businessDateOf } from '../../../shared/domain/time/business-time.js';
 import { Visit } from '../domain/visit.js';
 import type { VisitRepository } from '../domain/visit.repository.js';
+import type { VisitActor } from './types/visit-actor.js';
 import type { VisitReferencesPort } from './ports/visit-references.port.js';
 import { assertNotPast } from './visit-dates.js';
 
@@ -8,9 +11,11 @@ export class ScheduleVisitUseCase {
   constructor(
     private readonly visitRepository: VisitRepository,
     private readonly references: VisitReferencesPort,
+    private readonly activityLog: ActivityLogPort,
   ) {}
 
   async execute(input: {
+    actor: VisitActor;
     clientId: number;
     advisorId: number;
     scheduledDate: Date;
@@ -43,7 +48,13 @@ export class ScheduleVisitUseCase {
         visitOrder: null,
       }),
     );
-    // HU-16: registrar visit_scheduled
+    await this.activityLog.record({
+      action: 'visit.scheduled',
+      userId: input.actor.id,
+      clientId: saved.clientId,
+      description: `Visit scheduled for ${businessDateOf(saved.scheduledDate)}`,
+      occurredAt: new Date(),
+    });
     return saved;
   }
 }
