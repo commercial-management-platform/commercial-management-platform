@@ -14,6 +14,7 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
@@ -66,7 +67,7 @@ export class SalesOrdersController {
   @ApiCreatedResponse({ type: SalesOrderResponseDto })
   @ApiBadRequestResponse({
     description:
-      'Invalid fields, visit linkage, or missing advisorId for admin/director',
+      'Invalid fields, delivery before order date, visit linkage, or missing advisorId for admin/director',
   })
   @ApiNotFoundResponse({
     description: 'Client, advisor, or visit does not exist or is not visible',
@@ -129,6 +130,9 @@ export class SalesOrdersController {
     description: 'Advisors cannot change sales order status',
   })
   @ApiNotFoundResponse({ description: 'Sales order does not exist' })
+  @ApiConflictResponse({
+    description: 'The sales order status was changed concurrently',
+  })
   async updateStatus(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: ChangeSalesOrderStatusDto,

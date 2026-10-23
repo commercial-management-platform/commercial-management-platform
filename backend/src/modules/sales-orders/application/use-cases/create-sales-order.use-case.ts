@@ -10,6 +10,7 @@ import { SalesOrder } from '../../domain/entities/sales-order.js';
 import type { SalesOrderReferencesPort } from '../../domain/ports/sales-order-references.port.js';
 import type { SalesOrderRepositoryPort } from '../../domain/ports/sales-order.repository.port.js';
 import {
+  assertDeliveryNotBeforeOrder,
   assertOrderDate,
   assertOrderValue,
 } from '../sales-order-validation.js';
@@ -36,6 +37,7 @@ export class CreateSalesOrderUseCase {
   async execute(input: CreateSalesOrderInput): Promise<SalesOrder> {
     assertOrderDate(input.date, 'date');
     assertOrderDate(input.estimatedDeliveryDate, 'estimatedDeliveryDate');
+    assertDeliveryNotBeforeOrder(input.date, input.estimatedDeliveryDate);
     assertOrderValue(input.value);
     const advisorId = await this.resolveAdvisorId(input);
     await this.assertClientVisible(input.actor, input.clientId);

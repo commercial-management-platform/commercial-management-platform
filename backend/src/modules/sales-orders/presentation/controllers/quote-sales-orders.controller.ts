@@ -43,7 +43,9 @@ export class QuoteSalesOrdersController {
       'Create a sales order from a quote. Copies the quote client and value',
   })
   @ApiCreatedResponse({ type: SalesOrderResponseDto })
-  @ApiBadRequestResponse({ description: 'Invalid dates or visit linkage' })
+  @ApiBadRequestResponse({
+    description: 'Invalid dates, delivery before order date, or visit linkage',
+  })
   @ApiConflictResponse({ description: 'The quote already has a sales order' })
   @ApiNotFoundResponse({
     description: 'Quote, visit, or client does not exist or is not visible',

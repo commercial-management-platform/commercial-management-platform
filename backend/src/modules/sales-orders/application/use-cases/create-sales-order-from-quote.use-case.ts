@@ -5,7 +5,10 @@ import {
 import type { SalesOrderRepositoryPort } from '../../domain/ports/sales-order.repository.port.js';
 import type { SalesOrderReferencesPort } from '../../domain/ports/sales-order-references.port.js';
 import { SalesOrder } from '../../domain/entities/sales-order.js';
-import { assertOrderDate } from '../sales-order-validation.js';
+import {
+  assertDeliveryNotBeforeOrder,
+  assertOrderDate,
+} from '../sales-order-validation.js';
 import type { SalesOrderActor } from '../types/sales-order-actor.js';
 import { CreateSalesOrderUseCase } from './create-sales-order.use-case.js';
 
@@ -27,6 +30,7 @@ export class CreateSalesOrderFromQuoteUseCase {
   async execute(input: CreateSalesOrderFromQuoteInput): Promise<SalesOrder> {
     assertOrderDate(input.date, 'date');
     assertOrderDate(input.estimatedDeliveryDate, 'estimatedDeliveryDate');
+    assertDeliveryNotBeforeOrder(input.date, input.estimatedDeliveryDate);
     const quote = await this.references.findQuote(input.quoteId);
     if (!quote)
       throw new NotFoundError(`Quote with id '${input.quoteId}' not found`);

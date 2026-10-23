@@ -15,6 +15,18 @@ export function assertOrderDate(value: string, field: string): void {
   }
 }
 
+/** Delivery may be the same day as the order, never before it. */
+export function assertDeliveryNotBeforeOrder(
+  date: string,
+  estimatedDeliveryDate: string,
+): void {
+  if (estimatedDeliveryDate < date) {
+    throw new ValidationError(
+      'estimatedDeliveryDate cannot be before the order date',
+    );
+  }
+}
+
 export function assertOrderValue(value: string): void {
   if (!VALUE_PATTERN.test(value)) {
     throw new ValidationError(

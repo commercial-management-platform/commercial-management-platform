@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { INestApplication } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -193,6 +193,7 @@ class RecordedActivities implements ActivityLogPort {
 
 interface TestContext {
   app: INestApplication<App>;
+  orders: InMemorySalesOrders;
   activities: RecordedActivities;
 }
 async function createTestApp(): Promise<TestContext> {
@@ -251,7 +252,7 @@ async function createTestApp(): Promise<TestContext> {
   const app = fixture.createNestApplication();
   configureApp(app);
   await app.init();
-  return { app, activities };
+  return { app, orders, activities };
 }
 
 describe('Sales orders (HU-14)', () => {
@@ -353,6 +354,57 @@ describe('Sales orders (HU-14)', () => {
     expect(context.activities.entries.at(-1)?.action).toBe(
       'sales_order.status_changed',
     );
+  });
+  it('rejects an estimated delivery date before the order date', async () => {
+    context = await createTestApp();
+    const server = context.app.getHttpServer();
+    const body = {
+      clientId: 1,
+      advisorId: 1,
+      date: '2026-10-22',
+      value: '1',
+    };
+    const rejected = await request(server)
+      .post('/api/sales-orders')
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ ...body, estimatedDeliveryDate: '2026-10-21' })
+      .expect(400);
+    expect(rejected.body.message).toContain(
+      'estimatedDeliveryDate cannot be before the order date',
+    );
+    await request(server)
+      .post('/api/sales-orders')
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ ...body, estimatedDeliveryDate: '2026-10-22' })
+      .expect(201);
+    await request(server)
+      .post('/api/quotes/50/sales-order')
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ date: '2026-10-23', estimatedDeliveryDate: '2026-10-22' })
+      .expect(400);
+  });
+  it('returns 409 when the status was changed concurrently', async () => {
+    context = await createTestApp();
+    const server = context.app.getHttpServer();
+    const created = await request(server)
+      .post('/api/sales-orders')
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({
+        clientId: 1,
+        advisorId: 1,
+        date: '2026-10-22',
+        value: '1',
+        estimatedDeliveryDate: '2026-10-25',
+      })
+      .expect(201);
+    vi.spyOn(context.orders, 'updateStatusIfCurrent').mockResolvedValueOnce(
+      null,
+    );
+    await request(server)
+      .patch(`/api/sales-orders/${created.body.id}/status`)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ status: 'confirmed' })
+      .expect(409);
   });
   it('enforces advisor route visibility and status-change permissions', async () => {
     context = await createTestApp();

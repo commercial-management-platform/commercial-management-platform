@@ -1,4 +1,7 @@
-import { NotFoundError } from '../../../../shared/domain/errors/index.js';
+import {
+  ConflictError,
+  NotFoundError,
+} from '../../../../shared/domain/errors/index.js';
 import type { ActivityLogPort } from '../../../../shared/application/ports/activity-log.port.js';
 import type { SalesOrderStatus } from '../../domain/entities/sales-order-status.js';
 import type { SalesOrder } from '../../domain/entities/sales-order.js';
@@ -27,7 +30,7 @@ export class ChangeSalesOrderStatusUseCase {
       expected,
     );
     if (!updated)
-      throw new NotFoundError(
+      throw new ConflictError(
         `Sales order with id '${id}' was changed concurrently`,
       );
     await this.activityLog.record({
