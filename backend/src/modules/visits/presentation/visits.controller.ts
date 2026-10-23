@@ -81,8 +81,12 @@ export class VisitsController {
       'Invalid input, a past date, or an unknown/inactive client, advisor or route',
   })
   @ApiForbiddenResponse({ description: 'Only admin and director can schedule' })
-  async schedule(@Body() dto: ScheduleVisitDto): Promise<VisitResponseDto> {
+  async schedule(
+    @Body() dto: ScheduleVisitDto,
+    @CurrentUser() user: AuthUser,
+  ): Promise<VisitResponseDto> {
     const visit = await this.scheduleVisit.execute({
+      actor: toActor(user),
       clientId: dto.clientId,
       advisorId: dto.advisorId,
       scheduledDate: new Date(dto.scheduledDate),
@@ -160,8 +164,10 @@ export class VisitsController {
   async reschedule(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: RescheduleVisitDto,
+    @CurrentUser() user: AuthUser,
   ): Promise<VisitResponseDto> {
     const visit = await this.rescheduleVisit.execute(
+      toActor(user),
       id,
       new Date(dto.scheduledDate),
     );
@@ -177,8 +183,9 @@ export class VisitsController {
   @ApiNotFoundResponse({ description: 'Visit does not exist' })
   async cancel(
     @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
   ): Promise<VisitResponseDto> {
-    const visit = await this.cancelVisit.execute(id);
+    const visit = await this.cancelVisit.execute(toActor(user), id);
     return VisitResponseDto.fromDomain(visit);
   }
 

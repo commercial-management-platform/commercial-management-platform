@@ -2,6 +2,8 @@ import { UserRepository } from '../../domain/ports/user.repository.js';
 import { User } from '../../domain/entities/user.entity.js';
 import { AdvisorProfilePort } from '../ports/advisor-profile.port.js';
 import { syncAdvisorProfile } from '../advisor-profile.sync.js';
+import { UserRole } from '../../../auth/domain/types/user-role.enum.js';
+import type { UserActor } from '../types/user-actor.js';
 import {
   ConflictError,
   NotFoundError,
@@ -9,6 +11,7 @@ import {
 } from '../../../../shared/domain/errors/index.js';
 
 export interface SetUserStatusCommand {
+  actor: UserActor;
   id: string;
   isActive: boolean;
 }
@@ -30,6 +33,12 @@ export class SetUserStatusUseCase {
 
     const existingUser = await this.userRepository.findById(command.id);
     if (!existingUser) {
+      throw new NotFoundError(`User with id '${command.id}' not found`);
+    }
+    if (
+      command.actor.role === UserRole.Director &&
+      existingUser.role !== UserRole.Advisor
+    ) {
       throw new NotFoundError(`User with id '${command.id}' not found`);
     }
 

@@ -3,6 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AuthModule } from '../auth/auth.module.js';
+import { ActivityLogWriterModule } from '../activity-log/activity-log-writer.module.js';
+import {
+  ACTIVITY_LOG,
+  type ActivityLogPort,
+} from '../../shared/application/ports/activity-log.port.js';
 import {
   CATALOG_LOOKUP,
   type CatalogLookupPort,
@@ -52,6 +57,7 @@ export const VISIT_CHECKIN_RADIUS_METERS = Symbol('VISIT_CHECKIN_RADIUS_METERS')
     TypeOrmModule.forFeature([VisitOrmEntity, VisitOutcomeOrmEntity]),
     AuthModule,
     CatalogsModule,
+    ActivityLogWriterModule,
   ],
   controllers: [VisitsController, RouteVisitsController],
   providers: [
@@ -65,15 +71,15 @@ export const VISIT_CHECKIN_RADIUS_METERS = Symbol('VISIT_CHECKIN_RADIUS_METERS')
     },
     {
       provide: ScheduleVisitUseCase,
-      inject: [VISIT_REPOSITORY, VISIT_REFERENCES],
-      useFactory: (repo: VisitRepository, references: VisitReferencesPort) =>
-        new ScheduleVisitUseCase(repo, references),
+      inject: [VISIT_REPOSITORY, VISIT_REFERENCES, ACTIVITY_LOG],
+      useFactory: (repo: VisitRepository, references: VisitReferencesPort, activityLog: ActivityLogPort) =>
+        new ScheduleVisitUseCase(repo, references, activityLog),
     },
     {
       provide: GenerateRouteVisitsUseCase,
-      inject: [VISIT_REPOSITORY, VISIT_REFERENCES],
-      useFactory: (repo: VisitRepository, references: VisitReferencesPort) =>
-        new GenerateRouteVisitsUseCase(repo, references),
+      inject: [VISIT_REPOSITORY, VISIT_REFERENCES, ACTIVITY_LOG],
+      useFactory: (repo: VisitRepository, references: VisitReferencesPort, activityLog: ActivityLogPort) =>
+        new GenerateRouteVisitsUseCase(repo, references, activityLog),
     },
     {
       provide: ListVisitsUseCase,
@@ -92,13 +98,13 @@ export const VISIT_CHECKIN_RADIUS_METERS = Symbol('VISIT_CHECKIN_RADIUS_METERS')
     },
     {
       provide: RescheduleVisitUseCase,
-      inject: [VISIT_REPOSITORY],
-      useFactory: (repo: VisitRepository) => new RescheduleVisitUseCase(repo),
+      inject: [VISIT_REPOSITORY, ACTIVITY_LOG],
+      useFactory: (repo: VisitRepository, activityLog: ActivityLogPort) => new RescheduleVisitUseCase(repo, activityLog),
     },
     {
       provide: CancelVisitUseCase,
-      inject: [VISIT_REPOSITORY],
-      useFactory: (repo: VisitRepository) => new CancelVisitUseCase(repo),
+      inject: [VISIT_REPOSITORY, ACTIVITY_LOG],
+      useFactory: (repo: VisitRepository, activityLog: ActivityLogPort) => new CancelVisitUseCase(repo, activityLog),
     },
     {
       provide: GetVisitFormUseCase,
@@ -117,9 +123,9 @@ export const VISIT_CHECKIN_RADIUS_METERS = Symbol('VISIT_CHECKIN_RADIUS_METERS')
     },
     {
       provide: RecordVisitOutcomeUseCase,
-      inject: [VISIT_REPOSITORY, CATALOG_LOOKUP],
-      useFactory: (repo: VisitRepository, catalogs: CatalogLookupPort) =>
-        new RecordVisitOutcomeUseCase(repo, catalogs),
+      inject: [VISIT_REPOSITORY, CATALOG_LOOKUP, ACTIVITY_LOG],
+      useFactory: (repo: VisitRepository, catalogs: CatalogLookupPort, activityLog: ActivityLogPort) =>
+        new RecordVisitOutcomeUseCase(repo, catalogs, activityLog),
     },
   ],
 })

@@ -5,14 +5,17 @@ import {
   LoginResult,
 } from '../../../auth/domain/ports/auth-service.port.js';
 import { UserRole } from '../../../auth/domain/types/user-role.enum.js';
+import type { UserActor } from '../types/user-actor.js';
 import { AdvisorProfilePort } from '../ports/advisor-profile.port.js';
 import { syncAdvisorProfile } from '../advisor-profile.sync.js';
 import {
   ConflictError,
+  ForbiddenError,
   ValidationError,
 } from '../../../../shared/domain/errors/index.js';
 
 export interface CreateUserCommand {
+  actor: UserActor;
   name: string;
   email: string;
   password: string;
@@ -29,6 +32,12 @@ export class CreateUserUseCase {
   ) {}
 
   async execute(command: CreateUserCommand): Promise<User> {
+    if (
+      command.actor.role === UserRole.Director &&
+      command.role !== UserRole.Advisor
+    ) {
+      throw new ForbiddenError('Directors can only create advisor users');
+    }
     this.validate(command);
 
     const existingUser = await this.userRepository.findByEmail(

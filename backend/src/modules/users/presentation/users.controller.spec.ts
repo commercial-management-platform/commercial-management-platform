@@ -8,9 +8,19 @@ import { ChangeUserRoleUseCase } from '../application/use-cases/change-user-role
 import { SetUserStatusUseCase } from '../application/use-cases/set-user-status.use-case.js';
 import { User } from '../domain/entities/user.entity.js';
 import { UserRole } from '../../auth/domain/types/user-role.enum.js';
+import { AuthUser } from '../../auth/domain/entities/auth-user.entity.js';
 import { ValidationError } from '../../../shared/domain/errors/index.js';
 
 describe('UsersController', () => {
+  const actor = new AuthUser({
+    id: 'admin-1',
+    email: 'admin@example.com',
+    name: 'Admin',
+    role: UserRole.Admin,
+    emailVerified: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
   const dummyUser = new User({
     id: 'user-1',
     name: 'Carlos Mendoza',
@@ -59,10 +69,10 @@ describe('UsersController', () => {
 
   it('listUsers returns array of UserResponseDto', async () => {
     const controller = createController();
-    const result = await controller.listUsers({
-      role: 'ASESOR',
-      isActive: true,
-    });
+    const result = await controller.listUsers(
+      { role: 'ASESOR', isActive: true },
+      actor,
+    );
 
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('user-1');
@@ -70,7 +80,7 @@ describe('UsersController', () => {
       role: UserRole.Advisor,
       isActive: true,
       search: undefined,
-    });
+    }, { id: actor.id, role: actor.role });
   });
 
   it('createUser normalizes Spanish role and creates user', async () => {
@@ -80,10 +90,11 @@ describe('UsersController', () => {
       email: 'carlos@cmp.com',
       password: 'StrongPassword123!',
       role: 'GERENTE',
-    });
+    }, actor);
 
     expect(result.id).toBe('user-1');
     expect(mockCreateUserUseCase.execute).toHaveBeenCalledWith({
+      actor: { id: actor.id, role: actor.role },
       name: 'Carlos Mendoza',
       email: 'carlos@cmp.com',
       password: 'StrongPassword123!',
@@ -100,26 +111,30 @@ describe('UsersController', () => {
         email: 'carlos@cmp.com',
         password: 'StrongPassword123!',
         role: 'SUPERADMIN',
-      }),
+      }, actor),
     ).rejects.toThrow(ValidationError);
   });
 
   it('getUser returns UserResponseDto by id', async () => {
     const controller = createController();
-    const result = await controller.getUser('user-1');
+    const result = await controller.getUser('user-1', actor);
 
     expect(result.id).toBe('user-1');
-    expect(mockGetUserUseCase.execute).toHaveBeenCalledWith('user-1');
+    expect(mockGetUserUseCase.execute).toHaveBeenCalledWith('user-1', {
+      id: actor.id,
+      role: actor.role,
+    });
   });
 
   it('updateUser updates allowed profile fields', async () => {
     const controller = createController();
     const result = await controller.updateUser('user-1', {
       name: 'Carlos Mendoza Updated',
-    });
+    }, actor);
 
     expect(result.id).toBe('user-1');
     expect(mockUpdateUserUseCase.execute).toHaveBeenCalledWith({
+      actor: { id: actor.id, role: actor.role },
       id: 'user-1',
       name: 'Carlos Mendoza Updated',
       image: undefined,
@@ -143,10 +158,11 @@ describe('UsersController', () => {
     const controller = createController();
     const result = await controller.setStatus('user-1', {
       isActive: false,
-    });
+    }, actor);
 
     expect(result.id).toBe('user-1');
     expect(mockSetUserStatusUseCase.execute).toHaveBeenCalledWith({
+      actor: { id: actor.id, role: actor.role },
       id: 'user-1',
       isActive: false,
     });

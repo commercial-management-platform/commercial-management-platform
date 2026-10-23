@@ -18,12 +18,15 @@ import {
 } from '@nestjs/swagger';
 
 import { UserRole } from '../../auth/domain/types/user-role.enum.js';
+import { AuthUser } from '../../auth/domain/entities/auth-user.entity.js';
+import { CurrentUser } from '../../auth/infrastructure/decorators/current-user.decorator.js';
 import { Roles } from '../../auth/infrastructure/decorators/roles.decorator.js';
 import { AuthGuard } from '../../auth/infrastructure/guards/auth.guard.js';
 import { RolesGuard } from '../../auth/infrastructure/guards/roles.guard.js';
 import { GenerateRouteVisitsUseCase } from '../application/generate-route-visits.use-case.js';
 import { GenerateRouteVisitsDto } from './dtos/generate-route-visits.dto.js';
 import { GenerateRouteVisitsResponseDto } from './dtos/generate-route-visits-response.dto.js';
+import type { VisitActor } from '../application/types/visit-actor.js';
 
 /**
  * Nested under /routes/:routeId/visits (HU-08). Lives in the visits module,
@@ -57,11 +60,12 @@ export class RouteVisitsController {
   async generate(
     @Param('routeId', ParseIntPipe) routeId: number,
     @Body() dto: GenerateRouteVisitsDto,
+    @CurrentUser() user: AuthUser,
   ): Promise<GenerateRouteVisitsResponseDto> {
     const result = await this.generateRouteVisits.execute(routeId, {
       date: dto.date,
       time: dto.time ?? null,
-    });
+    }, { id: user.id, role: user.role } satisfies VisitActor);
     return GenerateRouteVisitsResponseDto.fromDomain(result);
   }
 }

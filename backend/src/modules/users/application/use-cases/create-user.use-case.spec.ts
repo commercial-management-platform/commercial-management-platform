@@ -8,6 +8,7 @@ import { AuthSession } from '../../../auth/domain/entities/auth-session.entity.j
 import { UserRole } from '../../../auth/domain/types/user-role.enum.js';
 import {
   ConflictError,
+  ForbiddenError,
   ValidationError,
 } from '../../../../shared/domain/errors/index.js';
 import {
@@ -37,6 +38,8 @@ function copyUser(user: User, changes: Partial<UserProps>): User {
 }
 
 describe('CreateUserUseCase', () => {
+  const adminActor = { id: 'admin-1', role: UserRole.Admin };
+  const directorActor = { id: 'director-1', role: UserRole.Director };
   const dummyAuthUser = new AuthUser({
     id: 'user-new',
     email: 'newuser@example.com',
@@ -91,6 +94,7 @@ describe('CreateUserUseCase', () => {
       createAdvisorProfiles(),
     );
     const result = await useCase.execute({
+      actor: adminActor,
       name: 'New Advisor',
       email: 'newuser@example.com',
       password: 'StrongPassword123!',
@@ -131,6 +135,7 @@ describe('CreateUserUseCase', () => {
 
     await expect(
       useCase.execute({
+        actor: adminActor,
         name: '',
         email: 'invalid-email',
         password: 'short',
@@ -163,6 +168,7 @@ describe('CreateUserUseCase', () => {
 
     await expect(
       useCase.execute({
+        actor: adminActor,
         name: 'Existing User',
         email: 'newuser@example.com',
         password: 'StrongPassword123!',
@@ -211,6 +217,7 @@ describe('CreateUserUseCase', () => {
       );
 
       await useCase.execute({
+        actor: adminActor,
         name: 'New Advisor',
         email: 'newuser@example.com',
         password: 'StrongPassword123!',
@@ -234,6 +241,7 @@ describe('CreateUserUseCase', () => {
       );
 
       await useCase.execute({
+        actor: adminActor,
         name: 'New Director',
         email: 'newuser@example.com',
         password: 'StrongPassword123!',
@@ -243,5 +251,80 @@ describe('CreateUserUseCase', () => {
       expect(advisorProfiles.save).not.toHaveBeenCalled();
       expect(advisorProfiles.deactivate).not.toHaveBeenCalled();
     });
+  });
+
+  it('forbids directors from creating users with non-advisor roles', async () => {
+    const userRepository: UserRepository = {
+      findAll: vi.fn(),
+      findById: vi.fn(),
+      findByEmail: vi.fn(),
+      countActiveAdmins: vi.fn(),
+      update: vi.fn(),
+    };
+    const authService: AuthServicePort = {
+      signInEmail: vi.fn(),
+      signOut: vi.fn(),
+      verifySession: vi.fn(),
+      signUpEmail: vi.fn(),
+    };
+    const useCase = new CreateUserUseCase(
+      userRepository,
+      authService,
+      createAdvisorProfiles(),
+    );
+
+    await expect(
+      useCase.execute({
+        actor: directorActor,
+        name: 'New Director',
+        email: 'director@example.com',
+        password: 'StrongPassword123!',
+        role: UserRole.Director,
+      }),
+    ).rejects.toThrow(ForbiddenError);
+    expect(authService.signUpEmail).not.toHaveBeenCalled();
+  });
+
+  it('allows directors to create advisors and synchronizes the advisor profile', async () => {
+    const advisorProfiles = createAdvisorProfiles();
+    const userRepository: UserRepository = {
+      findAll: vi.fn(),
+      findById: vi.fn().mockResolvedValue(dummyUser),
+      findByEmail: vi.fn().mockResolvedValue(null),
+      countActiveAdmins: vi.fn(),
+      update: vi.fn(),
+    };
+    const authService: AuthServicePort = {
+      signInEmail: vi.fn(),
+      signOut: vi.fn(),
+      verifySession: vi.fn(),
+      signUpEmail: vi.fn().mockResolvedValue({
+        user: dummyAuthUser,
+        session: new AuthSession({
+          id: 'sess-1',
+          token: 'token-1',
+          userId: 'user-new',
+          expiresAt: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }),
+        token: 'token-1',
+      }),
+    };
+    const useCase = new CreateUserUseCase(userRepository, authService, advisorProfiles);
+
+    const created = await useCase.execute({
+      actor: directorActor,
+      name: 'New Advisor',
+      email: 'newuser@example.com',
+      password: 'StrongPassword123!',
+      role: UserRole.Advisor,
+    });
+
+    expect(created.role).toBe(UserRole.Advisor);
+    expect(advisorProfiles.save).toHaveBeenCalledWith(expect.objectContaining({
+      userId: created.id,
+      status: AdvisorStatus.Active,
+    }));
   });
 });

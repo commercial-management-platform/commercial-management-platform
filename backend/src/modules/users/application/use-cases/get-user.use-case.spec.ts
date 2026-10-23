@@ -27,7 +27,7 @@ describe('GetUserUseCase', () => {
     };
 
     const useCase = new GetUserUseCase(userRepository);
-    const result = await useCase.execute('user-1');
+    const result = await useCase.execute('user-1', { id: 'admin-1', role: UserRole.Admin });
 
     expect(result.id).toBe('user-1');
     expect(result.email).toBe('admin@example.com');
@@ -45,8 +45,23 @@ describe('GetUserUseCase', () => {
 
     const useCase = new GetUserUseCase(userRepository);
 
-    await expect(useCase.execute('non-existent')).rejects.toThrow(
+    await expect(useCase.execute('non-existent', { id: 'admin-1', role: UserRole.Admin })).rejects.toThrow(
       NotFoundError,
     );
+  });
+
+  it('hides non-advisor accounts from directors', async () => {
+    const userRepository: UserRepository = {
+      findAll: vi.fn(),
+      findById: vi.fn().mockResolvedValue(dummyUser),
+      findByEmail: vi.fn(),
+      countActiveAdmins: vi.fn(),
+      update: vi.fn(),
+    };
+    const useCase = new GetUserUseCase(userRepository);
+
+    await expect(
+      useCase.execute('user-1', { id: 'director-1', role: UserRole.Director }),
+    ).rejects.toThrow(NotFoundError);
   });
 });

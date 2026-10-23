@@ -26,6 +26,8 @@ import { AuthGuard } from '../../auth/infrastructure/guards/auth.guard.js';
 import { RolesGuard } from '../../auth/infrastructure/guards/roles.guard.js';
 import { Roles } from '../../auth/infrastructure/decorators/roles.decorator.js';
 import { UserRole } from '../../auth/domain/types/user-role.enum.js';
+import { AuthUser } from '../../auth/domain/entities/auth-user.entity.js';
+import { CurrentUser } from '../../auth/infrastructure/decorators/current-user.decorator.js';
 import { ListUsersUseCase } from '../application/use-cases/list-users.use-case.js';
 import { GetUserUseCase } from '../application/use-cases/get-user.use-case.js';
 import { CreateUserUseCase } from '../application/use-cases/create-user.use-case.js';
@@ -39,6 +41,11 @@ import { ChangeUserRoleDto } from './dtos/change-user-role.dto.js';
 import { SetUserStatusDto } from './dtos/set-user-status.dto.js';
 import { UserQueryDto } from './dtos/user-query.dto.js';
 import { parseRole } from './dtos/role-helper.js';
+import type { UserActor } from '../application/types/user-actor.js';
+
+function toActor(user: AuthUser): UserActor {
+  return { id: user.id, role: user.role };
+}
 
 @ApiTags('users')
 @ApiBearerAuth()
@@ -46,7 +53,7 @@ import { parseRole } from './dtos/role-helper.js';
 @Roles(UserRole.Admin)
 @ApiUnauthorizedResponse({ description: 'Authentication required' })
 @ApiForbiddenResponse({
-  description: 'Insufficient permissions (Admin role required)',
+  description: 'Insufficient permissions (admin or director role required)',
 })
 @Controller('users')
 export class UsersController {
@@ -60,37 +67,50 @@ export class UsersController {
   ) {}
 
   @Get()
+  @Roles(UserRole.Admin, UserRole.Director)
   @ApiOperation({
-    summary: 'List users with optional filtering by role, status, or search',
+    summary: 'Admin: list users; director: list advisors only',
   })
   @ApiOkResponse({
     type: [UserResponseDto],
-    description: 'List of registered users',
+    description:
+      'Admin: matching users. Director: advisors only; a non-advisor role filter returns an empty list.',
   })
-  async listUsers(@Query() query: UserQueryDto): Promise<UserResponseDto[]> {
+  async listUsers(
+    @Query() query: UserQueryDto,
+    @CurrentUser() user: AuthUser,
+  ): Promise<UserResponseDto[]> {
     const role = query.role ? parseRole(query.role) : undefined;
-    const users = await this.listUsersUseCase.execute({
-      role,
-      isActive: query.isActive,
-      search: query.search,
-    });
+    const users = await this.listUsersUseCase.execute(
+      {
+        role,
+        isActive: query.isActive,
+        search: query.search,
+      },
+      toActor(user),
+    );
     return users.map(UserResponseDto.fromDomain);
   }
 
   @Post()
+  @Roles(UserRole.Admin, UserRole.Director)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Register a new user account with an assigned role',
+    summary: 'Admin: create any allowed user; director: create advisors only',
   })
   @ApiCreatedResponse({
     type: UserResponseDto,
-    description: 'User successfully created',
+    description: 'User successfully created; directors can create advisors only',
   })
   @ApiConflictResponse({ description: 'Email is already registered' })
   @ApiBadRequestResponse({ description: 'Validation error on input fields' })
-  async createUser(@Body() dto: CreateUserDto): Promise<UserResponseDto> {
+  async createUser(
+    @Body() dto: CreateUserDto,
+    @CurrentUser() actor: AuthUser,
+  ): Promise<UserResponseDto> {
     const role = parseRole(dto.role);
     const user = await this.createUserUseCase.execute({
+      actor: toActor(actor),
       name: dto.name,
       email: dto.email,
       password: dto.password,
@@ -100,19 +120,28 @@ export class UsersController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Retrieve detailed information of a specific user' })
+  @Roles(UserRole.Admin, UserRole.Director)
+  @ApiOperation({
+    summary: 'Retrieve a user; directors can access advisors only',
+  })
   @ApiOkResponse({
     type: UserResponseDto,
     description: 'User found',
   })
   @ApiNotFoundResponse({ description: 'User not found' })
-  async getUser(@Param('id') id: string): Promise<UserResponseDto> {
-    const user = await this.getUserUseCase.execute(id);
+  async getUser(
+    @Param('id') id: string,
+    @CurrentUser() actor: AuthUser,
+  ): Promise<UserResponseDto> {
+    const user = await this.getUserUseCase.execute(id, toActor(actor));
     return UserResponseDto.fromDomain(user);
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update allowed profile fields of a user' })
+  @Roles(UserRole.Admin, UserRole.Director)
+  @ApiOperation({
+    summary: 'Update profile fields; directors can update advisors only',
+  })
   @ApiOkResponse({
     type: UserResponseDto,
     description: 'User profile updated',
@@ -122,8 +151,10 @@ export class UsersController {
   async updateUser(
     @Param('id') id: string,
     @Body() dto: UpdateUserDto,
+    @CurrentUser() actor: AuthUser,
   ): Promise<UserResponseDto> {
     const user = await this.updateUserUseCase.execute({
+      actor: toActor(actor),
       id,
       name: dto.name,
       image: dto.image,
@@ -132,6 +163,7 @@ export class UsersController {
   }
 
   @Patch(':id/role')
+  @Roles(UserRole.Admin)
   @ApiOperation({
     summary:
       'Change role of a user (protected against leaving zero active admins)',
@@ -159,9 +191,10 @@ export class UsersController {
   }
 
   @Patch(':id/status')
+  @Roles(UserRole.Admin, UserRole.Director)
   @ApiOperation({
     summary:
-      'Activate or deactivate user account without deleting business history',
+      'Activate/deactivate users; directors can manage advisors only',
   })
   @ApiOkResponse({
     type: UserResponseDto,
@@ -175,8 +208,10 @@ export class UsersController {
   async setStatus(
     @Param('id') id: string,
     @Body() dto: SetUserStatusDto,
+    @CurrentUser() actor: AuthUser,
   ): Promise<UserResponseDto> {
     const user = await this.setUserStatusUseCase.execute({
+      actor: toActor(actor),
       id,
       isActive: dto.isActive,
     });

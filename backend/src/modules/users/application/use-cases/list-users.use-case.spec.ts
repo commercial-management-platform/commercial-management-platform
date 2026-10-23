@@ -5,6 +5,8 @@ import { User } from '../../domain/entities/user.entity.js';
 import { UserRole } from '../../../auth/domain/types/user-role.enum.js';
 
 describe('ListUsersUseCase', () => {
+  const adminActor = { id: 'admin-1', role: UserRole.Admin };
+  const directorActor = { id: 'director-1', role: UserRole.Director };
   const dummyUser = new User({
     id: 'user-1',
     name: 'Admin User',
@@ -26,7 +28,7 @@ describe('ListUsersUseCase', () => {
     };
 
     const useCase = new ListUsersUseCase(userRepository);
-    const result = await useCase.execute();
+    const result = await useCase.execute(undefined, adminActor);
 
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('user-1');
@@ -44,8 +46,26 @@ describe('ListUsersUseCase', () => {
 
     const useCase = new ListUsersUseCase(userRepository);
     const filters = { role: UserRole.Advisor, isActive: true, search: 'test' };
-    await useCase.execute(filters);
+    await useCase.execute(filters, adminActor);
 
     expect(userRepository.findAll).toHaveBeenCalledWith(filters);
+  });
+
+  it('limits directors to advisors and returns an empty list for other role filters', async () => {
+    const userRepository: UserRepository = {
+      findAll: vi.fn().mockResolvedValue([]),
+      findById: vi.fn(),
+      findByEmail: vi.fn(),
+      countActiveAdmins: vi.fn(),
+      update: vi.fn(),
+    };
+    const useCase = new ListUsersUseCase(userRepository);
+
+    await useCase.execute(undefined, directorActor);
+    expect(userRepository.findAll).toHaveBeenLastCalledWith({ role: UserRole.Advisor });
+
+    const result = await useCase.execute({ role: UserRole.Admin }, directorActor);
+    expect(result).toEqual([]);
+    expect(userRepository.findAll).toHaveBeenCalledTimes(1);
   });
 });

@@ -3,11 +3,14 @@ import {
   ValidationError,
 } from '../../../shared/domain/errors/index.js';
 import {
+  businessDateOf,
   businessDateTimeToInstant,
   businessDayRange,
 } from '../../../shared/domain/time/business-time.js';
+import type { ActivityLogPort } from '../../../shared/application/ports/activity-log.port.js';
 import { Visit } from '../domain/visit.js';
 import type { VisitRepository } from '../domain/visit.repository.js';
+import type { VisitActor } from './types/visit-actor.js';
 import type { VisitReferencesPort } from './ports/visit-references.port.js';
 import { assertNotPast, inBusinessTime } from './visit-dates.js';
 
@@ -22,6 +25,7 @@ export class GenerateRouteVisitsUseCase {
   constructor(
     private readonly visitRepository: VisitRepository,
     private readonly references: VisitReferencesPort,
+    private readonly activityLog: ActivityLogPort,
   ) {}
 
   /**
@@ -32,6 +36,7 @@ export class GenerateRouteVisitsUseCase {
   async execute(
     routeId: number,
     input: { date: string; time?: string | null },
+    actor: VisitActor,
   ): Promise<GeneratedRouteVisits> {
     const route = await this.references.findRoute(routeId);
     if (!route) {
@@ -101,7 +106,15 @@ export class GenerateRouteVisitsUseCase {
 
     const created =
       toCreate.length === 0 ? [] : await this.visitRepository.saveAll(toCreate);
-    // HU-16: registrar visit_scheduled (one per created visit)
+    for (const visit of created) {
+      await this.activityLog.record({
+        action: 'visit.scheduled',
+        userId: actor.id,
+        clientId: visit.clientId,
+        description: `Visit scheduled for ${businessDateOf(visit.scheduledDate)} from route '${routeId}'`,
+        occurredAt: new Date(),
+      });
+    }
     return { created, skipped };
   }
 }
