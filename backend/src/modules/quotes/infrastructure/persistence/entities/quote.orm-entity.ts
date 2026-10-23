@@ -44,8 +44,8 @@ export class QuoteOrmEntity {
   @Column({
     name: 'value',
     type: 'numeric',
-    precision: 14,
-    scale: 2,
+    precision: 18,
+    scale: 6,
     default: '0',
   })
   value: string;

@@ -27,9 +27,14 @@ import {
   type AdvisorClientAccessPort,
 } from '../src/modules/clients/application/ports/advisor-client-access.port.js';
 import { ChangeQuoteStatusUseCase } from '../src/modules/quotes/application/use-cases/change-quote-status.use-case.js';
+import { AddQuoteDetailUseCase } from '../src/modules/quotes/application/use-cases/add-quote-detail.use-case.js';
 import { CreateQuoteUseCase } from '../src/modules/quotes/application/use-cases/create-quote.use-case.js';
 import { GetQuoteUseCase } from '../src/modules/quotes/application/use-cases/get-quote.use-case.js';
+import { ListQuoteDetailsUseCase } from '../src/modules/quotes/application/use-cases/list-quote-details.use-case.js';
 import { ListQuotesUseCase } from '../src/modules/quotes/application/use-cases/list-quotes.use-case.js';
+import { RemoveQuoteDetailUseCase } from '../src/modules/quotes/application/use-cases/remove-quote-detail.use-case.js';
+import { UpdateQuoteDetailUseCase } from '../src/modules/quotes/application/use-cases/update-quote-detail.use-case.js';
+import { QuoteDetail } from '../src/modules/quotes/domain/entities/quote-detail.js';
 import {
   QUOTE_REFERENCES,
   type QuoteReferencesPort,
@@ -38,6 +43,10 @@ import {
   QUOTE_REPOSITORY,
   type QuoteRepositoryPort,
 } from '../src/modules/quotes/domain/ports/quote.repository.port.js';
+import {
+  QUOTE_DETAIL_REPOSITORY,
+  type QuoteDetailRepositoryPort,
+} from '../src/modules/quotes/domain/ports/quote-detail.repository.port.js';
 import { Quote } from '../src/modules/quotes/domain/entities/quote.js';
 import type { QuoteStatus } from '../src/modules/quotes/domain/entities/quote-status.js';
 import { QuotesController } from '../src/modules/quotes/presentation/controllers/quotes.controller.js';
@@ -95,10 +104,12 @@ class FakeAuthService implements AuthServicePort {
   }
 }
 
-class InMemoryQuotes implements QuoteRepositoryPort {
+class InMemoryQuotes implements QuoteRepositoryPort, QuoteDetailRepositoryPort {
   private readonly quotes = new Map<number, Quote>();
+  private readonly details = new Map<number, QuoteDetail>();
   private nextId = 1;
   private nextNumber = 1;
+  private nextDetailId = 1;
 
   async create(quote: Quote): Promise<Quote> {
     const saved = new Quote({
@@ -155,6 +166,66 @@ class InMemoryQuotes implements QuoteRepositoryPort {
     this.quotes.set(id, updated);
     return new Quote({ ...updated });
   }
+
+  async findByQuoteId(quoteId: number): Promise<QuoteDetail[]> {
+    return [...this.details.values()]
+      .filter((detail) => detail.quoteId === quoteId)
+      .sort((left, right) => left.id! - right.id!)
+      .map((detail) => new QuoteDetail({ ...detail }));
+  }
+
+  async findDetailById(
+    quoteId: number,
+    detailId: number,
+  ): Promise<QuoteDetail | null> {
+    const detail = this.details.get(detailId);
+    return detail?.quoteId === quoteId ? new QuoteDetail({ ...detail }) : null;
+  }
+
+  async add(quoteId: number, detail: QuoteDetail): Promise<QuoteDetail | null> {
+    if (!this.quotes.has(quoteId)) return null;
+    const saved = new QuoteDetail({
+      ...detail,
+      id: this.nextDetailId++,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    this.details.set(saved.id!, saved);
+    this.recalculateQuote(quoteId);
+    return new QuoteDetail({ ...saved });
+  }
+
+  async update(
+    quoteId: number,
+    detail: QuoteDetail,
+  ): Promise<QuoteDetail | null> {
+    const current = this.details.get(detail.id!);
+    if (!current || current.quoteId !== quoteId) return null;
+    const saved = new QuoteDetail({
+      ...detail,
+      createdAt: current.createdAt,
+      updatedAt: new Date(),
+    });
+    this.details.set(saved.id!, saved);
+    this.recalculateQuote(quoteId);
+    return new QuoteDetail({ ...saved });
+  }
+
+  async remove(quoteId: number, detailId: number): Promise<boolean> {
+    const detail = this.details.get(detailId);
+    if (!detail || detail.quoteId !== quoteId) return false;
+    this.details.delete(detailId);
+    this.recalculateQuote(quoteId);
+    return true;
+  }
+
+  private recalculateQuote(quoteId: number): void {
+    const quote = this.quotes.get(quoteId)!;
+    quote.recalculateValue(
+      [...this.details.values()].filter((detail) => detail.quoteId === quoteId),
+    );
+    quote.updatedAt = new Date();
+  }
 }
 
 const references: QuoteReferencesPort = {
@@ -206,6 +277,7 @@ async function createTestApp(): Promise<TestContext> {
         useValue: new FakeAuthService([admin, advisor]),
       },
       { provide: QUOTE_REPOSITORY, useValue: quotes },
+      { provide: QUOTE_DETAIL_REPOSITORY, useValue: quotes },
       { provide: QUOTE_REFERENCES, useValue: references },
       { provide: ADVISOR_CLIENT_ACCESS, useValue: advisorAccess },
       { provide: ACTIVITY_LOG, useValue: activities },
@@ -225,6 +297,26 @@ async function createTestApp(): Promise<TestContext> {
       {
         provide: ChangeQuoteStatusUseCase,
         useFactory: () => new ChangeQuoteStatusUseCase(quotes, activities),
+      },
+      {
+        provide: ListQuoteDetailsUseCase,
+        useFactory: () =>
+          new ListQuoteDetailsUseCase(quotes, quotes, advisorAccess),
+      },
+      {
+        provide: AddQuoteDetailUseCase,
+        useFactory: () =>
+          new AddQuoteDetailUseCase(quotes, quotes, advisorAccess),
+      },
+      {
+        provide: UpdateQuoteDetailUseCase,
+        useFactory: () =>
+          new UpdateQuoteDetailUseCase(quotes, quotes, advisorAccess),
+      },
+      {
+        provide: RemoveQuoteDetailUseCase,
+        useFactory: () =>
+          new RemoveQuoteDetailUseCase(quotes, quotes, advisorAccess),
       },
     ],
   }).compile();
@@ -331,5 +423,229 @@ describe('Quotes (HU-12)', () => {
       .set('Authorization', `Bearer ${TOKENS[advisor.id]}`)
       .send({ status: 'sent' })
       .expect(403);
+  });
+
+  it('calculates exact subtotals and recalculates the quote total after updates and deletion', async () => {
+    context = await createTestApp();
+    const server = context.app.getHttpServer();
+    const quote = await request(server)
+      .post('/api/quotes')
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ clientId: 1, advisorId: 1, date: '2026-10-22' })
+      .expect(201);
+    const first = await request(server)
+      .post(`/api/quotes/${quote.body.id}/details`)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ product: 'Service A', quantity: '1.500', price: '10.250' })
+      .expect(201);
+    const second = await request(server)
+      .post(`/api/quotes/${quote.body.id}/details`)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ product: 'Service B', quantity: '2.000', price: '2.125' })
+      .expect(201);
+
+    expect(first.body.subtotal).toBe('15.375000');
+    expect(second.body.subtotal).toBe('4.250000');
+    let current = await request(server)
+      .get(`/api/quotes/${quote.body.id}`)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .expect(200);
+    expect(current.body.value).toBe('19.625000');
+    expect(current.body.details).toHaveLength(2);
+
+    const listedDetails = await request(server)
+      .get(`/api/quotes/${quote.body.id}/details`)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .expect(200);
+    expect(listedDetails.body).toHaveLength(2);
+    expect(listedDetails.body[0].subtotal).toBe('15.375000');
+
+    await request(server)
+      .patch(`/api/quotes/${quote.body.id}/details/${first.body.id}`)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ price: '11.000' })
+      .expect(200)
+      .expect(({ body }) => expect(body.subtotal).toBe('16.500000'));
+    current = await request(server)
+      .get(`/api/quotes/${quote.body.id}`)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .expect(200);
+    expect(current.body.value).toBe('20.750000');
+
+    await request(server)
+      .delete(`/api/quotes/${quote.body.id}/details/${second.body.id}`)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .expect(204);
+    current = await request(server)
+      .get(`/api/quotes/${quote.body.id}`)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .expect(200);
+    expect(current.body.value).toBe('16.500000');
+    expect(current.body.details).toHaveLength(1);
+  });
+
+  it('lets an advisor change the details of quotes for clients on their routes', async () => {
+    context = await createTestApp();
+    const server = context.app.getHttpServer();
+    const own = await request(server)
+      .post('/api/quotes')
+      .set('Authorization', `Bearer ${TOKENS[advisor.id]}`)
+      .send({ clientId: 1, date: '2026-10-22' })
+      .expect(201);
+    const other = await request(server)
+      .post('/api/quotes')
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ clientId: 2, advisorId: 2, date: '2026-10-22' })
+      .expect(201);
+    const url = `/api/quotes/${own.body.id}/details`;
+
+    const detail = await request(server)
+      .post(url)
+      .set('Authorization', `Bearer ${TOKENS[advisor.id]}`)
+      .send({ product: 'Service', quantity: '2.000', price: '10.500' })
+      .expect(201);
+    expect(detail.body.subtotal).toBe('21.000000');
+    await request(server)
+      .patch(`${url}/${detail.body.id}`)
+      .set('Authorization', `Bearer ${TOKENS[advisor.id]}`)
+      .send({ quantity: '3.000' })
+      .expect(200)
+      .expect(({ body }) => expect(body.subtotal).toBe('31.500000'));
+    await request(server)
+      .delete(`${url}/${detail.body.id}`)
+      .set('Authorization', `Bearer ${TOKENS[advisor.id]}`)
+      .expect(204);
+    await request(server)
+      .post(`/api/quotes/${other.body.id}/details`)
+      .set('Authorization', `Bearer ${TOKENS[advisor.id]}`)
+      .send({ product: 'Service', quantity: '1.000', price: '1.000' })
+      .expect(404);
+  });
+
+  it('rejects amounts that do not fit the decimal columns', async () => {
+    context = await createTestApp();
+    const server = context.app.getHttpServer();
+    const quote = await request(server)
+      .post('/api/quotes')
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ clientId: 1, advisorId: 1, date: '2026-10-22' })
+      .expect(201);
+    const url = `/api/quotes/${quote.body.id}/details`;
+
+    // More than 11 integer digits for numeric(14,3).
+    await request(server)
+      .post(url)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ product: 'Service', quantity: '999999999999', price: '1' })
+      .expect(400);
+    // The largest accepted inputs, but their subtotal exceeds numeric(18,6).
+    await request(server)
+      .post(url)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({
+        product: 'Service',
+        quantity: '99999999999',
+        price: '99999999999',
+      })
+      .expect(400);
+    await request(server)
+      .post(url)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ product: 'Service', quantity: '1', price: '99999999999.999' })
+      .expect(201);
+  });
+
+  it('rejects invalid amounts, missing sessions, and changes once the quote is sent', async () => {
+    context = await createTestApp();
+    const server = context.app.getHttpServer();
+    const quote = await request(server)
+      .post('/api/quotes')
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ clientId: 1, advisorId: 1, date: '2026-10-22' })
+      .expect(201);
+    const url = `/api/quotes/${quote.body.id}/details`;
+
+    await request(server)
+      .post(url)
+      .send({ product: 'Service', quantity: '1.000', price: '1.000' })
+      .expect(401);
+    await request(server)
+      .post(url)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ product: 'Service', quantity: '0.000', price: '1.000' })
+      .expect(400);
+    await request(server)
+      .post(url)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ product: 'Service', quantity: '1.000', price: '-1.000' })
+      .expect(400);
+    await request(server)
+      .post(url)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({
+        product: 'Service',
+        quantity: '1.000',
+        price: '1.000',
+        subtotal: '999.000000',
+      })
+      .expect(400);
+    const detail = await request(server)
+      .post(url)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ product: 'Service', quantity: '1.000', price: '1.000' })
+      .expect(201);
+    await request(server)
+      .patch(`/api/quotes/${quote.body.id}/status`)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ status: 'sent' })
+      .expect(200);
+    // Sent: products and prices are locked for every role.
+    for (const token of [TOKENS[admin.id], TOKENS[advisor.id]]) {
+      await request(server)
+        .post(url)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ product: 'Service', quantity: '1.000', price: '1.000' })
+        .expect(400);
+      await request(server)
+        .patch(`${url}/${detail.body.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ quantity: '2.000' })
+        .expect(400);
+      await request(server)
+        .delete(`${url}/${detail.body.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    }
+    await request(server)
+      .patch(`/api/quotes/${quote.body.id}/status`)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ status: 'approved' })
+      .expect(200);
+    await request(server)
+      .post(url)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ product: 'Service', quantity: '1.000', price: '1.000' })
+      .expect(400);
+  });
+
+  it('documents quote detail endpoints in Swagger', async () => {
+    context = await createTestApp();
+    const paths = (
+      await request(context.app.getHttpServer())
+        .get('/api/docs-json')
+        .expect(200)
+    ).body.paths;
+    expect(paths).toHaveProperty('/api/quotes/{id}/details');
+    expect(paths).toHaveProperty('/api/quotes/{id}/details/{detailId}');
+    expect(paths['/api/quotes/{id}/details'].get.security).toBeDefined();
+    expect(paths['/api/quotes/{id}/details'].post.responses).toHaveProperty(
+      '201',
+    );
+    expect(
+      paths['/api/quotes/{id}/details/{detailId}'].patch.responses,
+    ).toHaveProperty('200');
+    expect(
+      paths['/api/quotes/{id}/details/{detailId}'].delete.responses,
+    ).toHaveProperty('204');
   });
 });

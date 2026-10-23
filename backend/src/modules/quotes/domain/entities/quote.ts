@@ -1,5 +1,11 @@
 import { ValidationError } from '../../../../shared/domain/errors/index.js';
-import { QUOTE_STATUS_TRANSITIONS, type QuoteStatus } from './quote-status.js';
+import { calculateTotal } from './quote-decimal.js';
+import type { QuoteDetail } from './quote-detail.js';
+import {
+  assertQuoteDetailsEditable,
+  QUOTE_STATUS_RULES,
+  type QuoteStatus,
+} from './quote-status.js';
 
 export interface QuoteProps {
   id: number | null;
@@ -25,7 +31,7 @@ export class Quote {
   readonly advisorId: number;
   readonly visitId: number | null;
   readonly date: string;
-  readonly value: string;
+  value: string;
   readonly currency: string;
   status: QuoteStatus;
   documentKey: string | null;
@@ -67,11 +73,19 @@ export class Quote {
   }
 
   changeStatus(nextStatus: QuoteStatus): void {
-    if (!QUOTE_STATUS_TRANSITIONS[this.status].includes(nextStatus)) {
+    if (!QUOTE_STATUS_RULES[this.status].allowedNext.includes(nextStatus)) {
       throw new ValidationError(
         `Cannot change a quote from '${this.status}' to '${nextStatus}'`,
       );
     }
     this.status = nextStatus;
+  }
+
+  assertDetailsEditable(): void {
+    assertQuoteDetailsEditable(this.status);
+  }
+
+  recalculateValue(details: readonly QuoteDetail[]): void {
+    this.value = calculateTotal(details.map((detail) => detail.subtotal));
   }
 }
