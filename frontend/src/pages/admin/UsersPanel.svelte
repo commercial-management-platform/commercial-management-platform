@@ -67,6 +67,11 @@
     if (!(await run(user, () => changeUserRole(user.id, role), `Rol cambiado a ${roleLabel[role]}`))) select.value = user.role
   }
 
+  function openEdit(user: ApiUser | null) {
+    editing = user
+    formOpen = true
+  }
+
   function toggle(user: ApiUser) {
     if (user.isActive && !confirm(`¿Desactivar la cuenta de ${user.name}? No podrá iniciar sesión; su historial se conserva.`)) return
     run(user, () => setUserActive(user.id, !user.isActive), user.isActive ? 'Usuario desactivado' : 'Usuario reactivado')
@@ -84,13 +89,7 @@
         <option value="">Todos los roles</option>
         {#each ROLES as r (r)}<option value={r}>{roleLabel[r]}</option>{/each}
       </select>
-      <button
-        class="btn btn-primary"
-        onclick={() => {
-          editing = null
-          formOpen = true
-        }}
-      >
+      <button class="btn btn-primary" onclick={() => openEdit(null)}>
         <Icon name="plus" size={16} strokeWidth={2.2} /> Nuevo usuario
       </button>
     </div>
@@ -139,13 +138,7 @@
               <td><span class="badge" class:inactive={!user.isActive}>{user.isActive ? 'Activo' : 'Desactivado'}</span></td>
               <td class="date">{formatDate(user.createdAt)}</td>
               <td class="actions">
-                <button
-                  class="link"
-                  onclick={() => {
-                    editing = user
-                    formOpen = true
-                  }}>Editar</button
-                >
+                <button class="link" onclick={() => openEdit(user)}>Editar</button>
                 {#if !self}
                   <button class="link" class:danger={user.isActive} onclick={() => toggle(user)} disabled={busyId === user.id}>
                     {user.isActive ? 'Desactivar' : 'Reactivar'}
@@ -159,6 +152,50 @@
         </tbody>
       </table>
     </div>
+
+    <!-- En pantallas pequeñas la tabla se reemplaza por tarjetas compactas. -->
+    <ul class="cards">
+      {#each rows as user (user.id)}
+        {@const self = user.id === session.current?.user.id}
+        <li class:off={!user.isActive}>
+          <div class="card-head">
+            <div class="who">
+              <p class="name">
+                {user.name}
+                {#if self}<span class="tag">Tú</span>{/if}
+              </p>
+              <p class="meta">{user.email}</p>
+              <p class="meta">Creado {formatDate(user.createdAt)}</p>
+            </div>
+            <span class="badge" class:inactive={!user.isActive}>{user.isActive ? 'Activo' : 'Desactivado'}</span>
+          </div>
+          <label class="role-field">
+            <span>Rol</span>
+            <select
+              class="select"
+              value={user.role}
+              disabled={busyId === user.id || self}
+              onchange={(e) => changeRole(user, e.currentTarget)}
+            >
+              {#each ROLES as r (r)}<option value={r}>{roleLabel[r]}</option>{/each}
+            </select>
+            {#if self}<small>No puedes cambiar tu propio rol.</small>{/if}
+          </label>
+          <div class="card-actions">
+            <button class="btn btn-outline" onclick={() => openEdit(user)}>
+              <Icon name="pencil" size={14} /> Editar
+            </button>
+            {#if !self}
+              <button class="btn btn-outline" class:danger={user.isActive} onclick={() => toggle(user)} disabled={busyId === user.id}>
+                {user.isActive ? 'Desactivar' : 'Reactivar'}
+              </button>
+            {/if}
+          </div>
+        </li>
+      {:else}
+        <li class="empty">No hay usuarios que coincidan.</li>
+      {/each}
+    </ul>
   {/if}
 </section>
 
@@ -326,5 +363,122 @@
     align-items: center;
     justify-content: space-between;
     padding: 20px 24px;
+  }
+
+  .cards {
+    display: none;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--border-default);
+  }
+
+  .cards li {
+    padding: 16px;
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .cards li:last-child {
+    border-bottom: 0;
+  }
+
+  .cards li.off > * {
+    opacity: 0.6;
+  }
+
+  .card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .who {
+    min-width: 0;
+  }
+
+  .who .name {
+    font-size: 15px;
+    line-height: 20px;
+  }
+
+  .meta {
+    margin-top: 2px;
+    overflow: hidden;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-secondary);
+  }
+
+  .role-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--bg-page);
+  }
+
+  .role-field span {
+    font: 600 11px/16px var(--font-heading);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .role-field .select {
+    width: 100%;
+  }
+
+  .role-field small {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .card-actions .btn {
+    flex: 1;
+    height: 38px;
+    font-size: 13px;
+  }
+
+  .card-actions .danger {
+    color: var(--danger);
+  }
+
+  .cards .empty {
+    padding: 32px 16px;
+  }
+
+  @media (max-width: 760px) {
+    .list-head {
+      flex-direction: column;
+      align-items: stretch;
+      padding: 16px;
+    }
+
+    .search {
+      width: 100%;
+    }
+
+    .controls > * {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .scroll {
+      display: none;
+    }
+
+    .cards {
+      display: block;
+    }
   }
 </style>

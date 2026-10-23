@@ -78,6 +78,8 @@
     if (page > pages - 1) page = pages - 1
   })
 
+  const createdLabel = (iso: string) => shortDate.format(new Date(iso)).replace(/ de /g, ' ').replace('.', '')
+
   function toggleSort(key: SortKey) {
     sort = sort.key === key ? { key, dir: sort.dir === 1 ? -1 : 1 } : { key, dir: key === 'nombre' ? 1 : -1 }
   }
@@ -221,8 +223,22 @@
               </div>
             {/if}
           </div>
-          <button class="btn btn-outline" onclick={exportCsv} disabled={rows.length === 0} title="Exportar a CSV">
-            <Icon name="download" size={16} /> Exportar
+          <select
+            class="select sort-select"
+            aria-label="Ordenar"
+            value={`${sort.key}:${sort.dir}`}
+            onchange={(e) => {
+              const [key, dir] = e.currentTarget.value.split(':')
+              sort = { key: key as SortKey, dir: Number(dir) as 1 | -1 }
+            }}
+          >
+            <option value="creado:-1">Más recientes</option>
+            <option value="creado:1">Más antiguos</option>
+            <option value="nombre:1">Nombre A–Z</option>
+            <option value="nombre:-1">Nombre Z–A</option>
+          </select>
+          <button class="btn btn-outline export" onclick={exportCsv} disabled={rows.length === 0} title="Exportar a CSV">
+            <Icon name="download" size={16} /> <span>Exportar</span>
           </button>
         </div>
       </header>
@@ -272,7 +288,7 @@
                     <span class="muted">Sin estado</span>
                   {/if}
                 </td>
-                <td class="date">{shortDate.format(new Date(client.createdAt)).replace(/ de /g, ' ').replace('.', '')}</td>
+                <td class="date">{createdLabel(client.createdAt)}</td>
                 <td><button class="link" onclick={() => (detailId = client.id)}>Ver detalle</button></td>
               </tr>
             {:else}
@@ -289,6 +305,45 @@
           </tbody>
         </table>
       </div>
+
+      <!-- En pantallas pequeñas la tabla se reemplaza por tarjetas compactas. -->
+      <ul class="cards">
+        {#each visible as client (client.id)}
+          {@const status = catalogs.name('clientStatuses', client.clientStatusId)}
+          <li class:flash={clientDirectory.highlights[client.id]} class:off={!client.active}>
+            <div class="card-head">
+              <div>
+                <p class="client">{clientDisplayName(client)}</p>
+                <p class="meta">{client.municipality ?? 'Sin municipio'} · Creado {createdLabel(client.createdAt)}</p>
+              </div>
+              {#if !client.active}
+                <span class="badge inactivo">Desactivado</span>
+              {:else if status}
+                <span class="badge {clientStatusTone(status)}">{status}</span>
+              {:else}
+                <span class="muted">Sin estado</span>
+              {/if}
+            </div>
+            <dl>
+              <div><dt>NIT</dt><dd class="nit">{client.nit}</dd></div>
+              <div><dt>Tipo</dt><dd>{catalogs.name('clientTypes', client.clientTypeId) || '—'}</dd></div>
+              <div><dt>Zona</dt><dd>{catalogs.name('zones', client.zoneId) || '—'}</dd></div>
+              <div><dt>Potencial</dt><dd>{catalogs.name('potentials', client.clientPotentialId) || '—'}</dd></div>
+            </dl>
+            <button class="detail" onclick={() => (detailId = client.id)}>
+              Ver detalle <Icon name="chevron-right" size={16} />
+            </button>
+          </li>
+        {:else}
+          <li class="empty">
+            {clientDirectory.clients.length === 0
+              ? can.isAdvisor
+                ? 'Aún no tienes clientes asignados en tus rutas.'
+                : 'Aún no hay clientes registrados.'
+              : 'No hay clientes que coincidan con la búsqueda.'}
+          </li>
+        {/each}
+      </ul>
 
       {#if rows.length > PAGE_SIZE}
         <footer class="pager">
@@ -699,6 +754,95 @@
     }
   }
 
+  .sort-select {
+    display: none;
+  }
+
+  .cards {
+    display: none;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--border-default);
+  }
+
+  .cards li {
+    padding: 16px;
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .cards li:last-child {
+    border-bottom: 0;
+  }
+
+  .cards li.flash {
+    animation: live-flash 2.4s ease-out;
+  }
+
+  .cards li.off > * {
+    opacity: 0.6;
+  }
+
+  .card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .client {
+    font: 700 15px/20px var(--font-heading);
+    color: var(--text-primary);
+  }
+
+  .meta {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  dl {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 16px;
+    margin: 12px 0 0;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--bg-page);
+  }
+
+  dt {
+    font: 600 11px/16px var(--font-heading);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  dd {
+    margin: 2px 0 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .detail {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-top: 10px;
+    padding: 8px 2px;
+    font: 700 14px/18px var(--font-heading);
+    color: var(--text-brand);
+    border: 0;
+    background: none;
+    cursor: pointer;
+  }
+
+  .cards .empty {
+    padding: 32px 16px;
+  }
+
   .error {
     display: flex;
     align-items: center;
@@ -712,17 +856,64 @@
       align-items: flex-start;
     }
 
+    /* Los tres indicadores se mantienen en una sola fila, más compactos. */
     .stats {
-      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    .stat {
+      padding: 14px;
+    }
+
+    .stat strong {
+      font-size: 20px;
+      line-height: 28px;
     }
 
     .list-head {
       flex-direction: column;
       align-items: stretch;
+      padding: 16px;
     }
 
     .search {
       width: 100%;
+    }
+
+    .controls .sort-select {
+      display: block;
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* El botón queda a la izquierda, así que el menú se abre hacia la derecha. */
+    .popover {
+      right: auto;
+      left: 0;
+    }
+
+    .scroll {
+      display: none;
+    }
+
+    .cards {
+      display: block;
+    }
+
+    .pager {
+      padding: 12px 16px;
+    }
+  }
+
+  /* El botón de exportar queda solo con el icono para que los controles quepan en una fila. */
+  @media (max-width: 420px) {
+    .export span {
+      display: none;
+    }
+
+    .export {
+      width: 44px;
+      padding: 0;
     }
   }
 </style>

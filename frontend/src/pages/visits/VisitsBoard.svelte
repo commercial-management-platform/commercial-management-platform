@@ -25,6 +25,8 @@
   useClientDirectory()
 
   const PAGE_SIZE = 20
+  const dayLabel = new Intl.DateTimeFormat('es-CO', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Bogota' })
+  const dayKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' })
   const STATUSES = Object.keys(VISIT_STATUS_LABELS) as VisitStatus[]
 
   let range = $state<'week' | 'date'>('week')
@@ -47,6 +49,15 @@
 
   let routeById = $derived(new Map(routes.map((r) => [r.id, r])))
   let pages = $derived(Math.max(1, Math.ceil(total / PAGE_SIZE)))
+  // Vista móvil: las visitas de la página agrupadas por día, como una agenda.
+  let days = $derived.by(() => {
+    const groups = new Map<string, ApiVisit[]>()
+    for (const visit of visits.toSorted((a, b) => Date.parse(a.scheduledDate) - Date.parse(b.scheduledDate))) {
+      const key = dayKey.format(new Date(visit.scheduledDate))
+      groups.set(key, [...(groups.get(key) ?? []), visit])
+    }
+    return [...groups.entries()]
+  })
 
   let request = 0
   async function load() {
@@ -155,16 +166,16 @@
         <button role="tab" aria-selected={range === 'date'} class:active={range === 'date'} onclick={() => (range = 'date')}>Día</button>
       </div>
       <div class="controls">
-        <input class="input" type="date" bind:value={date} aria-label={range === 'week' ? 'Un día de la semana' : 'Día'} />
-        <select class="select" bind:value={statusFilter} aria-label="Estado">
+        <input class="input date-input" type="date" bind:value={date} aria-label={range === 'week' ? 'Un día de la semana' : 'Día'} />
+        <select class="select status-select" bind:value={statusFilter} aria-label="Estado">
           <option value="">Todos los estados</option>
           {#each STATUSES as s (s)}<option value={s}>{VISIT_STATUS_LABELS[s]}</option>{/each}
         </select>
-        <select class="select" bind:value={zoneId} aria-label="Zona">
+        <select class="select zone-select" bind:value={zoneId} aria-label="Zona">
           <option value="">Todas las zonas</option>
           {#each catalogs.zones as z (z.id)}<option value={z.id}>{z.name}</option>{/each}
         </select>
-        <button class="btn btn-outline icon" onclick={load} aria-label="Actualizar" title="Actualizar"><Icon name="rotate-ccw" size={16} /></button>
+        <button class="btn btn-outline icon refresh" onclick={load} aria-label="Actualizar" title="Actualizar"><Icon name="rotate-ccw" size={16} /></button>
       </div>
     </header>
 
@@ -229,6 +240,56 @@
             {/each}
           </tbody>
         </table>
+      </div>
+
+      <!-- En pantallas pequeñas la tabla se reemplaza por una agenda agrupada por día. -->
+      <div class="agenda">
+        {#each days as [key, items] (key)}
+          <h2 class="day-head">
+            <span class="day-name">{dayLabel.format(new Date(items[0].scheduledDate))}</span>
+            {#if key === businessToday()}<span class="today">Hoy</span>{/if}
+            <small>{items.length} {items.length === 1 ? 'visita' : 'visitas'}</small>
+          </h2>
+          <ol>
+            {#each items as visit (visit.id)}
+              {@const client = clientOf(visit)}
+              {@const route = visit.routeId !== null ? routeById.get(visit.routeId) : undefined}
+              <li class:off={visit.status === 'cancelled'}>
+                <div class="time">
+                  <strong>{formatTime(visit.scheduledDate)}</strong>
+                  {#if visit.visitOrder}<small>Parada {visit.visitOrder}</small>{/if}
+                </div>
+                <div class="info">
+                  <div class="info-head">
+                    <p class="name">{clientName(visit)}</p>
+                    <span class="badge {visit.status}">{VISIT_STATUS_LABELS[visit.status]}</span>
+                  </div>
+                  {#if client}<p class="muted">{catalogs.name('zones', client.zoneId) || client.municipality || ''}</p>{/if}
+                  <p class="muted">{route ? route.name : 'Fuera de ruta'} · Asesor #{visit.advisorId}</p>
+                  {#if visit.status === 'visited'}
+                    {#if visit.locationConfirmed}
+                      <p class="ok"><Icon name="check" size={14} /> Ubicación confirmada</p>
+                    {:else}
+                      <p class="muted">Ubicación sin confirmar</p>
+                    {/if}
+                  {/if}
+                  {#if visit.status === 'scheduled'}
+                    <div class="item-actions">
+                      <button class="btn btn-outline" onclick={() => openReschedule(visit)} disabled={busyId === visit.id}>
+                        <Icon name="calendar" size={14} /> Reprogramar
+                      </button>
+                      <button class="btn btn-outline danger" onclick={() => cancel(visit)} disabled={busyId === visit.id}>
+                        <Icon name="x" size={14} /> Cancelar
+                      </button>
+                    </div>
+                  {/if}
+                </div>
+              </li>
+            {/each}
+          </ol>
+        {:else}
+          <p class="empty">No hay visitas para los filtros seleccionados.</p>
+        {/each}
       </div>
 
       {#if total > PAGE_SIZE}
@@ -549,6 +610,110 @@
     font-weight: 400;
   }
 
+  .agenda {
+    display: none;
+    border-top: 1px solid var(--border-default);
+  }
+
+  .day-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    font: 700 13px/18px var(--font-heading);
+    background: var(--bg-surface-soft);
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  /* Solo la primera letra en mayúscula: «Jueves, 23 de octubre». */
+  .day-name::first-letter {
+    text-transform: uppercase;
+  }
+
+  .day-head small {
+    margin-left: auto;
+    font: 500 12px/16px var(--font-body);
+    color: var(--text-muted);
+  }
+
+  .today {
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--brand-700);
+    border-radius: 999px;
+    background: var(--brand-100);
+  }
+
+  .agenda ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .agenda li {
+    display: grid;
+    grid-template-columns: 52px minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .agenda li.off > * {
+    opacity: 0.6;
+  }
+
+  .time strong {
+    display: block;
+    font: 700 14px/20px var(--font-heading);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .time small {
+    display: block;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 13px;
+  }
+
+  .info-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .info .name {
+    font: 700 14px/20px var(--font-heading);
+    color: var(--text-primary);
+  }
+
+  .item-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .item-actions .btn {
+    flex: 1;
+    height: 36px;
+    padding: 0 10px;
+    font-size: 13px;
+  }
+
+  .item-actions .danger {
+    color: var(--danger);
+  }
+
+  .agenda .empty {
+    padding: 32px 16px;
+  }
+
   @media (max-width: 760px) {
     .intro {
       flex-direction: column;
@@ -558,6 +723,51 @@
     .list-head {
       flex-direction: column;
       align-items: stretch;
+      padding: 16px;
+    }
+
+    .tabs button {
+      flex: 1;
+    }
+
+    /* Fecha + actualizar en la primera fila; estado y zona en la segunda. */
+    .controls {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 42px;
+      grid-template-areas:
+        'date date refresh'
+        'status zone zone';
+    }
+
+    .controls .date-input {
+      grid-area: date;
+      width: 100%;
+    }
+
+    .status-select {
+      grid-area: status;
+      min-width: 0;
+    }
+
+    .zone-select {
+      grid-area: zone;
+      min-width: 0;
+    }
+
+    .refresh {
+      grid-area: refresh;
+    }
+
+    .scroll {
+      display: none;
+    }
+
+    .agenda {
+      display: block;
+    }
+
+    .pager {
+      padding: 12px 16px;
     }
   }
 </style>

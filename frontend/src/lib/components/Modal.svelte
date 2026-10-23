@@ -168,8 +168,24 @@
 
   footer {
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
     gap: 10px;
     margin-top: 24px;
+  }
+
+  /* En móvil los botones se reparten el ancho y pasan a otra fila si no caben. */
+  @media (max-width: 520px) {
+    .panel {
+      padding: 20px;
+    }
+
+    footer {
+      margin-top: 20px;
+    }
+
+    footer > :global(*) {
+      flex: 1 1 auto;
+    }
   }
 </style>
