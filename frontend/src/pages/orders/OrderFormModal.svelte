@@ -1,77 +1,89 @@
 <script lang="ts">
-  import ItemsEditor from '../../lib/components/ItemsEditor.svelte'
   import Modal from '../../lib/components/Modal.svelte'
-  import { PRODUCTOS } from '../../lib/domain/commerce'
-  import { clientsStore } from '../../lib/stores/clients.svelte'
-  import { createOrder, ordersStore, quotesStore } from '../../lib/stores/commerce.svelte'
+  import { can } from '../../lib/permissions.svelte'
+  import { clientDisplayName } from '../../lib/services/clientsApi'
+  import { toDecimal } from '../../lib/services/quotesApi'
+  import type { ApiSalesOrder } from '../../lib/services/salesOrdersApi'
+  import { businessToday } from '../../lib/services/visitsApi'
+  import { advisors } from '../../lib/stores/advisors.svelte'
+  import { clientDirectory } from '../../lib/stores/clientDirectory.svelte'
+  import { createOrder, createOrderFromQuote, ordersStore, quotesStore } from '../../lib/stores/commerce.svelte'
   import { toasts } from '../../lib/stores/toasts.svelte'
-  import type { LineItem, Order } from '../../lib/types'
   import { formatMoney } from '../../lib/utils/format'
+
+  // Nuevo pedido (HU-14): desde una cotización aprobada (copia cliente, asesor y
+  // valor) o directo. El backend guarda el valor total, no líneas de producto.
 
   interface Props {
     open: boolean
     onclose: () => void
-    oncreated?: (order: Order) => void
+    oncreated?: (order: ApiSalesOrder) => void
   }
 
   let { open, onclose, oncreated }: Props = $props()
 
-  const isoDate = (offsetDays: number) => {
-    const d = new Date(Date.now() + offsetDays * 86_400_000)
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
-    return d.toISOString().slice(0, 10)
-  }
+  const addDays = (date: string, days: number) => new Date(Date.parse(`${date}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
 
-  let quoteId = $state('')
-  let clientId = $state('')
-  let entrega = $state(isoDate(5))
-  let items = $state<LineItem[]>([])
+  let quoteId = $state<number | ''>('')
+  let clientId = $state<number | ''>('')
+  let advisorId = $state<number | ''>('')
+  let value = $state<number | null>(null)
+  let date = $state(businessToday())
+  let entrega = $state('')
   let showErrors = $state(false)
   let saving = $state(false)
 
-  let clients = $derived(clientsStore.clients.filter((c) => c.estado !== 'inactivo').toSorted((a, b) => a.nombre.localeCompare(b.nombre)))
+  let clients = $derived(
+    clientDirectory.clients.filter((c) => c.active).toSorted((a, b) => clientDisplayName(a).localeCompare(clientDisplayName(b))),
+  )
+  const clientName = (id: number) => {
+    const client = clientDirectory.byId.get(id)
+    return client ? clientDisplayName(client) : `Cliente #${id}`
+  }
 
   // Cotizaciones aprobadas que aún no tienen pedido.
   let approved = $derived(
-    quotesStore.items.filter((q) => q.estado === 'aprobada' && !ordersStore.items.some((o) => o.quoteId === q.id)),
+    quotesStore.items.filter((q) => q.status === 'approved' && !ordersStore.items.some((o) => o.quoteId === q.id)),
   )
+  let quote = $derived(quoteId === '' ? null : (quotesStore.byId.get(quoteId) ?? null))
 
   $effect(() => {
     if (!open) return
-    quoteId = ''
-    clientId = ''
-    entrega = isoDate(5)
-    items = [{ producto: PRODUCTOS[0].nombre, cantidad: 1, precio: PRODUCTOS[0].precio }]
+    quoteId = clientId = advisorId = ''
+    value = null
+    date = businessToday()
+    entrega = addDays(date, 5)
     showErrors = false
   })
 
-  function pickQuote(id: string) {
-    quoteId = id
-    const quote = quotesStore.byId.get(id)
-    if (quote) {
-      clientId = quote.clientId
-      items = $state.snapshot(quote.items)
-    }
-  }
-
-  let validItems = $derived(items.length > 0 && items.every((i) => i.cantidad > 0 && i.precio >= 0))
-  let validDate = $derived(!!entrega && entrega >= isoDate(0))
+  let validDates = $derived(!!date && !!entrega && entrega >= date)
+  let validDirect = $derived(clientId !== '' && (!can.isManager || advisorId !== '') && value !== null && value >= 0)
+  let valid = $derived(validDates && (quote !== null || validDirect))
 
   async function save() {
     showErrors = true
-    if (!clientId || !validItems || !validDate) return
+    if (!valid) return
     saving = true
     try {
-      const order = await createOrder({
-        clientId,
-        entrega: new Date(`${entrega}T14:00`).toISOString(),
-        items,
-        quoteId: quoteId || undefined,
-      })
+      const order = quote
+        ? await createOrderFromQuote(quote.id, { date, estimatedDeliveryDate: entrega })
+        : await createOrder({
+            clientId: Number(clientId),
+            date,
+            value: toDecimal(value ?? 0),
+            estimatedDeliveryDate: entrega,
+            advisorId: can.isManager && advisorId !== '' ? advisorId : undefined,
+          })
+      toasts.push({ tone: 'success', icon: 'package', title: 'Pedido creado', message: order.number })
       oncreated?.(order)
       onclose()
-    } catch {
-      toasts.push({ tone: 'warning', icon: 'alert-circle', title: 'No se pudo crear el pedido', message: 'Intenta de nuevo.' })
+    } catch (error) {
+      toasts.push({
+        tone: 'warning',
+        icon: 'alert-circle',
+        title: 'No se pudo crear el pedido',
+        message: error instanceof Error && error.message ? error.message : 'Intenta de nuevo.',
+      })
     } finally {
       saving = false
     }
@@ -82,28 +94,63 @@
   <div class="form">
     <label class="field span-3">
       <span>Desde cotización</span>
-      <select class="select" value={quoteId} onchange={(e) => pickQuote(e.currentTarget.value)}>
+      <select class="select" bind:value={quoteId}>
         <option value="">Sin cotización (pedido directo)</option>
         {#each approved as q (q.id)}
-          <option value={q.id}>{q.numero} · {q.cliente} · {formatMoney(q.valor)}</option>
+          <option value={q.id}>{q.number} · {clientName(q.clientId)} · {formatMoney(Number(q.value))}</option>
         {/each}
       </select>
     </label>
-    <label class="field span-2">
-      <span>Cliente *</span>
-      <select class="select" class:invalid={showErrors && !clientId} bind:value={clientId} disabled={!!quoteId}>
-        <option value="" disabled>Selecciona un cliente</option>
-        {#each clients as c (c.id)}<option value={c.id}>{c.nombre} · {c.municipio}</option>{/each}
-      </select>
+
+    {#if quote}
+      <p class="span-3 from-quote">
+        Cliente <strong>{clientName(quote.clientId)}</strong> · asesor <strong>{advisors.name(quote.advisorId)}</strong> ·
+        valor <strong>{formatMoney(Number(quote.value))}</strong>, tomados de la cotización.
+      </p>
+    {:else}
+      <label class="field span-2">
+        <span>Cliente *</span>
+        <select class="select" class:invalid={showErrors && clientId === ''} bind:value={clientId}>
+          <option value="" disabled>Selecciona un cliente</option>
+          {#each clients as c (c.id)}
+            <option value={c.id}>{clientDisplayName(c)}{c.municipality ? ` · ${c.municipality}` : ''}</option>
+          {/each}
+        </select>
+      </label>
+      <label class="field">
+        <span>Valor total *</span>
+        <input
+          class="input"
+          class:invalid={showErrors && (value === null || value < 0)}
+          type="number"
+          min="0"
+          step="any"
+          bind:value
+          placeholder="0"
+        />
+      </label>
+      {#if can.isManager}
+        <label class="field span-3">
+          <span>Asesor *</span>
+          <select class="select" class:invalid={showErrors && advisorId === ''} bind:value={advisorId}>
+            <option value="" disabled>Selecciona un asesor</option>
+            {#each advisors.active as a (a.id)}<option value={a.id}>{a.name}</option>{/each}
+          </select>
+        </label>
+      {/if}
+    {/if}
+
+    <label class="field">
+      <span>Fecha del pedido *</span>
+      <input class="input" class:invalid={showErrors && !date} type="date" bind:value={date} />
     </label>
     <label class="field">
       <span>Entrega estimada *</span>
-      <input class="input" class:invalid={showErrors && !validDate} type="date" min={isoDate(0)} bind:value={entrega} />
+      <input class="input" class:invalid={showErrors && !validDates} type="date" min={date} bind:value={entrega} />
     </label>
-    <div class="field span-3">
-      <span>Detalle</span>
-      <ItemsEditor bind:items invalid={showErrors && !validItems} />
-    </div>
+    {#if showErrors && !validDates}
+      <p class="span-3 error">La entrega no puede ser anterior a la fecha del pedido.</p>
+    {/if}
   </div>
 
   {#snippet footer()}
@@ -147,6 +194,18 @@
 
   .invalid {
     border-color: var(--danger);
+  }
+
+  .from-quote {
+    padding: 12px 14px;
+    font-size: 13px;
+    border-radius: 10px;
+    background: var(--brand-50);
+  }
+
+  .error {
+    font-size: 13px;
+    color: var(--danger);
   }
 
   @media (max-width: 600px) {

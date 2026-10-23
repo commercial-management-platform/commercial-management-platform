@@ -59,7 +59,10 @@ describe('UsersController', () => {
 
   it('listUsers returns array of UserResponseDto', async () => {
     const controller = createController();
-    const result = await controller.listUsers({ role: 'ASESOR', isActive: true });
+    const result = await controller.listUsers({
+      role: 'ASESOR',
+      isActive: true,
+    });
 
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('user-1');

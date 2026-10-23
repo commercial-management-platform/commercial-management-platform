@@ -24,13 +24,20 @@ import { UpdateUserUseCase } from './application/use-cases/update-user.use-case.
 import { ChangeUserRoleUseCase } from './application/use-cases/change-user-role.use-case.js';
 import { SetUserStatusUseCase } from './application/use-cases/set-user-status.use-case.js';
 import { UsersController } from './presentation/users.controller.js';
+import {
+  ADVISOR_DIRECTORY_PORT,
+  type AdvisorDirectoryPort,
+} from './application/ports/advisor-directory.port.js';
+import { TypeOrmAdvisorDirectoryAdapter } from './infrastructure/persistence/typeorm-advisor-directory.adapter.js';
+import { ListAdvisorsUseCase } from './application/use-cases/list-advisors.use-case.js';
+import { AdvisorsController } from './presentation/advisors.controller.js';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([UserOrmEntity, AdvisorOrmEntity]),
     AuthModule,
   ],
-  controllers: [UsersController],
+  controllers: [UsersController, AdvisorsController],
   providers: [
     TypeOrmUserRepository,
     {
@@ -77,6 +84,17 @@ import { UsersController } from './presentation/users.controller.js';
       inject: [USER_REPOSITORY, ADVISOR_PROFILE_PORT],
       useFactory: (repo: UserRepository, advisors: AdvisorProfilePort) =>
         new SetUserStatusUseCase(repo, advisors),
+    },
+    TypeOrmAdvisorDirectoryAdapter,
+    {
+      provide: ADVISOR_DIRECTORY_PORT,
+      useExisting: TypeOrmAdvisorDirectoryAdapter,
+    },
+    {
+      provide: ListAdvisorsUseCase,
+      inject: [ADVISOR_DIRECTORY_PORT],
+      useFactory: (advisors: AdvisorDirectoryPort) =>
+        new ListAdvisorsUseCase(advisors),
     },
   ],
   exports: [

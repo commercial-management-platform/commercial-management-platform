@@ -1,21 +1,23 @@
 <script lang="ts">
   import { flip } from 'svelte/animate'
   import Icon from '../../lib/components/Icon.svelte'
-  import { ZONAS } from '../../lib/domain/routes'
+  import { catalogs } from '../../lib/stores/catalogs.svelte'
   import { routesStore, useLiveRoutes } from '../../lib/stores/routes.svelte'
-  import type { Zona } from '../../lib/types'
   import AdvisorCard from './AdvisorCard.svelte'
 
   useLiveRoutes()
 
   let query = $state('')
-  let zona = $state<Zona | ''>('')
+  let zoneId = $state<number | ''>('')
 
   let cards = $derived(
     routesStore.stats.filter(
       (s) =>
-        (!zona || s.asesor.zona === zona) &&
-        (!query.trim() || s.asesor.nombre.toLowerCase().includes(query.trim().toLowerCase())),
+        // Los inactivos solo se listan para mostrar nombres en rutas antiguas.
+        s.advisor.status === 'active' &&
+        (zoneId === '' ||
+          routesStore.routes.some((r) => r.advisorId === s.advisor.id && r.zoneId === zoneId && r.status === 'active')) &&
+        (!query.trim() || s.advisor.name.toLowerCase().includes(query.trim().toLowerCase())),
     ),
   )
 </script>
@@ -32,17 +34,17 @@
       <Icon name="search" size={16} />
       <input type="search" placeholder="Buscar asesor…" bind:value={query} />
     </label>
-    <select class="select" bind:value={zona} aria-label="Zona">
+    <select class="select" bind:value={zoneId} aria-label="Zona">
       <option value="">Todas las zonas</option>
-      {#each ZONAS as z (z.value)}<option value={z.value}>{z.label}</option>{/each}
+      {#each catalogs.zones as z (z.id)}<option value={z.id}>{z.name}</option>{/each}
     </select>
   </div>
 
   {#if routesStore.status === 'ready'}
     <div class="grid">
-      {#each cards as stats (stats.asesor.id)}
+      {#each cards as stats (stats.advisor.id)}
         <div animate:flip={{ duration: 250 }}>
-          <AdvisorCard {stats} flash={routesStore.highlights[`asesor:${stats.asesor.id}`]} />
+          <AdvisorCard {stats} flash={routesStore.highlights[`asesor:${stats.advisor.id}`]} />
         </div>
       {:else}
         <p class="empty">No hay asesores que coincidan con la búsqueda.</p>
@@ -50,8 +52,8 @@
     </div>
   {:else if routesStore.status === 'error'}
     <div class="card error">
-      <p>No pudimos cargar los asesores.</p>
-      <button class="btn btn-outline" onclick={() => routesStore.connect()}>Reintentar</button>
+      <p>{routesStore.error}</p>
+      <button class="btn btn-outline" onclick={() => routesStore.refresh()}>Reintentar</button>
     </div>
   {:else}
     <div class="grid">

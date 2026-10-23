@@ -10,6 +10,7 @@
     { route: 'dashboard', label: 'Dashboard' },
     { route: 'clientes', label: 'Clientes' },
     { route: 'visitas', label: 'Visitas' },
+    { route: 'seguimientos', label: 'Seguimientos' },
     { route: 'cotizaciones', label: 'Cotizaciones' },
     { route: 'pedidos', label: 'Pedidos' },
   ]

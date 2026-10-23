@@ -9,6 +9,7 @@
   import Orders from './pages/orders/Orders.svelte'
   import Quotes from './pages/quotes/Quotes.svelte'
   import Visits from './pages/visits/Visits.svelte'
+  import FollowUps from './pages/follow-ups/FollowUps.svelte'
   import Admin from './pages/admin/Admin.svelte'
   import Advisors from './pages/routes/Advisors.svelte'
   import AssignedRoutes from './pages/routes/AssignedRoutes.svelte'
@@ -52,6 +53,8 @@
       <Clients />
     {:else if router.route === 'visitas'}
       <Visits />
+    {:else if router.route === 'seguimientos'}
+      <FollowUps />
     {:else if router.route === 'cotizaciones'}
       <Quotes />
     {:else if router.route === 'pedidos'}

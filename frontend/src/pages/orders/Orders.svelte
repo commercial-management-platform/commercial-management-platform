@@ -4,39 +4,49 @@
   import Icon from '../../lib/components/Icon.svelte'
   import Pagination from '../../lib/components/Pagination.svelte'
   import StatCard from '../../lib/components/StatCard.svelte'
-  import { orderStatusLabel } from '../../lib/domain/commerce'
   import { router } from '../../lib/router.svelte'
-  import { useLiveClients } from '../../lib/stores/clients.svelte'
+  import { clientDisplayName } from '../../lib/services/clientsApi'
+  import { SALES_ORDER_STATUS_LABELS, type SalesOrderStatus } from '../../lib/services/salesOrdersApi'
+  import { advisors } from '../../lib/stores/advisors.svelte'
+  import { clientDirectory, useClientDirectory } from '../../lib/stores/clientDirectory.svelte'
   import { orderTotals, ordersStore, quotesStore } from '../../lib/stores/commerce.svelte'
-  import type { OrderStatus } from '../../lib/types'
   import { downloadCsv } from '../../lib/utils/csv'
   import { formatCompact, formatDate, formatMoney, formatShortDate } from '../../lib/utils/format'
   import { orderBadge } from '../quotes/badges'
   import OrderDrawer from './OrderDrawer.svelte'
   import OrderFormModal from './OrderFormModal.svelte'
 
+  // Pedidos del backend (HU-14). Las cotizaciones se usan para el origen del pedido.
   ordersStore.use()
   quotesStore.use()
-  useLiveClients()
+  useClientDirectory()
+  advisors.load()
 
   const PAGE_SIZE = 10
-  const STATUSES = Object.keys(orderStatusLabel) as OrderStatus[]
+  const STATUSES = Object.keys(SALES_ORDER_STATUS_LABELS) as SalesOrderStatus[]
 
   let query = $state('')
-  let statuses = $state<OrderStatus[]>([])
+  let statuses = $state<SalesOrderStatus[]>([])
   let page = $state(0)
-  let detailId = $state<string | null>(null)
+  let detailId = $state<number | null>(null)
   let formOpen = $state(false)
 
   let totals = $derived(orderTotals())
-  let detail = $derived(detailId ? (ordersStore.byId.get(detailId) ?? null) : null)
+  let detail = $derived(detailId === null ? null : (ordersStore.byId.get(detailId) ?? null))
+
+  const clientName = (id: number) => {
+    const client = clientDirectory.byId.get(id)
+    return client ? clientDisplayName(client) : `Cliente #${id}`
+  }
+  /** Fechas de calendario (YYYY-MM-DD): se fijan al mediodía para que la zona horaria no cambie el día. */
+  const day = (date: string) => `${date}T12:00:00`
 
   // Pedido recién creado desde otra vista (?nuevo=<id>): se resalta y se abre.
   onMount(() => {
     const id = router.params.nuevo
     if (id) {
       ordersStore.flash(id)
-      detailId = id
+      detailId = Number(id)
     }
   })
 
@@ -45,10 +55,10 @@
     return ordersStore.items
       .filter(
         (order) =>
-          (statuses.length === 0 || statuses.includes(order.estado)) &&
-          (!q || `${order.numero} ${order.cliente}`.toLowerCase().includes(q)),
+          (statuses.length === 0 || statuses.includes(order.status)) &&
+          (!q || `${order.number} ${clientName(order.clientId)}`.toLowerCase().includes(q)),
       )
-      .toSorted((a, b) => Date.parse(b.fecha) - Date.parse(a.fecha))
+      .toSorted((a, b) => b.date.localeCompare(a.date) || b.id - a.id)
   })
   let visible = $derived(rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE))
 
@@ -57,22 +67,23 @@
     page = 0
   })
 
-  function toggle(status: OrderStatus) {
+  function toggle(status: SalesOrderStatus) {
     statuses = statuses.includes(status) ? statuses.filter((s) => s !== status) : [...statuses, status]
   }
 
   function exportCsv() {
     downloadCsv(
       `kestrel-pedidos-${new Date().toISOString().slice(0, 10)}.csv`,
-      ['Pedido', 'Cliente', 'Creación', 'Entrega', 'Valor', 'Estado', 'Cotización'],
+      ['Pedido', 'Cliente', 'Asesor', 'Fecha', 'Entrega', 'Valor', 'Estado', 'Cotización'],
       rows.map((o) => [
-        o.numero,
-        o.cliente,
-        formatDate(o.fecha),
-        formatDate(o.entrega),
-        o.valor,
-        orderStatusLabel[o.estado],
-        o.quoteId ? (quotesStore.byId.get(o.quoteId)?.numero ?? '') : '',
+        o.number,
+        clientName(o.clientId),
+        advisors.name(o.advisorId),
+        formatDate(day(o.date)),
+        formatDate(day(o.estimatedDeliveryDate)),
+        o.value,
+        SALES_ORDER_STATUS_LABELS[o.status],
+        o.quoteId ? (quotesStore.byId.get(o.quoteId)?.number ?? '') : '',
       ]),
     )
   }
@@ -109,7 +120,7 @@
             {#each STATUSES as status (status)}
               <label class="filter-check">
                 <input type="checkbox" checked={statuses.includes(status)} onchange={() => toggle(status)} />
-                {orderStatusLabel[status]}
+                {SALES_ORDER_STATUS_LABELS[status]}
               </label>
             {/each}
           </FiltersMenu>
@@ -125,7 +136,7 @@
             <tr>
               <th>Pedido</th>
               <th>Cliente</th>
-              <th>Creación</th>
+              <th>Fecha</th>
               <th>Entrega</th>
               <th>Valor</th>
               <th>Estado</th>
@@ -135,16 +146,20 @@
           <tbody>
             {#each visible as order (order.id)}
               <tr class:flash={ordersStore.highlights[order.id]}>
-                <td class="strong">{order.numero}</td>
-                <td>{order.cliente}</td>
-                <td class="num">{formatShortDate(order.fecha)}</td>
-                <td class="num">{formatShortDate(order.entrega)}</td>
-                <td class="num">{formatMoney(order.valor)}</td>
-                <td><span class="badge {orderBadge[order.estado]}">{orderStatusLabel[order.estado]}</span></td>
+                <td class="strong">{order.number}</td>
+                <td>{clientName(order.clientId)}</td>
+                <td class="num">{formatShortDate(day(order.date))}</td>
+                <td class="num">{formatShortDate(day(order.estimatedDeliveryDate))}</td>
+                <td class="num">{formatMoney(Number(order.value))}</td>
+                <td><span class="badge {orderBadge[order.status]}">{SALES_ORDER_STATUS_LABELS[order.status]}</span></td>
                 <td><button class="link-btn" onclick={() => (detailId = order.id)}>Ver detalle</button></td>
               </tr>
             {:else}
-              <tr><td class="empty" colspan="7">No hay pedidos que coincidan.</td></tr>
+              <tr>
+                <td class="empty" colspan="7">
+                  {ordersStore.items.length ? 'No hay pedidos que coincidan.' : 'Aún no hay pedidos.'}
+                </td>
+              </tr>
             {/each}
           </tbody>
         </table>
@@ -153,8 +168,8 @@
     </section>
   {:else if ordersStore.status === 'error'}
     <div class="card error-box">
-      <p>No pudimos cargar los pedidos.</p>
-      <button class="btn btn-outline" onclick={() => ordersStore.connect()}>Reintentar</button>
+      <p>{ordersStore.error}</p>
+      <button class="btn btn-outline" onclick={() => ordersStore.refresh()}>Reintentar</button>
     </div>
   {:else}
     <div class="stats-grid">

@@ -4,8 +4,13 @@
   import { formatMoney } from '../utils/format'
   import Icon from './Icon.svelte'
 
-  /** Detalle de productos (COTIZACION_DETALLE): producto, cantidad, precio y subtotal. */
+  /**
+   * Detalle de productos (quote_detail): producto, cantidad, precio y subtotal.
+   * El producto es texto libre; PRODUCTOS solo sugiere nombres y precios de lista.
+   */
   let { items = $bindable(), invalid = false }: { items: LineItem[]; invalid?: boolean } = $props()
+
+  const listId = `productos-${Math.random().toString(36).slice(2, 8)}`
 
   function add() {
     const used = new Set(items.map((i) => i.producto))
@@ -13,12 +18,13 @@
     items.push({ producto: next.nombre, cantidad: 1, precio: next.precio })
   }
 
-  /** Al cambiar de producto se sugiere su precio de lista. */
+  /** Al elegir un producto sugerido se propone su precio de lista. */
   function pickProduct(item: LineItem, nombre: string) {
     item.producto = nombre
     const product = PRODUCTOS.find((p) => p.nombre === nombre)
     if (product) item.precio = product.precio
   }
+
 </script>
 
 <div class="editor" class:invalid>
@@ -32,12 +38,17 @@
 
   {#each items as item, i (i)}
     <div class="row">
-      <select class="select" value={item.producto} onchange={(e) => pickProduct(item, e.currentTarget.value)}>
-        {#each PRODUCTOS as p (p.nombre)}<option>{p.nombre}</option>{/each}
-        {#if !PRODUCTOS.some((p) => p.nombre === item.producto)}<option>{item.producto}</option>{/if}
-      </select>
-      <input class="input" type="number" min="1" bind:value={item.cantidad} aria-label="Cantidad" />
-      <input class="input" type="number" min="0" step="1" bind:value={item.precio} aria-label="Precio unitario" />
+      <input
+        class="input"
+        list={listId}
+        value={item.producto}
+        oninput={(e) => pickProduct(item, e.currentTarget.value)}
+        maxlength="255"
+        placeholder="Producto"
+        aria-label="Producto"
+      />
+      <input class="input" type="number" min="0.01" step="any" bind:value={item.cantidad} aria-label="Cantidad" />
+      <input class="input" type="number" min="0" step="any" bind:value={item.precio} aria-label="Precio unitario" />
       <span class="right num">{formatMoney(subtotal(item) || 0)}</span>
       <button type="button" class="remove" onclick={() => items.splice(i, 1)} aria-label="Quitar línea">
         <Icon name="trash" size={16} />
@@ -46,6 +57,10 @@
   {:else}
     <p class="empty">Agrega al menos un producto.</p>
   {/each}
+
+  <datalist id={listId}>
+    {#each PRODUCTOS as p (p.nombre)}<option value={p.nombre}></option>{/each}
+  </datalist>
 
   <div class="foot">
     <button type="button" class="btn btn-soft" onclick={add}>
@@ -87,7 +102,6 @@
     border-top: 1px solid var(--border-default);
   }
 
-  .row .select,
   .row .input {
     width: 100%;
     height: 36px;
@@ -154,7 +168,7 @@
       grid-template-columns: 1fr 1fr 32px;
     }
 
-    .row .select {
+    .row .input:first-child {
       grid-column: 1 / -1;
     }
 

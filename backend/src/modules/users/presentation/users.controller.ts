@@ -79,7 +79,9 @@ export class UsersController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Register a new user account with an assigned role' })
+  @ApiOperation({
+    summary: 'Register a new user account with an assigned role',
+  })
   @ApiCreatedResponse({
     type: UserResponseDto,
     description: 'User successfully created',

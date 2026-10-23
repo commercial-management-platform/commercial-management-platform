@@ -45,8 +45,8 @@
       )
       .sort(
         (a, b) =>
-          Number(b.zona === planner.info.zona) -
-          Number(a.zona === planner.info.zona),
+          Number(b.zoneId === planner.info.zoneId) -
+          Number(a.zoneId === planner.info.zoneId),
       );
   });
 
@@ -88,7 +88,7 @@
           <strong>{client.nombre}</strong>
           <p class="sub">
             {client.tipo} · {client.municipio}
-            {#if planner.info.zona && client.zona === planner.info.zona}<em
+            {#if planner.info.zoneId !== '' && client.zoneId === planner.info.zoneId}<em
                 >En zona</em
               >{/if}
           </p>

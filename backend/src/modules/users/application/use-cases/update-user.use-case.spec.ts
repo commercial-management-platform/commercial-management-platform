@@ -99,8 +99,8 @@ describe('UpdateUserUseCase', () => {
 
     const useCase = new UpdateUserUseCase(userRepository);
 
-    await expect(
-      useCase.execute({ id: 'user-1' }),
-    ).rejects.toThrow(ValidationError);
+    await expect(useCase.execute({ id: 'user-1' })).rejects.toThrow(
+      ValidationError,
+    );
   });
 });

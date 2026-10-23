@@ -12,8 +12,10 @@ export class UserMapper {
       isActive: !orm.banned,
       emailVerified: orm.emailVerified ?? false,
       image: orm.image ?? null,
-      createdAt: orm.createdAt instanceof Date ? orm.createdAt : new Date(orm.createdAt),
-      updatedAt: orm.updatedAt instanceof Date ? orm.updatedAt : new Date(orm.updatedAt),
+      createdAt:
+        orm.createdAt instanceof Date ? orm.createdAt : new Date(orm.createdAt),
+      updatedAt:
+        orm.updatedAt instanceof Date ? orm.updatedAt : new Date(orm.updatedAt),
     });
   }
 }

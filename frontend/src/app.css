@@ -201,6 +201,8 @@ a:hover {
 .btn-primary {
   color: var(--text-on-brand);
   background: var(--gradient-button);
+  /* Que el degradado cubra el borde transparente de .btn; si no, se repite y deja una franja a la izquierda. */
+  background-origin: border-box;
   box-shadow: 0 8px 18px -10px rgba(0, 122, 85, 0.8);
 }
 

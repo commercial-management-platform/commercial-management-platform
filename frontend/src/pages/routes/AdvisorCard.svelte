@@ -1,13 +1,12 @@
 <script lang="ts">
   import AnimatedNumber from '../../lib/components/AnimatedNumber.svelte'
-  import { zonaLabel } from '../../lib/domain/routes'
   import { router } from '../../lib/router.svelte'
-  import type { AsesorStats } from '../../lib/stores/routes.svelte'
+  import type { AdvisorStats } from '../../lib/stores/routes.svelte'
 
-  let { stats, flash = false }: { stats: AsesorStats; flash?: boolean } = $props()
+  let { stats, flash = false }: { stats: AdvisorStats; flash?: boolean } = $props()
 
   let initials = $derived(
-    stats.asesor.nombre
+    stats.advisor.name
       .split(' ')
       .slice(0, 2)
       .map((w) => w[0])
@@ -21,8 +20,8 @@
   <header>
     <span class="avatar">{initials}</span>
     <div>
-      <h2>{stats.asesor.nombre}</h2>
-      <p>{zonaLabel(stats.asesor.zona)}</p>
+      <h2>{stats.advisor.name}</h2>
+      <p>{stats.zonas.length ? stats.zonas.join(', ') : 'Sin rutas activas'}</p>
     </div>
   </header>
 
@@ -38,14 +37,14 @@
   </dl>
 
   <div class="progress">
-    <span>{stats.realizadas} de {stats.meta} visitas</span>
+    <span>{stats.realizadas} de {stats.meta} visitas de la semana</span>
     <strong><AnimatedNumber value={stats.cumplimiento} format={pct} /></strong>
   </div>
   <div class="bar" role="progressbar" aria-valuenow={stats.cumplimiento} aria-valuemin={0} aria-valuemax={100}>
     <span style:width="{stats.cumplimiento}%"></span>
   </div>
 
-  <button class="see" onclick={() => router.go('rutas/asignadas', { asesor: stats.asesor.id })}>
+  <button class="see" onclick={() => router.go('rutas/asignadas', { asesor: String(stats.advisor.id) })}>
     Ver asignaciones
   </button>
 </article>

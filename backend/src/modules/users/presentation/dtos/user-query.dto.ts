@@ -12,7 +12,8 @@ export class UserQueryDto {
   role?: string;
 
   @ApiPropertyOptional({
-    description: 'Filter by account status (true for active, false for inactive)',
+    description:
+      'Filter by account status (true for active, false for inactive)',
     type: Boolean,
   })
   @IsOptional()

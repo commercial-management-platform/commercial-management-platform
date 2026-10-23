@@ -14,6 +14,7 @@
     type ApiVisit,
     type VisitStatus,
   } from '../../lib/services/visitsApi'
+  import { advisors } from '../../lib/stores/advisors.svelte'
   import { catalogs } from '../../lib/stores/catalogs.svelte'
   import { clientDirectory, errorText, useClientDirectory } from '../../lib/stores/clientDirectory.svelte'
   import { toasts } from '../../lib/stores/toasts.svelte'
@@ -23,6 +24,7 @@
   // Visitas para el gestor (HU-08): consulta con filtros, programar, reprogramar y cancelar.
 
   useClientDirectory()
+  advisors.load()
 
   const PAGE_SIZE = 20
   const dayLabel = new Intl.DateTimeFormat('es-CO', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Bogota' })
@@ -217,7 +219,7 @@
                   {#if route}{route.name}{#if visit.visitOrder}<small>Parada {visit.visitOrder}</small>{/if}{:else}<span class="muted">Fuera de ruta</span>{/if}
                 </td>
                 <!-- El backend aún no expone el nombre del asesor: solo su id. -->
-                <td>Asesor #{visit.advisorId}</td>
+                <td>{advisors.name(visit.advisorId)}</td>
                 <td><span class="badge {visit.status}">{VISIT_STATUS_LABELS[visit.status]}</span></td>
                 <td>
                   {#if visit.status !== 'visited'}
@@ -265,7 +267,7 @@
                     <span class="badge {visit.status}">{VISIT_STATUS_LABELS[visit.status]}</span>
                   </div>
                   {#if client}<p class="muted">{catalogs.name('zones', client.zoneId) || client.municipality || ''}</p>{/if}
-                  <p class="muted">{route ? route.name : 'Fuera de ruta'} · Asesor #{visit.advisorId}</p>
+                  <p class="muted">{route ? route.name : 'Fuera de ruta'} · {advisors.name(visit.advisorId)}</p>
                   {#if visit.status === 'visited'}
                     {#if visit.locationConfirmed}
                       <p class="ok"><Icon name="check" size={14} /> Ubicación confirmada</p>

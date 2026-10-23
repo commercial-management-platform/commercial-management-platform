@@ -5,6 +5,7 @@
   import {
     INTEREST_LEVEL_LABELS,
     INTEREST_REASON_LABELS,
+    businessToday,
     getVisitForm,
     recordVisitOutcome,
     startVisit,
@@ -13,6 +14,7 @@
     type InterestLevel,
     type InterestReason,
   } from '../../lib/services/visitsApi'
+  import { createFollowUp } from '../../lib/services/followUpsApi'
   import { visitCatalogs } from '../../lib/stores/catalogs.svelte'
   import { errorText } from '../../lib/stores/clientDirectory.svelte'
   import { toasts } from '../../lib/stores/toasts.svelte'
@@ -47,6 +49,12 @@
   let interestReason = $state<InterestReason | ''>('')
   let observation = $state('')
   let competitor = $state('')
+  // Próximo seguimiento (HU-10), opcional.
+  let followUpOn = $state(false)
+  let nextDate = $state('')
+  let nextTime = $state('')
+  let nextActivity = $state('')
+  let nextObservation = $state('')
 
   $effect(() => {
     if (visitId === null) return
@@ -55,6 +63,8 @@
     loadError = ''
     objectiveId = typeId = resultId = interestLevel = interestReason = ''
     observation = competitor = ''
+    followUpOn = false
+    nextDate = nextTime = nextActivity = nextObservation = ''
     showErrors = false
     untrack(() => visitCatalogs.load())
     getVisitForm(id)
@@ -73,6 +83,11 @@
     if (resultId === '') e.result = 'Selecciona el resultado.'
     if (!interestLevel) e.interest = 'Indica el nivel de interés.'
     if (!observation.trim()) e.observation = 'Escribe una observación.'
+    if (followUpOn) {
+      if (!nextDate) e.nextDate = 'Indica la fecha.'
+      else if (nextDate < businessToday()) e.nextDate = 'La fecha no puede ser pasada.'
+      if (!nextActivity.trim()) e.nextActivity = 'Describe la actividad.'
+    }
     return e
   })
   let err = $derived(showErrors ? errors : {})
@@ -116,7 +131,24 @@
         observation: observation.trim(),
         competitorMentioned: competitor.trim() || undefined,
       })
-      toasts.push({ tone: 'success', icon: 'check', title: 'Visita registrada', message: form ? form.client.tradeName || form.client.businessName : '' })
+      const client = form ? form.client.tradeName || form.client.businessName : ''
+      if (followUpOn) {
+        // La visita ya quedó registrada; un fallo aquí solo afecta al seguimiento.
+        try {
+          await createFollowUp(visitId, {
+            nextDate,
+            nextTime: nextTime || undefined,
+            activity: nextActivity.trim(),
+            observation: nextObservation.trim() || undefined,
+          })
+        } catch (error) {
+          toasts.push({ tone: 'warning', icon: 'alert-circle', title: 'Visita registrada sin seguimiento', message: errorText(error, 'Prográmalo de nuevo.') })
+          onrecorded()
+          onclose()
+          return
+        }
+      }
+      toasts.push({ tone: 'success', icon: 'check', title: followUpOn ? 'Visita y seguimiento registrados' : 'Visita registrada', message: client })
       onrecorded()
       onclose()
     } catch (error) {
@@ -248,6 +280,35 @@
         <span>Competencia mencionada <em>(opcional)</em></span>
         <input class="input" maxlength="255" bind:value={competitor} placeholder="Empresa o marca" />
       </label>
+
+      <fieldset class="field full next">
+        <label class="toggle">
+          <input type="checkbox" bind:checked={followUpOn} />
+          Programar próximo seguimiento
+        </label>
+        {#if followUpOn}
+          <div class="next-grid">
+            <label class="field">
+              <span>Fecha</span>
+              <input class="input" class:invalid={err.nextDate} type="date" min={businessToday()} bind:value={nextDate} />
+              {#if err.nextDate}<small>{err.nextDate}</small>{/if}
+            </label>
+            <label class="field">
+              <span>Hora <em>(opcional)</em></span>
+              <input class="input" type="time" bind:value={nextTime} />
+            </label>
+            <label class="field full">
+              <span>Actividad</span>
+              <input class="input" class:invalid={err.nextActivity} maxlength="255" bind:value={nextActivity} placeholder="Ej. Enviar cotización, llamar al comprador…" />
+              {#if err.nextActivity}<small>{err.nextActivity}</small>{/if}
+            </label>
+            <label class="field full">
+              <span>Observación <em>(opcional)</em></span>
+              <input class="input" maxlength="2000" bind:value={nextObservation} />
+            </label>
+          </div>
+        {/if}
+      </fieldset>
 
       {#if visitCatalogs.status === 'error'}
         <p class="error full">No pudimos cargar los catálogos de visita. Cierra y vuelve a intentarlo.</p>
@@ -411,6 +472,33 @@
 
   .segmented label:focus-within {
     box-shadow: var(--ring);
+  }
+
+  .next {
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--border-default);
+    border-radius: 12px;
+  }
+
+  .toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .next-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  @media (max-width: 560px) {
+    .next-grid {
+      grid-template-columns: 1fr;
+    }
   }
 
   .error {
