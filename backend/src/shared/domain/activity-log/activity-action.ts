@@ -22,6 +22,9 @@ export const ACTIVITY_ACTIONS = [
   // Quotes (HU-12).
   'quote.created',
   'quote.status_changed',
+  // Sales orders (HU-14).
+  'sales_order.created',
+  'sales_order.status_changed',
 ] as const;
 
 export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number];
