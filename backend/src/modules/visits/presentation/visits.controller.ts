@@ -267,6 +267,7 @@ export class VisitsController {
       competitorMentioned: dto.competitorMentioned ?? null,
       startedAt: dto.startedAt ? new Date(dto.startedAt) : null,
       finishedAt: dto.finishedAt ? new Date(dto.finishedAt) : null,
+      nextFollowUp: dto.nextFollowUp,
     });
     return VisitOutcomeResponseDto.fromOutcome(result);
   }

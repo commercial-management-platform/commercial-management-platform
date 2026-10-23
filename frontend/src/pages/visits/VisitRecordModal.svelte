@@ -5,6 +5,8 @@
   import {
     INTEREST_LEVEL_LABELS,
     INTEREST_REASON_LABELS,
+    businessDateTime,
+    businessTime,
     businessToday,
     getVisitForm,
     recordVisitOutcome,
@@ -14,7 +16,6 @@
     type InterestLevel,
     type InterestReason,
   } from '../../lib/services/visitsApi'
-  import { createFollowUp } from '../../lib/services/followUpsApi'
   import { visitCatalogs } from '../../lib/stores/catalogs.svelte'
   import { errorText } from '../../lib/stores/clientDirectory.svelte'
   import { toasts } from '../../lib/stores/toasts.svelte'
@@ -55,6 +56,10 @@
   let nextTime = $state('')
   let nextActivity = $state('')
   let nextObservation = $state('')
+  // Horas de inicio y fin, opcionales (HU-09 CA-06). Si la visita se inició con
+  // "Iniciar visita", el backend ya tiene la de inicio y no se pide.
+  let startTime = $state('')
+  let endTime = $state('')
 
   $effect(() => {
     if (visitId === null) return
@@ -65,6 +70,7 @@
     observation = competitor = ''
     followUpOn = false
     nextDate = nextTime = nextActivity = nextObservation = ''
+    startTime = endTime = ''
     showErrors = false
     untrack(() => visitCatalogs.load())
     getVisitForm(id)
@@ -83,6 +89,9 @@
     if (resultId === '') e.result = 'Selecciona el resultado.'
     if (!interestLevel) e.interest = 'Indica el nivel de interés.'
     if (!observation.trim()) e.observation = 'Escribe una observación.'
+    const startedAt = checkIn?.startedAt ?? form?.visit.startedAt
+    const start = startedAt ? businessTime(startedAt) : startTime
+    if (endTime && start && endTime < start) e.endTime = 'La hora de fin no puede ser antes del inicio.'
     if (followUpOn) {
       if (!nextDate) e.nextDate = 'Indica la fecha.'
       else if (nextDate < businessToday()) e.nextDate = 'La fecha no puede ser pasada.'
@@ -122,6 +131,14 @@
     if (visitId === null || Object.keys(errors).length) return
     saving = true
     try {
+      const nextFollowUp = followUpOn
+        ? {
+            nextDate,
+            nextTime: nextTime || undefined,
+            activity: nextActivity.trim(),
+            observation: nextObservation.trim() || undefined,
+          }
+        : undefined
       await recordVisitOutcome(visitId, {
         visitObjectiveId: Number(objectiveId),
         visitTypeId: Number(typeId),
@@ -130,25 +147,17 @@
         interestReason: interestReason || undefined,
         observation: observation.trim(),
         competitorMentioned: competitor.trim() || undefined,
+        startedAt: !started && startTime ? businessDateTime(businessToday(), startTime) : undefined,
+        finishedAt: endTime ? businessDateTime(businessToday(), endTime) : undefined,
+        nextFollowUp,
       })
       const client = form ? form.client.tradeName || form.client.businessName : ''
-      if (followUpOn) {
-        // La visita ya quedó registrada; un fallo aquí solo afecta al seguimiento.
-        try {
-          await createFollowUp(visitId, {
-            nextDate,
-            nextTime: nextTime || undefined,
-            activity: nextActivity.trim(),
-            observation: nextObservation.trim() || undefined,
-          })
-        } catch (error) {
-          toasts.push({ tone: 'warning', icon: 'alert-circle', title: 'Visita registrada sin seguimiento', message: errorText(error, 'Prográmalo de nuevo.') })
-          onrecorded()
-          onclose()
-          return
-        }
-      }
-      toasts.push({ tone: 'success', icon: 'check', title: followUpOn ? 'Visita y seguimiento registrados' : 'Visita registrada', message: client })
+      toasts.push({
+        tone: 'success',
+        icon: 'check',
+        title: followUpOn ? 'Visita y seguimiento registrados' : 'Visita registrada',
+        message: client,
+      })
       onrecorded()
       onclose()
     } catch (error) {
@@ -279,6 +288,18 @@
       <label class="field full">
         <span>Competencia mencionada <em>(opcional)</em></span>
         <input class="input" maxlength="255" bind:value={competitor} placeholder="Empresa o marca" />
+      </label>
+
+      {#if !started}
+        <label class="field">
+          <span>Hora de inicio <em>(opcional)</em></span>
+          <input class="input" type="time" bind:value={startTime} />
+        </label>
+      {/if}
+      <label class="field" class:full={started}>
+        <span>Hora de fin <em>(opcional)</em></span>
+        <input class="input" class:invalid={err.endTime} type="time" bind:value={endTime} />
+        {#if err.endTime}<small>{err.endTime}</small>{/if}
       </label>
 
       <fieldset class="field full next">

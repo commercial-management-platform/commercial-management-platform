@@ -45,6 +45,11 @@ import {
   type CatalogLookupPort,
   type CatalogName,
 } from '../src/modules/catalogs/application/ports/catalog-lookup.port.js';
+import {
+  FOLLOW_UP_CREATOR,
+  type NextFollowUpInput,
+} from '../src/modules/visits/application/ports/follow-up-creator.port.js';
+import { FollowUp } from '../src/modules/follow-ups/domain/entities/follow-up.js';
 
 import { CancelVisitUseCase } from '../src/modules/visits/application/cancel-visit.use-case.js';
 import { GenerateRouteVisitsUseCase } from '../src/modules/visits/application/generate-route-visits.use-case.js';
@@ -534,6 +539,7 @@ class InMemoryVisitRepository implements VisitRepository {
 interface TestContext {
   app: INestApplication<App>;
   visits: InMemoryVisitRepository;
+  followUpCreator: { create: ReturnType<typeof vi.fn> };
   /** A visit already scheduled for the session advisor (advisor 1), tomorrow. */
   ownVisit: Visit;
   /** A visit of another advisor (advisor 2). */
@@ -607,6 +613,12 @@ async function createTestApp(): Promise<TestContext> {
     canAccess: async () => true,
     getAccessibleClientIds: async () => [1, 2, 3],
   };
+  // Real validation rules; only the write is faked.
+  const followUpCreator = {
+    validate: (input: NextFollowUpInput) =>
+      FollowUp.assertSchedulable(input, businessToday()),
+    create: vi.fn().mockResolvedValue(undefined),
+  };
 
   const moduleFixture: TestingModule = await Test.createTestingModule({
     imports: [
@@ -639,6 +651,7 @@ async function createTestApp(): Promise<TestContext> {
         useFactory: (clientRepo: ClientRepository, access: AdvisorClientAccessPort, repo: ActivityLogRepository) =>
           new GetClientActivityUseCase(clientRepo, access, repo),
       },
+      { provide: FOLLOW_UP_CREATOR, useValue: followUpCreator },
       {
         provide: ScheduleVisitUseCase,
         inject: [VISIT_REPOSITORY, VISIT_REFERENCES, ACTIVITY_LOG],
@@ -692,7 +705,7 @@ async function createTestApp(): Promise<TestContext> {
         provide: RecordVisitOutcomeUseCase,
         inject: [VISIT_REPOSITORY, CATALOG_LOOKUP, ACTIVITY_LOG],
         useFactory: (r: VisitRepository, c: CatalogLookupPort, log: ActivityLogPort) =>
-          new RecordVisitOutcomeUseCase(r, c, log),
+          new RecordVisitOutcomeUseCase(r, c, log, followUpCreator),
       },
       AuthGuard,
       RolesGuard,
@@ -703,7 +716,15 @@ async function createTestApp(): Promise<TestContext> {
   configureApp(app);
   await app.init();
 
-  return { app, visits, ownVisit, otherVisit, todayVisit, activityEntries };
+  return {
+    app,
+    visits,
+    followUpCreator,
+    ownVisit,
+    otherVisit,
+    todayVisit,
+    activityEntries,
+  };
 }
 
 const validSchedule = {
@@ -1508,6 +1529,64 @@ describe('Visit scheduling and agenda (HU-08) - e2e', () => {
         .set('Authorization', 'Bearer token_admin')
         .send(validOutcome)
         .expect(403);
+    });
+
+    // HU-09 CA-09
+    it('creates the next follow-up in the same request', async () => {
+      context = await createTestApp();
+      const nextFollowUp = {
+        nextDate: businessToday(),
+        nextTime: '15:30',
+        activity: 'Send the quote',
+      };
+
+      await request(context.app.getHttpServer())
+        .post(`/api/visits/${context.todayVisit.id}/outcome`)
+        .set('Authorization', 'Bearer token_advisor')
+        .send({ ...validOutcome, nextFollowUp })
+        .expect(201);
+
+      expect(context.followUpCreator.create).toHaveBeenCalledWith(
+        expect.objectContaining({ id: advisorUser.id }),
+        context.todayVisit.id,
+        expect.objectContaining(nextFollowUp),
+      );
+    });
+
+    it('rejects a past follow-up date with 400 and leaves the visit scheduled', async () => {
+      context = await createTestApp();
+      const url = `/api/visits/${context.todayVisit.id}/outcome`;
+
+      await request(context.app.getHttpServer())
+        .post(url)
+        .set('Authorization', 'Bearer token_advisor')
+        .send({
+          ...validOutcome,
+          nextFollowUp: { nextDate: '2020-01-01', activity: 'Call back' },
+        })
+        .expect(400);
+      expect(context.activityEntries).toHaveLength(0);
+
+      // Nothing was saved, so the visit can still be recorded.
+      await request(context.app.getHttpServer())
+        .post(url)
+        .set('Authorization', 'Bearer token_advisor')
+        .send(validOutcome)
+        .expect(201);
+    });
+
+    it.each([
+      ['without activity', { nextDate: '2099-01-01' }],
+      ['with a malformed time', { nextDate: '2099-01-01', activity: 'X', nextTime: '25:00' }],
+    ])('rejects a follow-up %s with 400', async (_case, nextFollowUp) => {
+      context = await createTestApp();
+
+      await request(context.app.getHttpServer())
+        .post(`/api/visits/${context.todayVisit.id}/outcome`)
+        .set('Authorization', 'Bearer token_advisor')
+        .send({ ...validOutcome, nextFollowUp })
+        .expect(400);
+      expect(context.followUpCreator.create).not.toHaveBeenCalled();
     });
 
     it("answers 404 to an advisor for another advisor's visit", async () => {
