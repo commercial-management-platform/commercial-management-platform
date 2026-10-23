@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { DIAS, FRECUENCIAS, ZONAS, planner } from '../../lib/stores/routePlanner.svelte'
-  import type { Zona } from '../../lib/types'
+  import { catalogs } from '../../lib/stores/catalogs.svelte'
+  import { DIAS, FRECUENCIAS, planner } from '../../lib/stores/routePlanner.svelte'
   import { fromMinutes } from '../../lib/utils/format'
 
   let e = $derived(planner.showErrors ? planner.infoErrors : {})
@@ -28,26 +28,36 @@
     <span>Territorio / zona</span>
     <select
       class="select"
-      class:invalid={e.zona}
-      value={planner.info.zona}
-      onchange={(ev) => planner.setZona(ev.currentTarget.value as Zona)}
+      class:invalid={e.zoneId}
+      value={planner.info.zoneId}
+      onchange={(ev) => planner.setZone(ev.currentTarget.value ? Number(ev.currentTarget.value) : '')}
     >
       <option value="" disabled>Selecciona una zona</option>
-      {#each ZONAS as zona (zona.value)}
-        <option value={zona.value}>{zona.label}</option>
+      {#each catalogs.zones as zone (zone.id)}
+        <option value={zone.id}>{zone.name}</option>
       {/each}
     </select>
-    {#if e.zona}<small class="error">{e.zona}</small>{/if}
+    {#if e.zoneId}<small class="error">{e.zoneId}</small>{/if}
   </label>
 
   <label class="field">
-    <span>Día de ejecución</span>
-    <select class="select" class:invalid={e.dia} bind:value={planner.info.dia}>
-      <option value="" disabled>Selecciona un día</option>
-      {#each DIAS as dia (dia)}<option>{dia}</option>{/each}
-    </select>
-    {#if e.dia}<small class="error">{e.dia}</small>{/if}
+    <span>Vigente desde</span>
+    <input class="input" class:invalid={e.inicio} type="date" bind:value={planner.info.inicio} />
+    {#if e.inicio}<small class="error">{e.inicio}</small>{/if}
   </label>
+
+  <fieldset class="field span days">
+    <legend>Días de ejecución</legend>
+    <div class="day-list" class:invalid={e.dias}>
+      {#each DIAS as dia (dia)}
+        <label class="day" class:on={planner.info.dias.includes(dia)}>
+          <input type="checkbox" checked={planner.info.dias.includes(dia)} onchange={() => planner.toggleDia(dia)} />
+          {dia}
+        </label>
+      {/each}
+    </div>
+    {#if e.dias}<small class="error">{e.dias}</small>{/if}
+  </fieldset>
 
   <label class="field">
     <span>Frecuencia</span>
@@ -99,6 +109,57 @@
 
   .hours {
     grid-column: span 2;
+  }
+
+  .days {
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .days legend {
+    margin-bottom: 8px;
+    padding: 0;
+    font: 600 13px/18px var(--font-heading);
+  }
+
+  .day-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .day {
+    display: inline-flex;
+    align-items: center;
+    height: 40px;
+    padding: 0 16px;
+    font: 600 14px var(--font-heading);
+    border: 1px solid var(--border-default);
+    border-radius: 999px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .day input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .day:has(input:focus-visible) {
+    outline: 2px solid var(--brand-500);
+    outline-offset: 2px;
+  }
+
+  .day.on {
+    color: #fff;
+    border-color: var(--brand-700);
+    background: var(--brand-700);
+  }
+
+  .day-list.invalid .day {
+    border-color: var(--danger);
   }
 
   h2 {

@@ -1,11 +1,12 @@
 <script lang="ts">
   import AnimatedNumber from '../../lib/components/AnimatedNumber.svelte'
   import Icon from '../../lib/components/Icon.svelte'
-  import { ZONAS, planner } from '../../lib/stores/routePlanner.svelte'
+  import { joinDays } from '../../lib/domain/routes'
+  import { planner } from '../../lib/stores/routePlanner.svelte'
   import { formatDuration, fromMinutes } from '../../lib/utils/format'
 
   let t = $derived(planner.totals)
-  let zona = $derived(ZONAS.find((z) => z.value === planner.info.zona)?.label.toLowerCase())
+  let zona = $derived(planner.zone?.name)
 
   const km = (meters: number) => `${(meters / 1000).toFixed(1)} km`
 </script>
@@ -46,12 +47,12 @@
 <aside class="note">
   <span class="note-icon"><Icon name="info" size={14} strokeWidth={2.2} /></span>
   <p>
-    {#if planner.asesor && planner.info.dia}
-      La ruta{zona ? ` de la ${zona}` : ''} será asignada a <strong>{planner.asesor.nombre}</strong> cada
-      <strong>{planner.info.dia.toLowerCase()}</strong> ({planner.info.frecuencia.toLowerCase()}), de
+    {#if planner.advisor && planner.info.dias.length}
+      La ruta{zona ? ` (${zona})` : ''} será asignada a <strong>{planner.advisor.name}</strong> los
+      <strong>{joinDays(planner.info.dias).toLowerCase()}</strong> ({planner.info.frecuencia.toLowerCase()}), de
       {planner.info.horaInicio} a {planner.info.horaFin}.
     {:else}
-      La ruta será asignada al asesor seleccionado para el día y frecuencia configurados.
+      La ruta será asignada al asesor seleccionado para los días y la frecuencia configurados.
     {/if}
   </p>
 </aside>

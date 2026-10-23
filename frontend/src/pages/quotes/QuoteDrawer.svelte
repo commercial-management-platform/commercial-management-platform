@@ -4,8 +4,7 @@
   import { quoteStatusLabel, subtotal } from '../../lib/domain/commerce'
   import { router } from '../../lib/router.svelte'
   import { clientsStore } from '../../lib/stores/clients.svelte'
-  import { createOrder, ordersStore, setQuoteStatus } from '../../lib/stores/commerce.svelte'
-  import { routesStore } from '../../lib/stores/routes.svelte'
+  import { createOrder, mockAdvisors, ordersStore, setQuoteStatus } from '../../lib/stores/commerce.svelte'
   import { toasts } from '../../lib/stores/toasts.svelte'
   import type { Quote } from '../../lib/types'
   import { formatDate, formatMoney } from '../../lib/utils/format'
@@ -61,7 +60,7 @@
       meta: [
         ['Vigencia', `${quote.vigenciaDias} días`],
         ['Válida hasta', vence ? formatDate(vence.toISOString()) : '—'],
-        ['Asesor', routesStore.asesorById.get(quote.asesorId)?.nombre ?? '—'],
+        ['Asesor', mockAdvisors.byId.get(quote.asesorId)?.nombre ?? '—'],
         ['Estado', quoteStatusLabel[quote.estado]],
       ],
     })
@@ -83,7 +82,7 @@
         <dt>Válida hasta</dt>
         <dd class:expired>{vence ? formatDate(vence.toISOString()) : '—'}{expired ? ' · vencida' : ''}</dd>
       </div>
-      <div><dt>Asesor</dt><dd>{routesStore.asesorById.get(quote.asesorId)?.nombre ?? '—'}</dd></div>
+      <div><dt>Asesor</dt><dd>{mockAdvisors.byId.get(quote.asesorId)?.nombre ?? '—'}</dd></div>
       <div><dt>Contacto</dt><dd>{client?.contacto.nombre ?? '—'}</dd></div>
     </dl>
 

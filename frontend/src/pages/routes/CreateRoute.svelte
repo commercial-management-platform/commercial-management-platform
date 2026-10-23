@@ -3,7 +3,8 @@
   import Icon from '../../lib/components/Icon.svelte'
   import { router } from '../../lib/router.svelte'
   import { fromMinutes } from '../../lib/utils/format'
-  import { MIN_STOPS, ZONAS, planner } from '../../lib/stores/routePlanner.svelte'
+  import { joinDays } from '../../lib/domain/routes'
+  import { MIN_STOPS, PartialRouteError, planner } from '../../lib/stores/routePlanner.svelte'
   import { toasts } from '../../lib/stores/toasts.svelte'
   import AssignAdvisor from './AssignAdvisor.svelte'
   import ClientPicker from './ClientPicker.svelte'
@@ -61,7 +62,7 @@
 
   async function submit() {
     const nombre = planner.info.nombre
-    const asesor = planner.asesor?.nombre
+    const asesor = planner.advisor?.name
     try {
       const invalidStep = await planner.submit()
       if (invalidStep !== null) {
@@ -69,9 +70,25 @@
         return
       }
       toasts.push({ tone: 'success', icon: 'check', title: 'Ruta creada y asignada', message: `${nombre} · ${asesor}` })
-      router.go('rutas/asignadas', { nueva: planner.lastCreatedId ?? '' })
-    } catch {
-      toasts.push({ tone: 'warning', icon: 'alert-circle', title: 'No se pudo crear la ruta', message: 'Intenta de nuevo.' })
+      router.go('rutas/asignadas', { nueva: String(planner.lastCreatedId ?? '') })
+    } catch (error) {
+      if (error instanceof PartialRouteError) {
+        // La ruta ya existe: se termina de completar desde su detalle.
+        toasts.push({
+          tone: 'warning',
+          icon: 'alert-circle',
+          title: 'Ruta creada sin todos sus clientes',
+          message: `Faltaron ${error.missing} de ${nombre} (${error.message}). Agrégalos desde el detalle de la ruta.`,
+        })
+        router.go('rutas/asignadas', { nueva: String(error.route.id) })
+        return
+      }
+      toasts.push({
+        tone: 'warning',
+        icon: 'alert-circle',
+        title: 'No se pudo crear la ruta',
+        message: error instanceof Error && error.message ? error.message : 'Intenta de nuevo.',
+      })
     }
   }
 
@@ -117,8 +134,8 @@
         <section class="card recap" aria-labelledby="recap-title">
           <h2 id="recap-title">Resumen de {planner.info.nombre || 'la ruta'}</h2>
           <dl>
-            <div><dt>Zona</dt><dd>{ZONAS.find((z) => z.value === planner.info.zona)?.label ?? '—'}</dd></div>
-            <div><dt>Día</dt><dd>{planner.info.dia || '—'} · {planner.info.frecuencia.toLowerCase()}</dd></div>
+            <div><dt>Zona</dt><dd>{planner.zone?.name ?? '—'}</dd></div>
+            <div><dt>Días</dt><dd>{joinDays(planner.info.dias) || '—'} · {planner.info.frecuencia.toLowerCase()}</dd></div>
             <div><dt>Horario</dt><dd>{planner.info.horaInicio} – {planner.info.horaFin}</dd></div>
           </dl>
           <ol class="recap-stops">
@@ -153,7 +170,7 @@
     </div>
   {:else if planner.status === 'error'}
     <div class="card error">
-      <p>No pudimos cargar los datos de planeación.</p>
+      <p>{planner.error}</p>
       <button class="btn btn-outline" onclick={() => planner.load()}>Reintentar</button>
     </div>
   {:else}

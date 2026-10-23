@@ -1,9 +1,23 @@
 import { ORDERS_IN_PROCESS, QUOTES_IN_PROCESS, orderStatusLabel, quoteStatusLabel, sameMonth } from '../domain/commerce'
 import { api } from '../services/api'
-import type { NewOrder, NewQuote, Order, Quote } from '../types'
+import type { Asesor, NewOrder, NewQuote, Order, Quote } from '../types'
 import { formatMoney } from '../utils/format'
 import { LiveCollection } from './liveCollection.svelte'
 import { toasts } from './toasts.svelte'
+
+// --- Asesores simulados ---------------------------------------------------------
+
+/** Asesores del servidor simulado, mientras cotizaciones y pedidos no usen el backend. */
+class MockAdvisors {
+  list = $state<Asesor[]>([])
+  byId = $derived(new Map(this.list.map((a) => [a.id, a])))
+
+  async load() {
+    if (!this.list.length) this.list = (await api.fetchRoutes()).asesores
+  }
+}
+
+export const mockAdvisors = new MockAdvisors()
 
 // --- Cotizaciones -------------------------------------------------------------
 

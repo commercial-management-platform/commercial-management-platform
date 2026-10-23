@@ -1,53 +1,60 @@
-import { api } from '../services/api'
+import { DEPOT, joinDays, suggestRouteName, zoneCode, type PlanClient, type RouteInfo, type RouteStop } from '../domain/routes'
+import { listAdvisors, type ApiAdvisor } from '../services/advisorsApi'
+import { clientDisplayName, listClients } from '../services/clientsApi'
+import { ApiError } from '../services/http'
+import { addRouteClient, createRoute, listRoutes, type ApiRoute } from '../services/routesApi'
+import { businessToday } from '../services/visitsApi'
 import { estimateLeg, getRouteThrough } from '../services/routing'
-import { ZONAS } from '../domain/routes'
-import type { AsesorCarga, Client, LatLng, RouteInfo, RouteLeg, RouteStop, Zona } from '../types'
+import type { LatLng, RouteLeg } from '../types'
 import { toMinutes } from '../utils/format'
+import { catalogs } from './catalogs.svelte'
 
-const DRAFT_KEY = 'kestrel.route-draft'
+const DRAFT_KEY = 'kestrel.route-draft.v2'
 const DEFAULT_VISIT_MINUTES = 30
 export const MIN_STOPS = 2
 
-export { DIAS, FRECUENCIAS, ZONAS } from '../domain/routes'
+export { DIAS, FRECUENCIAS } from '../domain/routes'
 
 const emptyInfo = (): RouteInfo => ({
   nombre: '',
-  zona: '',
-  dia: '',
+  zoneId: '',
+  dias: [],
   frecuencia: 'Semanal',
   horaInicio: '08:00',
   horaFin: '12:00',
   descripcion: '',
+  inicio: businessToday(),
 })
 
-// Ruta de ejemplo con la que abre la vista (igual al diseño).
-const EXAMPLE = {
-  info: {
-    nombre: 'RUT-NORTE-001',
-    zona: 'norte',
-    dia: 'Martes',
-    frecuencia: 'Semanal',
-    horaInicio: '08:00',
-    horaFin: '12:00',
-    descripcion: 'Ruta para clientes prioritarios de la zona norte.',
-  } satisfies RouteInfo,
-  stops: ['c1', 'c2', 'c3'].map((clientId) => ({ clientId, duracionVisita: 45 })),
-  asesorId: 'a1',
+/** Asesor con su carga actual (para elegir a quién asignar una ruta). */
+export interface AdvisorLoad extends ApiAdvisor {
+  rutasActivas: number
 }
 
 interface Draft {
   info: RouteInfo
   stops: RouteStop[]
-  asesorId: string
+  advisorId: number | ''
 }
 
 export interface ScheduledStop extends RouteStop {
-  client: Client
+  client: PlanClient
   /** Minutos desde la medianoche. */
   llegada: number
   salida: number
   /** Tramo desde la parada anterior (o la bodega). */
   leg: RouteLeg
+}
+
+/** La ruta se creó pero algunos clientes no se pudieron asociar. */
+export class PartialRouteError extends Error {
+  constructor(
+    readonly route: ApiRoute,
+    readonly missing: number,
+    message: string,
+  ) {
+    super(message)
+  }
 }
 
 function readDraft(): Draft | null {
@@ -59,28 +66,44 @@ function readDraft(): Draft | null {
   }
 }
 
+/** Solo los clientes activos con coordenadas se pueden ubicar en el recorrido. */
+function toPlanClient(client: Awaited<ReturnType<typeof listClients>>[number]): PlanClient | null {
+  if (!client.active || client.latitude === null || client.longitude === null) return null
+  return {
+    id: client.id,
+    nombre: clientDisplayName(client),
+    direccion: client.address ?? '',
+    municipio: client.municipality ?? 'Sin municipio',
+    tipo: catalogs.name('clientTypes', client.clientTypeId) || 'Sin tipo',
+    zoneId: client.zoneId,
+    coords: [client.latitude, client.longitude],
+  }
+}
+
 class RoutePlanner {
   status = $state<'idle' | 'loading' | 'ready' | 'error'>('idle')
-  clients = $state<Client[]>([])
-  asesores = $state<AsesorCarga[]>([])
-  depot = $state<LatLng>([0, 0])
-  nextSeq = $state<Record<Zona, number>>({ norte: 1, centro: 1, sur: 1, occidente: 1 })
+  error = $state('')
+  clients = $state<PlanClient[]>([])
+  advisors = $state<AdvisorLoad[]>([])
+  depot: LatLng = DEPOT
+  /** Nombres de las rutas existentes, para sugerir el siguiente consecutivo. */
+  routeNames = $state<string[]>([])
 
   info = $state<RouteInfo>(emptyInfo())
   stops = $state<RouteStop[]>([])
-  asesorId = $state('')
+  advisorId = $state<number | ''>('')
 
   /** Geometría y tramos calculados por calles. */
   path = $state<LatLng[]>([])
   legs = $state<RouteLeg[]>([])
   routing = $state(false)
 
-  selectedClientId = $state<string | null>(null)
+  selectedClientId = $state<number | null>(null)
   showErrors = $state(false)
   submitting = $state(false)
   restoredDraft = $state(false)
   /** Id de la última ruta creada, para resaltarla en "Rutas asignadas". */
-  lastCreatedId = $state<string | null>(null)
+  lastCreatedId = $state<number | null>(null)
   savedAt = $state<number | null>(null)
 
   #nameEdited = false
@@ -89,6 +112,7 @@ class RoutePlanner {
   // --- Derivados ---------------------------------------------------------
 
   clientById = $derived(new Map(this.clients.map((c) => [c.id, c])))
+  zone = $derived(catalogs.zones.find((z) => z.id === this.info.zoneId) ?? null)
 
   schedule = $derived.by<ScheduledStop[]>(() => {
     let t = toMinutes(this.info.horaInicio)
@@ -124,8 +148,9 @@ class RoutePlanner {
   infoErrors = $derived.by(() => {
     const e: Partial<Record<keyof RouteInfo, string>> = {}
     if (!this.info.nombre.trim()) e.nombre = 'Ingresa un nombre.'
-    if (!this.info.zona) e.zona = 'Selecciona una zona.'
-    if (!this.info.dia) e.dia = 'Selecciona un día.'
+    if (this.info.zoneId === '') e.zoneId = 'Selecciona una zona.'
+    if (!this.info.dias.length) e.dias = 'Selecciona al menos un día.'
+    if (!this.info.inicio) e.inicio = 'Indica desde cuándo aplica.'
     if (!this.info.horaInicio || !this.info.horaFin) e.horaFin = 'Define el horario.'
     else if (toMinutes(this.info.horaFin) <= toMinutes(this.info.horaInicio))
       e.horaFin = 'Debe ser posterior a la hora inicial.'
@@ -135,13 +160,13 @@ class RoutePlanner {
   steps = $derived([
     { title: 'Información de la ruta', subtitle: 'Datos generales', done: Object.keys(this.infoErrors).length === 0 },
     { title: 'Diseño de la ruta', subtitle: 'Ordena las paradas', done: this.stops.length >= MIN_STOPS },
-    { title: 'Asignación', subtitle: 'Selecciona un asesor', done: !!this.asesorId },
+    { title: 'Asignación', subtitle: 'Selecciona un asesor', done: this.advisorId !== '' },
   ])
 
   /** Primer paso incompleto; 3 cuando todo está listo. */
   currentStep = $derived(this.steps.findIndex((s) => !s.done) === -1 ? 3 : this.steps.findIndex((s) => !s.done))
 
-  asesor = $derived(this.asesores.find((a) => a.id === this.asesorId) ?? null)
+  advisor = $derived(this.advisors.find((a) => a.id === this.advisorId) ?? null)
   selected = $derived(
     this.schedule.find((s) => s.clientId === this.selectedClientId) ?? this.schedule[0] ?? null,
   )
@@ -149,23 +174,31 @@ class RoutePlanner {
   // --- Carga --------------------------------------------------------------
 
   async load() {
-    if (this.status === 'ready' || this.status === 'loading') return
+    if (this.status === 'loading') return
     this.status = 'loading'
     try {
-      const data = await api.fetchPlanningData()
-      this.clients = data.clients
-      this.asesores = data.asesores
-      this.depot = data.depot
-      this.nextSeq = data.nextSeq
+      // Los tipos de cliente se necesitan para mostrar y filtrar los clientes.
+      await catalogs.load()
+      const [clients, advisors, routes] = await Promise.all([listClients({ active: true }), listAdvisors(), listRoutes()])
+      this.clients = clients.map(toPlanClient).filter((c): c is PlanClient => c !== null)
+      this.advisors = advisors.map((a) => ({
+        ...a,
+        rutasActivas: routes.filter((r) => r.advisorId === a.id && r.status === 'active').length,
+      }))
+      this.routeNames = routes.map((r) => r.name)
 
+      // Al volver a la pantalla se conserva lo que se estaba armando.
+      if (this.restoredDraft || this.stops.length || this.info.nombre) {
+        this.status = 'ready'
+        return
+      }
       const draft = readDraft()
-      this.#apply(draft ?? EXAMPLE)
+      if (draft) this.#apply(draft)
       this.#nameEdited = !!draft
-      // El ejemplo toma el siguiente consecutivo libre de su zona.
-      if (!draft) this.setZona('norte')
       this.restoredDraft = !!draft
       this.status = 'ready'
-    } catch {
+    } catch (error) {
+      this.error = error instanceof ApiError ? error.message : 'No pudimos cargar los datos de planeación.'
       this.status = 'error'
     }
   }
@@ -173,14 +206,14 @@ class RoutePlanner {
   #apply(draft: Draft) {
     this.info = { ...emptyInfo(), ...draft.info }
     this.stops = draft.stops.filter((s) => this.clientById.has(s.clientId))
-    this.asesorId = draft.asesorId
+    this.advisorId = this.advisors.some((a) => a.id === draft.advisorId) ? draft.advisorId : ''
     this.selectedClientId = null
     this.showErrors = false
     this.#reroute()
   }
 
   reset() {
-    this.#apply({ info: emptyInfo(), stops: [], asesorId: '' })
+    this.#apply({ info: emptyInfo(), stops: [], advisorId: '' })
     this.#nameEdited = false
     this.restoredDraft = false
     this.savedAt = null
@@ -193,12 +226,10 @@ class RoutePlanner {
 
   // --- Información general -----------------------------------------------
 
-  setZona(zona: Zona | '') {
-    this.info.zona = zona
-    if (!this.#nameEdited && zona) {
-      const code = ZONAS.find((z) => z.value === zona)?.code
-      this.info.nombre = `RUT-${code}-${String(this.nextSeq[zona]).padStart(3, '0')}`
-    }
+  setZone(zoneId: number | '') {
+    this.info.zoneId = zoneId
+    const zone = this.zone
+    if (!this.#nameEdited && zone) this.info.nombre = suggestRouteName(zoneCode(zone.name), this.routeNames)
   }
 
   setNombre(nombre: string) {
@@ -206,16 +237,20 @@ class RoutePlanner {
     this.#nameEdited = true
   }
 
+  toggleDia(dia: string) {
+    this.info.dias = this.info.dias.includes(dia) ? this.info.dias.filter((d) => d !== dia) : [...this.info.dias, dia]
+  }
+
   // --- Paradas -------------------------------------------------------------
 
-  addStop(clientId: string) {
+  addStop(clientId: number) {
     if (this.stops.some((s) => s.clientId === clientId)) return
     this.stops.push({ clientId, duracionVisita: DEFAULT_VISIT_MINUTES })
     this.selectedClientId = clientId
     this.#reroute()
   }
 
-  removeStop(clientId: string) {
+  removeStop(clientId: number) {
     this.stops = this.stops.filter((s) => s.clientId !== clientId)
     if (this.selectedClientId === clientId) this.selectedClientId = null
     this.#reroute()
@@ -228,12 +263,12 @@ class RoutePlanner {
     this.#reroute()
   }
 
-  updateStop(clientId: string, patch: Partial<Omit<RouteStop, 'clientId'>>) {
+  updateStop(clientId: number, patch: Partial<Omit<RouteStop, 'clientId'>>) {
     const stop = this.stops.find((s) => s.clientId === clientId)
     if (stop) Object.assign(stop, patch)
   }
 
-  select(clientId: string) {
+  select(clientId: number) {
     this.selectedClientId = clientId
   }
 
@@ -263,7 +298,7 @@ class RoutePlanner {
 
   saveDraft() {
     try {
-      const draft: Draft = { info: this.info, stops: this.stops, asesorId: this.asesorId }
+      const draft: Draft = { info: this.info, stops: this.stops, advisorId: this.advisorId }
       localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
       this.savedAt = Date.now()
       return true
@@ -272,20 +307,43 @@ class RoutePlanner {
     }
   }
 
-  /** Devuelve el índice del primer paso inválido, o crea la ruta y devuelve null. */
+  /**
+   * Devuelve el índice del primer paso inválido, o crea la ruta y devuelve null.
+   * El backend crea la ruta y asocia los clientes en llamadas separadas: se
+   * asocian en orden, así cada uno queda con su posición en el recorrido.
+   */
   async submit(): Promise<number | null> {
     this.showErrors = true
-    if (this.currentStep < 3) return this.currentStep
+    if (this.currentStep < 3 || this.info.zoneId === '' || this.advisorId === '') return this.currentStep
     this.submitting = true
     try {
-      // Se envía una copia plana: los proxies de $state no se pueden serializar/clonar.
-      const route = await api.createRoute(
-        $state.snapshot({ ...this.info, stops: this.stops, asesorId: this.asesorId }),
-      )
+      const route = await createRoute({
+        name: this.info.nombre.trim(),
+        zoneId: this.info.zoneId,
+        executionDays: joinDays(this.info.dias),
+        frequency: this.info.frecuencia,
+        suggestedStartTime: this.info.horaInicio,
+        suggestedEndTime: this.info.horaFin,
+        description: this.info.descripcion.trim() || null,
+        advisorId: this.advisorId,
+        startDate: this.info.inicio,
+        endDate: null,
+        status: 'active',
+      })
       this.lastCreatedId = route.id
-      const asesor = this.asesor
-      if (asesor) asesor.rutasActivas++
-      if (this.info.zona) this.nextSeq[this.info.zona]++
+      this.routeNames = [...this.routeNames, route.name]
+      if (this.advisor) this.advisor.rutasActivas++
+
+      const clientIds = this.stops.map((s) => s.clientId)
+      for (const [i, clientId] of clientIds.entries()) {
+        try {
+          await addRouteClient(route.id, clientId)
+        } catch (error) {
+          this.reset()
+          const reason = error instanceof ApiError ? error.message : 'Error de conexión'
+          throw new PartialRouteError(route, clientIds.length - i, reason)
+        }
+      }
       this.reset()
       return null
     } finally {

@@ -3,28 +3,31 @@
   import { fade } from 'svelte/transition'
   import AnimatedNumber from '../../lib/components/AnimatedNumber.svelte'
   import Icon, { type IconName } from '../../lib/components/Icon.svelte'
-  import { DIAS, ZONAS, routeStatusLabel, zonaLabel } from '../../lib/domain/routes'
+  import { weekStatusLabel, type WeekStatus } from '../../lib/domain/routes'
   import { can } from '../../lib/permissions.svelte'
   import { router } from '../../lib/router.svelte'
-  import { routesStore, useLiveRoutes } from '../../lib/stores/routes.svelte'
-  import type { AssignedRoute, RouteStatus, Zona } from '../../lib/types'
+  import { catalogs } from '../../lib/stores/catalogs.svelte'
+  import { firstDayIndex, routesStore, useLiveRoutes } from '../../lib/stores/routes.svelte'
   import { percent } from '../../lib/utils/format'
   import RouteDetailModal from './RouteDetailModal.svelte'
 
   useLiveRoutes()
 
-  const STATUS_ORDER: RouteStatus[] = ['en_curso', 'programada', 'completada']
+  const STATUS_ORDER: WeekStatus[] = ['en_curso', 'programada', 'sin_visitas', 'completada', 'inactiva']
 
   let query = $state('')
-  let statuses = $state<RouteStatus[]>([])
-  let zona = $state<Zona | ''>('')
+  let statuses = $state<WeekStatus[]>([])
+  let zoneId = $state<number | ''>('')
   let filtersOpen = $state(false)
-  let detail = $state<AssignedRoute | null>(null)
+  let detailId = $state<number | null>(null)
   let filtersEl = $state<HTMLDivElement>()
 
-  // El filtro por asesor llega desde "Ver asignaciones" (?asesor=a1).
-  let asesorId = $derived(router.params.asesor ?? '')
-  let asesorName = $derived(routesStore.asesorById.get(asesorId)?.nombre)
+  // Se busca en cada consulta para que el detalle muestre los datos más recientes.
+  let detail = $derived(routesStore.rows.find((r) => r.route.id === detailId) ?? null)
+
+  // El filtro por asesor llega desde "Ver asignaciones" (?asesor=3).
+  let asesorId = $derived(router.params.asesor ? Number(router.params.asesor) : null)
+  let asesorName = $derived(asesorId === null ? undefined : routesStore.advisorById.get(asesorId)?.name)
 
   // Resalta la ruta recién creada (?nueva=<id>).
   onMount(() => {
@@ -33,25 +36,25 @@
 
   let rows = $derived.by(() => {
     const q = query.trim().toLowerCase()
-    return routesStore.routes
+    return routesStore.rows
       .filter((r) => {
-        const asesor = routesStore.asesorById.get(r.asesorId)?.nombre ?? ''
+        const asesor = routesStore.advisorName(r.route.advisorId)
         return (
-          (!asesorId || r.asesorId === asesorId) &&
-          (!zona || r.zona === zona) &&
+          (asesorId === null || r.route.advisorId === asesorId) &&
+          (zoneId === '' || r.route.zoneId === zoneId) &&
           (statuses.length === 0 || statuses.includes(r.estado)) &&
-          (!q || `${r.nombre} ${asesor} ${r.dia}`.toLowerCase().includes(q))
+          (!q || `${r.route.name} ${asesor} ${r.route.executionDays ?? ''}`.toLowerCase().includes(q))
         )
       })
       .toSorted(
         (a, b) =>
           STATUS_ORDER.indexOf(a.estado) - STATUS_ORDER.indexOf(b.estado) ||
-          DIAS.indexOf(a.dia) - DIAS.indexOf(b.dia) ||
-          a.nombre.localeCompare(b.nombre),
+          firstDayIndex(a.dias) - firstDayIndex(b.dias) ||
+          a.route.name.localeCompare(b.route.name),
       )
   })
 
-  let activeFilters = $derived(statuses.length + (zona ? 1 : 0))
+  let activeFilters = $derived(statuses.length + (zoneId !== '' ? 1 : 0))
 
   const cards: { key: 'activas' | 'completadas' | 'visitasProgramadas'; label: string; icon: IconName }[] = [
     { key: 'activas', label: 'Rutas activas', icon: 'activity' },
@@ -59,7 +62,7 @@
     { key: 'visitasProgramadas', label: 'Visitas programadas', icon: 'calendar' },
   ]
 
-  function toggleStatus(status: RouteStatus) {
+  function toggleStatus(status: WeekStatus) {
     statuses = statuses.includes(status) ? statuses.filter((s) => s !== status) : [...statuses, status]
   }
 
@@ -129,20 +132,20 @@
                       checked={statuses.includes(status)}
                       onchange={() => toggleStatus(status)}
                     />
-                    {routeStatusLabel[status]}
+                    {weekStatusLabel[status]}
                   </label>
                 {/each}
                 <p class="popover-title">Territorio</p>
-                <select class="select" bind:value={zona}>
+                <select class="select" bind:value={zoneId}>
                   <option value="">Todas las zonas</option>
-                  {#each ZONAS as z (z.value)}<option value={z.value}>{z.label}</option>{/each}
+                  {#each catalogs.zones as z (z.id)}<option value={z.id}>{z.name}</option>{/each}
                 </select>
                 {#if activeFilters}
                   <button
                     class="clear"
                     onclick={() => {
                       statuses = []
-                      zona = ''
+                      zoneId = ''
                     }}>Limpiar filtros</button
                   >
                 {/if}
@@ -168,31 +171,35 @@
               <th>Ruta</th>
               <th>Territorio</th>
               <th>Asesor</th>
-              <th>Día</th>
+              <th>Días</th>
               <th>Paradas</th>
-              <th>Progreso</th>
+              <th>Visitas de la semana</th>
               <th>Estado</th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {#each rows as route (route.id)}
-              <tr class:flash={routesStore.highlights[route.id]}>
-                <td class="name">{route.nombre}</td>
-                <td>{zonaLabel(route.zona)}</td>
-                <td>{routesStore.asesorById.get(route.asesorId)?.nombre ?? '—'}</td>
-                <td>{route.dia}</td>
-                <td class="num">{route.stops.length}</td>
+            {#each rows as row (row.route.id)}
+              <tr class:flash={routesStore.highlights[row.route.id]}>
+                <td class="name">{row.route.name}</td>
+                <td>{catalogs.name('zones', row.route.zoneId) || '—'}</td>
+                <td>{routesStore.advisorName(row.route.advisorId)}</td>
+                <td>{row.route.executionDays || '—'}</td>
+                <td class="num">{row.clientIds.length}</td>
                 <td>
-                  <span class="progress">
-                    {route.completadas} de {route.stops.length}
-                    <span class="mini-bar">
-                      <span style:width="{percent(route.completadas, route.stops.length)}%"></span>
+                  {#if row.programadas}
+                    <span class="progress">
+                      {row.realizadas} de {row.programadas}
+                      <span class="mini-bar">
+                        <span style:width="{percent(row.realizadas, row.programadas)}%"></span>
+                      </span>
                     </span>
-                  </span>
+                  {:else}
+                    <span class="muted">Sin programar</span>
+                  {/if}
                 </td>
-                <td><span class="badge {route.estado}">{routeStatusLabel[route.estado]}</span></td>
-                <td><button class="link" onclick={() => (detail = route)}>Ver ruta</button></td>
+                <td><span class="badge {row.estado}">{weekStatusLabel[row.estado]}</span></td>
+                <td><button class="link" onclick={() => (detailId = row.route.id)}>Ver ruta</button></td>
               </tr>
             {:else}
               <tr><td class="empty" colspan="8">No hay rutas para los filtros seleccionados.</td></tr>
@@ -203,8 +210,8 @@
     </section>
   {:else if routesStore.status === 'error'}
     <div class="card error">
-      <p>No pudimos cargar las rutas.</p>
-      <button class="btn btn-outline" onclick={() => routesStore.connect()}>Reintentar</button>
+      <p>{routesStore.error}</p>
+      <button class="btn btn-outline" onclick={() => routesStore.refresh()}>Reintentar</button>
     </div>
   {:else}
     <div class="stats">
@@ -214,7 +221,7 @@
   {/if}
 </div>
 
-<RouteDetailModal route={detail} onclose={() => (detail = null)} />
+<RouteDetailModal row={detail} onclose={() => (detailId = null)} />
 
 <style>
   .page {
@@ -520,6 +527,17 @@
   .badge.completada {
     color: var(--brand-700);
     background: var(--brand-50);
+  }
+
+  .badge.inactiva {
+    color: var(--neutral-500);
+    background: transparent;
+    border: 1px dashed var(--neutral-400);
+  }
+
+  .muted {
+    font-size: 13px;
+    color: var(--text-muted);
   }
 
   .badge.programada {

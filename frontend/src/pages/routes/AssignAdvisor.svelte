@@ -2,7 +2,7 @@
   import Icon from '../../lib/components/Icon.svelte'
   import { planner } from '../../lib/stores/routePlanner.svelte'
 
-  let missing = $derived(planner.showErrors && !planner.asesorId)
+  let missing = $derived(planner.showErrors && planner.advisorId === '')
 </script>
 
 <section class="card assign" id="route-assign" aria-labelledby="assign-title">
@@ -13,18 +13,20 @@
 
   <label class="field">
     <span>Asesor comercial</span>
-    <select id="asesor-select" class="select" class:invalid={missing} bind:value={planner.asesorId}>
+    <select id="asesor-select" class="select" class:invalid={missing} bind:value={planner.advisorId}>
       <option value="" disabled>Selecciona un asesor</option>
-      {#each planner.asesores as asesor (asesor.id)}
-        <option value={asesor.id}>{asesor.nombre}</option>
+      {#each planner.advisors as advisor (advisor.id)}
+        <option value={advisor.id}>{advisor.name}</option>
       {/each}
     </select>
   </label>
 
-  {#if planner.asesor}
+  {#if planner.advisor}
     <p class="load">
-      {planner.asesor.rutasActivas} rutas activas · esta sería la {planner.asesor.rutasActivas + 1}.ª
+      {planner.advisor.rutasActivas} rutas activas · esta sería la {planner.advisor.rutasActivas + 1}.ª
     </p>
+  {:else if !planner.advisors.length}
+    <p class="error">No hay asesores activos. Crea uno en Administración.</p>
   {:else if missing}
     <p class="error">Selecciona el asesor responsable.</p>
   {/if}

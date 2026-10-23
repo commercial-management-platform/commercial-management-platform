@@ -61,7 +61,7 @@
   })
 
   // Al elegir otra parada, la acerca si quedó fuera de vista.
-  let lastSelected: string | undefined
+  let lastSelected: number | undefined
   $effect(() => {
     const stop = planner.selected
     if (!map || !stop) return

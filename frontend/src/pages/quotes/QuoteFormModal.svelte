@@ -3,8 +3,7 @@
   import Modal from '../../lib/components/Modal.svelte'
   import { PRODUCTOS, VIGENCIAS } from '../../lib/domain/commerce'
   import { clientsStore } from '../../lib/stores/clients.svelte'
-  import { createQuote } from '../../lib/stores/commerce.svelte'
-  import { routesStore } from '../../lib/stores/routes.svelte'
+  import { createQuote, mockAdvisors } from '../../lib/stores/commerce.svelte'
   import { session } from '../../lib/stores/session.svelte'
   import { toasts } from '../../lib/stores/toasts.svelte'
   import type { LineItem, Quote } from '../../lib/types'
@@ -30,7 +29,7 @@
     if (!open) return
     clientId = ''
     // Por defecto, el asesor con sesión iniciada.
-    asesorId = routesStore.asesores.find((a) => a.nombre === session.current?.user.name)?.id ?? ''
+    asesorId = mockAdvisors.list.find((a) => a.nombre === session.current?.user.name)?.id ?? ''
     vigenciaDias = 15
     items = [{ producto: PRODUCTOS[0].nombre, cantidad: 1, precio: PRODUCTOS[0].precio }]
     showErrors = false
@@ -74,7 +73,7 @@
       <span>Asesor *</span>
       <select class="select" class:invalid={showErrors && !asesorId} bind:value={asesorId}>
         <option value="" disabled>Selecciona un asesor</option>
-        {#each routesStore.asesores as a (a.id)}<option value={a.id}>{a.nombre}</option>{/each}
+        {#each mockAdvisors.list as a (a.id)}<option value={a.id}>{a.nombre}</option>{/each}
       </select>
     </label>
     <div class="field span-3">

@@ -5,8 +5,7 @@
   import StatCard from '../../lib/components/StatCard.svelte'
   import { quoteStatusLabel } from '../../lib/domain/commerce'
   import { useLiveClients } from '../../lib/stores/clients.svelte'
-  import { ordersStore, quoteTotals, quotesStore } from '../../lib/stores/commerce.svelte'
-  import { useLiveRoutes } from '../../lib/stores/routes.svelte'
+  import { mockAdvisors, ordersStore, quoteTotals, quotesStore } from '../../lib/stores/commerce.svelte'
   import type { QuoteStatus } from '../../lib/types'
   import { downloadCsv } from '../../lib/utils/csv'
   import { formatCompact, formatDate, formatMoney, formatShortDate } from '../../lib/utils/format'
@@ -18,7 +17,7 @@
   quotesStore.use()
   ordersStore.use()
   useLiveClients()
-  useLiveRoutes()
+  mockAdvisors.load()
 
   const PAGE_SIZE = 10
   const STATUSES = Object.keys(quoteStatusLabel) as QuoteStatus[]
