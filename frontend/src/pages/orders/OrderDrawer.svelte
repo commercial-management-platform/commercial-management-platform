@@ -1,73 +1,116 @@
 <script lang="ts">
   import Icon from '../../lib/components/Icon.svelte'
   import Modal from '../../lib/components/Modal.svelte'
-  import { ORDER_FLOW, nextOrderStatus, orderStatusLabel, subtotal } from '../../lib/domain/commerce'
-  import { clientsStore } from '../../lib/stores/clients.svelte'
-  import { quotesStore, setOrderStatus } from '../../lib/stores/commerce.svelte'
+  import { subtotal } from '../../lib/domain/commerce'
+  import { can } from '../../lib/permissions.svelte'
+  import { clientDisplayName } from '../../lib/services/clientsApi'
+  import { getQuote, type ApiQuoteDetail } from '../../lib/services/quotesApi'
+  import {
+    SALES_ORDER_FLOW,
+    SALES_ORDER_NEXT,
+    SALES_ORDER_STATUS_LABELS,
+    type ApiSalesOrder,
+    type SalesOrderStatus,
+  } from '../../lib/services/salesOrdersApi'
+  import { advisors } from '../../lib/stores/advisors.svelte'
+  import { clientDirectory, errorText } from '../../lib/stores/clientDirectory.svelte'
+  import { quotesStore, setOrderStatus, toLineItem } from '../../lib/stores/commerce.svelte'
   import { toasts } from '../../lib/stores/toasts.svelte'
-  import type { Order } from '../../lib/types'
+  import type { LineItem } from '../../lib/types'
   import { formatDate, formatMoney } from '../../lib/utils/format'
   import { printDocument } from '../../lib/utils/printDocument'
   import { orderBadge } from '../quotes/badges'
 
-  let { order, onclose }: { order: Order | null; onclose: () => void } = $props()
+  let { order, onclose }: { order: ApiSalesOrder | null; onclose: () => void } = $props()
 
   let busy = $state(false)
+  /** Productos de la cotización de origen; el pedido en sí solo guarda el valor. */
+  let details = $state<ApiQuoteDetail[] | null>(null)
 
-  let client = $derived(order ? clientsStore.byId.get(order.clientId) : undefined)
+  let client = $derived(order ? clientDirectory.byId.get(order.clientId) : undefined)
   let quote = $derived(order?.quoteId ? quotesStore.byId.get(order.quoteId) : undefined)
-  let next = $derived(order ? nextOrderStatus(order.estado) : null)
-  let stepIndex = $derived(order ? ORDER_FLOW.indexOf(order.estado) : -1)
+  let next = $derived(order ? SALES_ORDER_NEXT[order.status].find((s) => s !== 'cancelled') : undefined)
+  let canCancel = $derived(!!order && SALES_ORDER_NEXT[order.status].includes('cancelled'))
+  let stepIndex = $derived(order ? SALES_ORDER_FLOW.indexOf(order.status) : -1)
+  let items = $derived<LineItem[]>(
+    details
+      ? details.map(toLineItem)
+      : order
+        ? [{ producto: `Pedido ${order.number}`, cantidad: 1, precio: Number(order.value) }]
+        : [],
+  )
 
-  async function move(estado: Order['estado']) {
+  const day = (date: string) => `${date}T12:00:00`
+
+  $effect(() => {
+    details = null
+    const quoteId = order?.quoteId
+    if (!quoteId) return
+    getQuote(quoteId)
+      .then((full) => order?.quoteId === quoteId && (details = full.details))
+      .catch(() => {})
+  })
+
+  async function move(status: SalesOrderStatus) {
     if (!order) return
     busy = true
-    await setOrderStatus(order.id, estado)
-    busy = false
+    try {
+      await setOrderStatus(order.id, status)
+    } catch (e) {
+      toasts.push({ tone: 'warning', icon: 'alert-circle', title: 'No se pudo cambiar el estado', message: errorText(e, 'Intenta de nuevo.') })
+    } finally {
+      busy = false
+    }
   }
 
   function print() {
     if (!order) return
     const ok = printDocument({
       tipo: 'Pedido',
-      numero: order.numero,
-      fecha: order.fecha,
+      numero: order.number,
+      fecha: day(order.date),
       cliente: {
-        nombre: client?.razonSocial || order.cliente,
+        nombre: client?.businessName ?? `Cliente #${order.clientId}`,
         nit: client?.nit ?? '—',
-        direccion: client?.direccion ?? '',
-        municipio: client?.municipio ?? '',
-        contacto: client?.contacto.nombre ?? '',
+        direccion: client?.address ?? '',
+        municipio: client?.municipality ?? '',
+        contacto: '',
       },
-      items: order.items,
+      items,
       meta: [
-        ['Entrega estimada', formatDate(order.entrega)],
-        ['Cotización', quote?.numero ?? '—'],
-        ['Estado', orderStatusLabel[order.estado]],
+        ['Entrega estimada', formatDate(day(order.estimatedDeliveryDate))],
+        ['Cotización', quote?.number ?? '—'],
+        ['Estado', SALES_ORDER_STATUS_LABELS[order.status]],
       ],
     })
     if (!ok) toasts.push({ tone: 'warning', icon: 'alert-circle', title: 'Ventana bloqueada', message: 'Permite las ventanas emergentes para imprimir.' })
   }
 </script>
 
-<Modal open={!!order} {onclose} variant="drawer" title={order?.numero ?? ''} subtitle={order?.cliente ?? ''}>
+<Modal
+  open={!!order}
+  {onclose}
+  variant="drawer"
+  title={order?.number ?? ''}
+  subtitle={client ? clientDisplayName(client) : order ? `Cliente #${order.clientId}` : ''}
+>
   {#snippet badge()}
-    {#if order}<span class="badge {orderBadge[order.estado]}">{orderStatusLabel[order.estado]}</span>{/if}
+    {#if order}<span class="badge {orderBadge[order.status]}">{SALES_ORDER_STATUS_LABELS[order.status]}</span>{/if}
   {/snippet}
 
   {#if order}
-    <p class="total">{formatMoney(order.valor)}</p>
+    <p class="total">{formatMoney(Number(order.value))}</p>
 
-    {#if order.estado !== 'cancelado'}
+    {#if order.status !== 'cancelled'}
       <ol class="flow" aria-label="Avance del pedido">
-        {#each ORDER_FLOW as step, i (step)}
+        {#each SALES_ORDER_FLOW as step, i (step)}
           <li class:done={i < stepIndex} class:current={i === stepIndex}>
             <span class="marker">
-              {#if i < stepIndex || (i === stepIndex && step === 'entregado')}
+              {#if i < stepIndex || (i === stepIndex && step === 'delivered')}
                 <Icon name="check" size={12} strokeWidth={3} />
               {/if}
             </span>
-            {orderStatusLabel[step]}
+            {SALES_ORDER_STATUS_LABELS[step]}
           </li>
         {/each}
       </ol>
@@ -76,34 +119,42 @@
     {/if}
 
     <dl>
-      <div><dt>Creado</dt><dd>{formatDate(order.fecha)}</dd></div>
-      <div><dt>Entrega estimada</dt><dd>{formatDate(order.entrega)}</dd></div>
-      <div><dt>Cotización</dt><dd>{quote?.numero ?? 'Pedido directo'}</dd></div>
-      <div><dt>Dirección</dt><dd>{client ? `${client.direccion}, ${client.municipio}` : '—'}</dd></div>
+      <div><dt>Fecha</dt><dd>{formatDate(day(order.date))}</dd></div>
+      <div><dt>Entrega estimada</dt><dd>{formatDate(day(order.estimatedDeliveryDate))}</dd></div>
+      <div><dt>Cotización</dt><dd>{quote?.number ?? (order.quoteId ? `#${order.quoteId}` : 'Pedido directo')}</dd></div>
+      <div><dt>Asesor</dt><dd>{advisors.name(order.advisorId)}</dd></div>
+      <div class="full">
+        <dt>Dirección</dt>
+        <dd>{client ? [client.address, client.municipality].filter(Boolean).join(', ') || '—' : '—'}</dd>
+      </div>
     </dl>
 
-    <h3>Detalle</h3>
-    <table>
-      <thead><tr><th>Producto</th><th class="r">Cant.</th><th class="r">Subtotal</th></tr></thead>
-      <tbody>
-        {#each order.items as item, i (i)}
-          <tr>
-            <td>{item.producto}<small>{formatMoney(item.precio)} c/u</small></td>
-            <td class="r">{item.cantidad}</td>
-            <td class="r">{formatMoney(subtotal(item))}</td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+    {#if details}
+      <h3>Productos de la cotización</h3>
+      <table>
+        <thead><tr><th>Producto</th><th class="r">Cant.</th><th class="r">Subtotal</th></tr></thead>
+        <tbody>
+          {#each items as item, i (i)}
+            <tr>
+              <td>{item.producto}<small>{formatMoney(item.precio)} c/u</small></td>
+              <td class="r">{item.cantidad}</td>
+              <td class="r">{formatMoney(subtotal(item))}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    {:else if !order.quoteId}
+      <p class="note">Pedido directo: se registra solo el valor total.</p>
+    {/if}
 
     <div class="actions">
-      {#if next}
-        <button class="btn btn-primary" disabled={busy} onclick={() => move(next)}>
-          Marcar como {orderStatusLabel[next].toLowerCase()}
+      {#if can.isManager && next}
+        <button class="btn btn-primary" disabled={busy} onclick={() => move(next!)}>
+          Marcar como {SALES_ORDER_STATUS_LABELS[next].toLowerCase()}
         </button>
       {/if}
-      {#if order.estado === 'confirmado' || order.estado === 'preparando'}
-        <button class="btn btn-outline" disabled={busy} onclick={() => move('cancelado')}>Cancelar pedido</button>
+      {#if can.isManager && canCancel}
+        <button class="btn btn-outline" disabled={busy} onclick={() => move('cancelled')}>Cancelar pedido</button>
       {/if}
       <button class="btn btn-outline" onclick={print}><Icon name="download" size={16} /> Imprimir / PDF</button>
     </div>
@@ -244,6 +295,16 @@
   .r {
     text-align: right;
     font-variant-numeric: tabular-nums;
+  }
+
+  .full {
+    grid-column: 1 / -1;
+  }
+
+  .note {
+    margin-top: 20px;
+    font-size: 13px;
+    color: var(--text-muted);
   }
 
   .actions {

@@ -1,96 +1,145 @@
-import { ORDERS_IN_PROCESS, QUOTES_IN_PROCESS, orderStatusLabel, quoteStatusLabel, sameMonth } from '../domain/commerce'
-import { api } from '../services/api'
-import type { Asesor, NewOrder, NewQuote, Order, Quote } from '../types'
-import { formatMoney } from '../utils/format'
-import { LiveCollection } from './liveCollection.svelte'
-import { toasts } from './toasts.svelte'
+import { sameMonth } from '../domain/commerce'
+import {
+  addQuoteDetail,
+  changeQuoteStatus,
+  createQuote,
+  getQuote,
+  listQuotes,
+  removeQuoteDetail,
+  toDecimal,
+  updateQuoteDetail,
+  type ApiQuote,
+  type ApiQuoteDetail,
+  type QuoteStatus,
+} from '../services/quotesApi'
+import {
+  changeSalesOrderStatus,
+  createSalesOrder,
+  createSalesOrderFromQuote,
+  listSalesOrders,
+  type ApiSalesOrder,
+  type SalesOrderStatus,
+} from '../services/salesOrdersApi'
+import type { LineItem } from '../types'
+import { fetchAllPages, LiveCollection } from './liveCollection.svelte'
 
-// --- Asesores simulados ---------------------------------------------------------
+// --- Cotizaciones (HU-12, HU-13) ---------------------------------------------
 
-/** Asesores del servidor simulado, mientras cotizaciones y pedidos no usen el backend. */
-class MockAdvisors {
-  list = $state<Asesor[]>([])
-  byId = $derived(new Map(this.list.map((a) => [a.id, a])))
-
-  async load() {
-    if (!this.list.length) this.list = (await api.fetchRoutes()).asesores
-  }
-}
-
-export const mockAdvisors = new MockAdvisors()
-
-// --- Cotizaciones -------------------------------------------------------------
-
-export const quotesStore = new LiveCollection<Quote>(
-  () => api.fetchQuotes(),
-  (event) => {
-    if (event.type === 'quote.created') {
-      if (quotesStore.add(event.quote)) {
-        quotesStore.flash('kpi')
-        toasts.push({
-          tone: 'info',
-          icon: 'file-text',
-          title: 'Nueva cotización',
-          message: `${event.quote.numero} · ${event.quote.cliente} · ${formatMoney(event.quote.valor)}`,
-        })
-      }
-    } else if (event.type === 'quote.updated') {
-      const quote = quotesStore.patch(event.quoteId, event.patch)
-      if (quote && event.patch.estado) {
-        quotesStore.flash('kpi')
-        if (event.patch.estado === 'aprobada' || event.patch.estado === 'rechazada') {
-          toasts.push({
-            tone: event.patch.estado === 'aprobada' ? 'success' : 'warning',
-            icon: event.patch.estado === 'aprobada' ? 'check' : 'alert-circle',
-            title: `Cotización ${quoteStatusLabel[event.patch.estado].toLowerCase()}`,
-            message: `${quote.numero} · ${quote.cliente}`,
-          })
-        }
-      }
-    }
-  },
+export const quotesStore = new LiveCollection<ApiQuote>(
+  () => fetchAllPages((page, limit) => listQuotes({ page, limit })),
+  'No pudimos cargar las cotizaciones.',
 )
 
 export const quoteTotals = () => ({
   total: quotesStore.items.length,
-  enProceso: quotesStore.items.filter((q) => QUOTES_IN_PROCESS.includes(q.estado)).length,
-  esteMes: quotesStore.items.filter((q) => sameMonth(q.fecha)).reduce((sum, q) => sum + q.valor, 0),
+  enProceso: quotesStore.items.filter((q) => q.status === 'draft' || q.status === 'sent').length,
+  esteMes: quotesStore.items.filter((q) => sameMonth(`${q.date}T12:00:00`)).reduce((sum, q) => sum + Number(q.value), 0),
 })
 
-export const createQuote = (input: NewQuote) => api.createQuote($state.snapshot(input))
-export const setQuoteStatus = (id: string, estado: Quote['estado']) => api.updateQuoteStatus(id, estado)
+/** La cotización ya existe aunque falle algún producto: se completa desde su detalle. */
+export class PartialQuoteError extends Error {
+  constructor(
+    readonly quote: ApiQuote,
+    message: string,
+  ) {
+    super(message)
+  }
+}
 
-// --- Pedidos ------------------------------------------------------------------
+/**
+ * Crea la cotización en borrador y le agrega los productos uno a uno (el
+ * backend recalcula el valor con cada uno). Si `send`, la envía al final.
+ */
+export async function createQuoteWithItems(input: {
+  clientId: number
+  date: string
+  advisorId?: number
+  items: LineItem[]
+  send: boolean
+}): Promise<ApiQuote> {
+  let quote = await createQuote({ clientId: input.clientId, date: input.date, advisorId: input.advisorId })
+  quotesStore.upsert(quote)
+  try {
+    for (const item of input.items) await addQuoteDetail(quote.id, toDetail(item))
+    if (input.send) quote = await changeQuoteStatus(quote.id, 'sent')
+    else quote = await getQuote(quote.id)
+  } catch (error) {
+    // Se refleja el valor parcial antes de informar.
+    quotesStore.upsert(await getQuote(quote.id).catch(() => quote))
+    throw new PartialQuoteError(quote, error instanceof Error ? error.message : 'Error de conexión')
+  }
+  quotesStore.upsert(quote)
+  return quote
+}
 
-export const ordersStore = new LiveCollection<Order>(
-  () => api.fetchOrders(),
-  (event) => {
-    if (event.type === 'order.created') {
-      if (ordersStore.add(event.order)) ordersStore.flash('kpi')
-    } else if (event.type === 'order.updated') {
-      const order = ordersStore.patch(event.orderId, event.patch)
-      if (order && event.patch.estado) {
-        ordersStore.flash('kpi')
-        if (event.patch.estado === 'entregado' || event.patch.estado === 'en_ruta') {
-          toasts.push({
-            tone: 'success',
-            icon: event.patch.estado === 'entregado' ? 'check' : 'truck',
-            title: `Pedido ${orderStatusLabel[event.patch.estado].toLowerCase()}`,
-            message: `${order.numero} · ${order.cliente}`,
-          })
-        }
-      }
-    }
-  },
+/**
+ * Guarda los productos editados de una cotización en borrador: quita los que
+ * ya no están, actualiza los cambiados y agrega los nuevos.
+ */
+export async function saveQuoteItems(quoteId: number, before: ApiQuoteDetail[], after: (LineItem & { detailId?: number })[]) {
+  const kept = new Set(after.map((i) => i.detailId).filter((id) => id !== undefined))
+  for (const detail of before) if (!kept.has(detail.id)) await removeQuoteDetail(quoteId, detail.id)
+  for (const item of after) {
+    const payload = toDetail(item)
+    const original = before.find((d) => d.id === item.detailId)
+    if (!original) await addQuoteDetail(quoteId, payload)
+    else if (Number(original.quantity) !== item.cantidad || Number(original.price) !== item.precio)
+      await updateQuoteDetail(quoteId, original.id, { quantity: payload.quantity, price: payload.price })
+  }
+  const quote = await getQuote(quoteId)
+  quotesStore.upsert(quote)
+  return quote
+}
+
+export async function setQuoteStatus(id: number, status: QuoteStatus) {
+  const quote = await changeQuoteStatus(id, status)
+  quotesStore.upsert(quote)
+  return quote
+}
+
+const toDetail = (item: LineItem) => ({
+  product: item.producto.trim(),
+  quantity: toDecimal(item.cantidad),
+  price: toDecimal(item.precio),
+})
+
+/** Detalle del backend a línea editable (conserva el id para saber qué cambió). */
+export const toLineItem = (detail: ApiQuoteDetail): LineItem & { detailId: number } => ({
+  detailId: detail.id,
+  producto: detail.product,
+  cantidad: Number(detail.quantity),
+  precio: Number(detail.price),
+})
+
+// --- Pedidos (HU-14) -------------------------------------------------------------
+
+export const ordersStore = new LiveCollection<ApiSalesOrder>(
+  () => fetchAllPages((page, limit) => listSalesOrders({ page, limit })),
+  'No pudimos cargar los pedidos.',
 )
 
 export const orderTotals = () => ({
   total: ordersStore.items.length,
-  enProceso: ordersStore.items.filter((o) => ORDERS_IN_PROCESS.includes(o.estado)).length,
+  enProceso: ordersStore.items.filter((o) => o.status === 'pending' || o.status === 'confirmed').length,
   esteMes: ordersStore.items
-    .filter((o) => sameMonth(o.fecha) && o.estado !== 'cancelado')
-    .reduce((sum, o) => sum + o.valor, 0),
+    .filter((o) => sameMonth(`${o.date}T12:00:00`) && o.status !== 'cancelled')
+    .reduce((sum, o) => sum + Number(o.value), 0),
 })
 
-export const createOrder = (input: NewOrder) => api.createOrder($state.snapshot(input))
-export const setOrderStatus = (id: string, estado: Order['estado']) => api.updateOrderStatus(id, estado)
+export async function createOrder(input: Parameters<typeof createSalesOrder>[0]) {
+  const order = await createSalesOrder(input)
+  ordersStore.upsert(order)
+  return order
+}
+
+export async function createOrderFromQuote(quoteId: number, payload: Parameters<typeof createSalesOrderFromQuote>[1]) {
+  const order = await createSalesOrderFromQuote(quoteId, payload)
+  ordersStore.upsert(order)
+  return order
+}
+
+export async function setOrderStatus(id: number, status: SalesOrderStatus) {
+  const order = await changeSalesOrderStatus(id, status)
+  ordersStore.upsert(order)
+  return order
+}

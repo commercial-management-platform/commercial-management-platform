@@ -1,122 +1,228 @@
 <script lang="ts">
   import Icon from '../../lib/components/Icon.svelte'
+  import ItemsEditor from '../../lib/components/ItemsEditor.svelte'
   import Modal from '../../lib/components/Modal.svelte'
-  import { quoteStatusLabel, subtotal } from '../../lib/domain/commerce'
+  import { subtotal } from '../../lib/domain/commerce'
+  import { can } from '../../lib/permissions.svelte'
   import { router } from '../../lib/router.svelte'
-  import { clientsStore } from '../../lib/stores/clients.svelte'
-  import { createOrder, mockAdvisors, ordersStore, setQuoteStatus } from '../../lib/stores/commerce.svelte'
+  import { clientDisplayName } from '../../lib/services/clientsApi'
+  import { QUOTE_STATUS_LABELS, getQuote, type ApiQuote, type ApiQuoteDetail, type QuoteStatus } from '../../lib/services/quotesApi'
+  import { businessToday } from '../../lib/services/visitsApi'
+  import { advisors } from '../../lib/stores/advisors.svelte'
+  import { clientDirectory, errorText } from '../../lib/stores/clientDirectory.svelte'
+  import { createOrderFromQuote, ordersStore, saveQuoteItems, setQuoteStatus, toLineItem } from '../../lib/stores/commerce.svelte'
   import { toasts } from '../../lib/stores/toasts.svelte'
-  import type { Quote } from '../../lib/types'
+  import type { LineItem } from '../../lib/types'
   import { formatDate, formatMoney } from '../../lib/utils/format'
   import { printDocument } from '../../lib/utils/printDocument'
   import { quoteBadge } from './badges'
 
-  let { quote, onclose }: { quote: Quote | null; onclose: () => void } = $props()
+  let { quote, onclose }: { quote: ApiQuote | null; onclose: () => void } = $props()
 
   let busy = $state(false)
+  let details = $state<ApiQuoteDetail[] | null>(null)
+  let detailsError = $state('')
+  let editing = $state(false)
+  let draftItems = $state<(LineItem & { detailId?: number })[]>([])
+  let converting = $state(false)
+  let entrega = $state('')
 
-  let client = $derived(quote ? clientsStore.byId.get(quote.clientId) : undefined)
-  let vence = $derived(quote ? new Date(Date.parse(quote.fecha) + quote.vigenciaDias * 86_400_000) : null)
-  let expired = $derived(
-    !!quote && !!vence && vence.getTime() < Date.now() && quote.estado !== 'aprobada' && quote.estado !== 'rechazada',
+  let client = $derived(quote ? clientDirectory.byId.get(quote.clientId) : undefined)
+  let contact = $derived(
+    quote ? clientDirectory.contacts[quote.clientId]?.find((c) => c.isPrimary && c.active)?.name : undefined,
   )
   let order = $derived(quote ? ordersStore.items.find((o) => o.quoteId === quote.id) : undefined)
+  let items = $derived((details ?? []).map(toLineItem))
 
-  async function setStatus(estado: Quote['estado']) {
-    if (!quote) return
-    busy = true
-    await setQuoteStatus(quote.id, estado)
-    busy = false
-  }
+  const day = (date: string) => `${date}T12:00:00`
+  const addDays = (date: string, days: number) => new Date(Date.parse(`${date}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
 
-  async function toOrder() {
-    if (!quote) return
+  // Los productos no vienen en el listado: se piden al abrir (y si cambia el valor).
+  let loadedKey = ''
+  $effect(() => {
+    if (!quote) {
+      loadedKey = ''
+      return
+    }
+    const key = `${quote.id}:${quote.updatedAt}`
+    if (key === loadedKey) return
+    const firstOpen = !loadedKey.startsWith(`${quote.id}:`)
+    loadedKey = key
+    if (firstOpen) {
+      details = null
+      editing = converting = false
+      clientDirectory.loadContacts(quote.clientId).catch(() => {})
+    }
+    detailsError = ''
+    const id = quote.id
+    getQuote(id)
+      .then((full) => quote?.id === id && (details = full.details))
+      .catch((e) => (detailsError = errorText(e, 'No pudimos cargar los productos.')))
+  })
+
+  async function run(action: () => Promise<unknown>) {
     busy = true
     try {
-      const entrega = new Date(Date.now() + 5 * 86_400_000).toISOString()
-      const created = await createOrder({ clientId: quote.clientId, entrega, items: quote.items, quoteId: quote.id })
-      toasts.push({ tone: 'success', icon: 'package', title: 'Pedido creado', message: `${created.numero} desde ${quote.numero}` })
-      onclose()
-      router.go('pedidos', { nuevo: created.id })
+      await action()
+    } catch (e) {
+      toasts.push({ tone: 'warning', icon: 'alert-circle', title: 'No se pudo guardar', message: errorText(e, 'Intenta de nuevo.') })
     } finally {
       busy = false
     }
+  }
+
+  const setStatus = (status: QuoteStatus) => run(() => setQuoteStatus(quote!.id, status))
+
+  function startEditing() {
+    draftItems = items.length ? $state.snapshot(items) : [{ producto: '', cantidad: 1, precio: 0 }]
+    editing = true
+  }
+
+  let validDraft = $derived(draftItems.length > 0 && draftItems.every((i) => i.producto.trim() && i.cantidad > 0 && i.precio >= 0))
+
+  function saveItems() {
+    if (!quote || !details || !validDraft) return
+    const id = quote.id
+    const before = details
+    run(async () => {
+      const updated = await saveQuoteItems(id, before, $state.snapshot(draftItems))
+      details = updated.details
+      editing = false
+      toasts.push({ tone: 'success', icon: 'check', title: 'Productos guardados', message: updated.number })
+    })
+  }
+
+  function startConverting() {
+    entrega = addDays(businessToday(), 5)
+    converting = true
+  }
+
+  function toOrder() {
+    if (!quote || !entrega) return
+    const source = quote
+    run(async () => {
+      const created = await createOrderFromQuote(source.id, { date: businessToday(), estimatedDeliveryDate: entrega })
+      toasts.push({ tone: 'success', icon: 'package', title: 'Pedido creado', message: `${created.number} desde ${source.number}` })
+      onclose()
+      router.go('pedidos', { nuevo: String(created.id) })
+    })
   }
 
   function print() {
     if (!quote) return
     const ok = printDocument({
       tipo: 'Cotización',
-      numero: quote.numero,
-      fecha: quote.fecha,
+      numero: quote.number,
+      fecha: day(quote.date),
       cliente: {
-        nombre: client?.razonSocial || quote.cliente,
+        nombre: client?.businessName ?? `Cliente #${quote.clientId}`,
         nit: client?.nit ?? '—',
-        direccion: client?.direccion ?? '',
-        municipio: client?.municipio ?? '',
-        contacto: client?.contacto.nombre ?? '',
+        direccion: client?.address ?? '',
+        municipio: client?.municipality ?? '',
+        contacto: contact ?? '',
       },
-      items: quote.items,
+      items,
       meta: [
-        ['Vigencia', `${quote.vigenciaDias} días`],
-        ['Válida hasta', vence ? formatDate(vence.toISOString()) : '—'],
-        ['Asesor', mockAdvisors.byId.get(quote.asesorId)?.nombre ?? '—'],
-        ['Estado', quoteStatusLabel[quote.estado]],
+        ['Asesor', advisors.name(quote.advisorId)],
+        ['Moneda', quote.currency],
+        ['Estado', QUOTE_STATUS_LABELS[quote.status]],
       ],
     })
     if (!ok) toasts.push({ tone: 'warning', icon: 'alert-circle', title: 'Ventana bloqueada', message: 'Permite las ventanas emergentes para imprimir.' })
   }
 </script>
 
-<Modal open={!!quote} {onclose} variant="drawer" title={quote?.numero ?? ''} subtitle={quote?.cliente ?? ''}>
+<Modal
+  open={!!quote}
+  {onclose}
+  variant="drawer"
+  title={quote?.number ?? ''}
+  subtitle={client ? clientDisplayName(client) : quote ? `Cliente #${quote.clientId}` : ''}
+>
   {#snippet badge()}
-    {#if quote}<span class="badge {quoteBadge[quote.estado]}">{quoteStatusLabel[quote.estado]}</span>{/if}
+    {#if quote}<span class="badge {quoteBadge[quote.status]}">{QUOTE_STATUS_LABELS[quote.status]}</span>{/if}
   {/snippet}
 
   {#if quote}
-    <p class="total">{formatMoney(quote.valor)}</p>
+    <p class="total">{formatMoney(Number(quote.value))} <small>{quote.currency}</small></p>
 
     <dl>
-      <div><dt>Fecha</dt><dd>{formatDate(quote.fecha)}</dd></div>
-      <div>
-        <dt>Válida hasta</dt>
-        <dd class:expired>{vence ? formatDate(vence.toISOString()) : '—'}{expired ? ' · vencida' : ''}</dd>
-      </div>
-      <div><dt>Asesor</dt><dd>{mockAdvisors.byId.get(quote.asesorId)?.nombre ?? '—'}</dd></div>
-      <div><dt>Contacto</dt><dd>{client?.contacto.nombre ?? '—'}</dd></div>
+      <div><dt>Fecha</dt><dd>{formatDate(day(quote.date))}</dd></div>
+      <div><dt>Asesor</dt><dd>{advisors.name(quote.advisorId)}</dd></div>
+      <div><dt>NIT</dt><dd>{client?.nit ?? '—'}</dd></div>
+      <div><dt>Contacto</dt><dd>{contact ?? '—'}</dd></div>
     </dl>
 
     <h3>Detalle</h3>
-    <table>
-      <thead><tr><th>Producto</th><th class="r">Cant.</th><th class="r">Subtotal</th></tr></thead>
-      <tbody>
-        {#each quote.items as item, i (i)}
-          <tr>
-            <td>{item.producto}<small>{formatMoney(item.precio)} c/u</small></td>
-            <td class="r">{item.cantidad}</td>
-            <td class="r">{formatMoney(subtotal(item))}</td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
-
-    {#if order}
-      <p class="linked"><Icon name="package" size={14} /> Generó el pedido <strong>{order.numero}</strong></p>
+    {#if editing}
+      <ItemsEditor bind:items={draftItems} invalid={!validDraft} />
+      <div class="actions">
+        <button class="btn btn-primary" disabled={busy || !validDraft} onclick={saveItems}>
+          {busy ? 'Guardando…' : 'Guardar productos'}
+        </button>
+        <button class="btn btn-outline" disabled={busy} onclick={() => (editing = false)}>Cancelar</button>
+      </div>
+    {:else if detailsError}
+      <p class="muted">{detailsError}</p>
+    {:else if details === null}
+      <p class="muted">Cargando productos…</p>
+    {:else}
+      <table>
+        <thead><tr><th>Producto</th><th class="r">Cant.</th><th class="r">Subtotal</th></tr></thead>
+        <tbody>
+          {#each items as item (item.detailId)}
+            <tr>
+              <td>{item.producto}<small>{formatMoney(item.precio)} c/u</small></td>
+              <td class="r">{item.cantidad}</td>
+              <td class="r">{formatMoney(subtotal(item))}</td>
+            </tr>
+          {:else}
+            <tr><td colspan="3" class="muted">Sin productos todavía.</td></tr>
+          {/each}
+        </tbody>
+      </table>
     {/if}
 
-    <div class="actions">
-      {#if quote.estado === 'borrador'}
-        <button class="btn btn-primary" disabled={busy} onclick={() => setStatus('enviada')}>Enviar al cliente</button>
-      {:else if quote.estado === 'enviada' || quote.estado === 'en_revision'}
-        <button class="btn btn-primary" disabled={busy} onclick={() => setStatus('aprobada')}>Marcar aprobada</button>
-        <button class="btn btn-outline" disabled={busy} onclick={() => setStatus('rechazada')}>Marcar rechazada</button>
-      {:else if quote.estado === 'aprobada' && !order}
-        <button class="btn btn-primary" disabled={busy} onclick={toOrder}>
-          <Icon name="package" size={16} /> Convertir en pedido
+    {#if order}
+      <p class="linked"><Icon name="package" size={14} /> Generó el pedido <strong>{order.number}</strong></p>
+    {/if}
+
+    {#if converting}
+      <div class="convert">
+        <label class="field">
+          <span>Entrega estimada</span>
+          <input class="input" type="date" min={businessToday()} bind:value={entrega} />
+        </label>
+        <button class="btn btn-primary" disabled={busy || !entrega} onclick={toOrder}>
+          <Icon name="package" size={16} /> Crear pedido
         </button>
+        <button class="btn btn-outline" disabled={busy} onclick={() => (converting = false)}>Cancelar</button>
+      </div>
+    {:else if !editing}
+      <div class="actions">
+        {#if quote.status === 'draft'}
+          <button class="btn btn-outline" disabled={busy || details === null} onclick={startEditing}>
+            <Icon name="pencil" size={16} /> Editar productos
+          </button>
+          {#if can.isManager}
+            <button class="btn btn-primary" disabled={busy || !items.length} onclick={() => setStatus('sent')}>Enviar al cliente</button>
+          {/if}
+        {:else if quote.status === 'sent' && can.isManager}
+          <button class="btn btn-primary" disabled={busy} onclick={() => setStatus('approved')}>Marcar aprobada</button>
+          <button class="btn btn-outline" disabled={busy} onclick={() => setStatus('rejected')}>Marcar rechazada</button>
+        {:else if quote.status === 'approved' && !order}
+          <button class="btn btn-primary" disabled={busy} onclick={startConverting}>
+            <Icon name="package" size={16} /> Convertir en pedido
+          </button>
+        {/if}
+        <button class="btn btn-outline" onclick={print} disabled={details === null}>
+          <Icon name="download" size={16} /> Imprimir / PDF
+        </button>
+      </div>
+      {#if quote.status === 'draft' && !can.isManager}
+        <p class="muted hint">El gestor revisa y envía la cotización al cliente.</p>
       {/if}
-      <button class="btn btn-outline" onclick={print}><Icon name="download" size={16} /> Imprimir / PDF</button>
-    </div>
+    {/if}
   {/if}
 </Modal>
 
@@ -142,8 +248,33 @@
     font-weight: 500;
   }
 
-  dd.expired {
-    color: #b45309;
+  .total small {
+    font: 600 13px var(--font-heading);
+    color: var(--text-muted);
+  }
+
+  .muted {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .hint {
+    margin-top: 10px;
+  }
+
+  .convert {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px;
+    margin-top: 24px;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font: 600 12px/18px var(--font-heading);
   }
 
   h3 {

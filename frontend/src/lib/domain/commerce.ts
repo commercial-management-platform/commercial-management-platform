@@ -1,6 +1,6 @@
-import type { LineItem, OrderStatus, QuoteStatus } from '../types'
+import type { LineItem, OrderStatus } from '../types'
 
-/** PORTAFOLIO: productos de ejemplo con precio de lista. */
+/** Productos sugeridos al cotizar, con precio de lista. El backend acepta cualquier nombre. */
 export const PRODUCTOS: { nombre: string; precio: number }[] = [
   { nombre: 'Lámina galvanizada cal. 22', precio: 185 },
   { nombre: 'Tubo estructural 2"', precio: 96 },
@@ -12,29 +12,8 @@ export const PRODUCTOS: { nombre: string; precio: number }[] = [
   { nombre: 'Cable THHN #12 (rollo)', precio: 118 },
 ]
 
-export const VIGENCIAS = [15, 30, 45, 60]
-
-export const quoteStatusLabel: Record<QuoteStatus, string> = {
-  borrador: 'Borrador',
-  enviada: 'Enviada',
-  en_revision: 'En revisión',
-  aprobada: 'Aprobada',
-  rechazada: 'Rechazada',
-}
-
-export const QUOTES_IN_PROCESS: QuoteStatus[] = ['borrador', 'enviada', 'en_revision']
-
-export const orderStatusLabel: Record<OrderStatus, string> = {
-  confirmado: 'Confirmado',
-  preparando: 'Preparando',
-  en_ruta: 'En ruta',
-  entregado: 'Entregado',
-  cancelado: 'Cancelado',
-}
-
-/** Flujo normal de un pedido; "cancelado" queda fuera del flujo. */
-export const ORDER_FLOW: OrderStatus[] = ['confirmado', 'preparando', 'en_ruta', 'entregado']
-export const ORDERS_IN_PROCESS: OrderStatus[] = ['confirmado', 'preparando', 'en_ruta']
+/** Flujo de pedidos del servidor simulado (dashboard); "cancelado" queda fuera. */
+const ORDER_FLOW: OrderStatus[] = ['confirmado', 'preparando', 'en_ruta', 'entregado']
 
 export function nextOrderStatus(status: OrderStatus): OrderStatus | null {
   const i = ORDER_FLOW.indexOf(status)

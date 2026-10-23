@@ -3,43 +3,52 @@
   import Icon from '../../lib/components/Icon.svelte'
   import Pagination from '../../lib/components/Pagination.svelte'
   import StatCard from '../../lib/components/StatCard.svelte'
-  import { quoteStatusLabel } from '../../lib/domain/commerce'
-  import { useLiveClients } from '../../lib/stores/clients.svelte'
-  import { mockAdvisors, ordersStore, quoteTotals, quotesStore } from '../../lib/stores/commerce.svelte'
-  import type { QuoteStatus } from '../../lib/types'
+  import { clientDisplayName } from '../../lib/services/clientsApi'
+  import { QUOTE_STATUS_LABELS, type QuoteStatus } from '../../lib/services/quotesApi'
+  import { advisors } from '../../lib/stores/advisors.svelte'
+  import { clientDirectory, useClientDirectory } from '../../lib/stores/clientDirectory.svelte'
+  import { ordersStore, quoteTotals, quotesStore } from '../../lib/stores/commerce.svelte'
   import { downloadCsv } from '../../lib/utils/csv'
   import { formatCompact, formatDate, formatMoney, formatShortDate } from '../../lib/utils/format'
   import QuoteDrawer from './QuoteDrawer.svelte'
   import QuoteFormModal from './QuoteFormModal.svelte'
   import { quoteBadge } from './badges'
 
-  // Clientes (contacto, NIT) y asesores se usan en el detalle y el formulario.
+  // Cotizaciones del backend (HU-12, HU-13). Los clientes y asesores se usan
+  // para mostrar nombres; los pedidos, para saber qué cotización ya tiene uno.
   quotesStore.use()
   ordersStore.use()
-  useLiveClients()
-  mockAdvisors.load()
+  useClientDirectory()
+  advisors.load()
 
   const PAGE_SIZE = 10
-  const STATUSES = Object.keys(quoteStatusLabel) as QuoteStatus[]
+  const STATUSES = Object.keys(QUOTE_STATUS_LABELS) as QuoteStatus[]
 
   let query = $state('')
   let statuses = $state<QuoteStatus[]>([])
   let page = $state(0)
-  let detailId = $state<string | null>(null)
+  let detailId = $state<number | null>(null)
   let formOpen = $state(false)
 
   let totals = $derived(quoteTotals())
-  let detail = $derived(detailId ? (quotesStore.byId.get(detailId) ?? null) : null)
+  let detail = $derived(detailId === null ? null : (quotesStore.byId.get(detailId) ?? null))
+
+  const clientName = (id: number) => {
+    const client = clientDirectory.byId.get(id)
+    return client ? clientDisplayName(client) : `Cliente #${id}`
+  }
+  /** Fechas de calendario (YYYY-MM-DD): se fijan al mediodía para que la zona horaria no cambie el día. */
+  const day = (date: string) => `${date}T12:00:00`
 
   let rows = $derived.by(() => {
     const q = query.trim().toLowerCase()
     return quotesStore.items
       .filter(
         (quote) =>
-          (statuses.length === 0 || statuses.includes(quote.estado)) &&
-          (!q || `${quote.numero} ${quote.cliente}`.toLowerCase().includes(q)),
+          (statuses.length === 0 || statuses.includes(quote.status)) &&
+          (!q || `${quote.number} ${clientName(quote.clientId)}`.toLowerCase().includes(q)),
       )
-      .toSorted((a, b) => Date.parse(b.fecha) - Date.parse(a.fecha))
+      .toSorted((a, b) => b.date.localeCompare(a.date) || b.id - a.id)
   })
   let visible = $derived(rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE))
 
@@ -55,8 +64,16 @@
   function exportCsv() {
     downloadCsv(
       `kestrel-cotizaciones-${new Date().toISOString().slice(0, 10)}.csv`,
-      ['Cotización', 'Cliente', 'Fecha', 'Vigencia (días)', 'Valor', 'Estado'],
-      rows.map((q) => [q.numero, q.cliente, formatDate(q.fecha), q.vigenciaDias, q.valor, quoteStatusLabel[q.estado]]),
+      ['Cotización', 'Cliente', 'Asesor', 'Fecha', 'Valor', 'Moneda', 'Estado'],
+      rows.map((q) => [
+        q.number,
+        clientName(q.clientId),
+        advisors.name(q.advisorId),
+        formatDate(day(q.date)),
+        q.value,
+        q.currency,
+        QUOTE_STATUS_LABELS[q.status],
+      ]),
     )
   }
 </script>
@@ -92,7 +109,7 @@
             {#each STATUSES as status (status)}
               <label class="filter-check">
                 <input type="checkbox" checked={statuses.includes(status)} onchange={() => toggle(status)} />
-                {quoteStatusLabel[status]}
+                {QUOTE_STATUS_LABELS[status]}
               </label>
             {/each}
           </FiltersMenu>
@@ -108,8 +125,8 @@
             <tr>
               <th>Cotización</th>
               <th>Cliente</th>
+              <th>Asesor</th>
               <th>Fecha</th>
-              <th>Vigencia</th>
               <th>Valor</th>
               <th>Estado</th>
               <th>Acciones</th>
@@ -118,16 +135,20 @@
           <tbody>
             {#each visible as quote (quote.id)}
               <tr class:flash={quotesStore.highlights[quote.id]}>
-                <td class="strong">{quote.numero}</td>
-                <td>{quote.cliente}</td>
-                <td class="num">{formatShortDate(quote.fecha)}</td>
-                <td>{quote.vigenciaDias} días</td>
-                <td class="num">{formatMoney(quote.valor)}</td>
-                <td><span class="badge {quoteBadge[quote.estado]}">{quoteStatusLabel[quote.estado]}</span></td>
+                <td class="strong">{quote.number}</td>
+                <td>{clientName(quote.clientId)}</td>
+                <td>{advisors.name(quote.advisorId)}</td>
+                <td class="num">{formatShortDate(day(quote.date))}</td>
+                <td class="num">{formatMoney(Number(quote.value))}</td>
+                <td><span class="badge {quoteBadge[quote.status]}">{QUOTE_STATUS_LABELS[quote.status]}</span></td>
                 <td><button class="link-btn" onclick={() => (detailId = quote.id)}>Ver detalle</button></td>
               </tr>
             {:else}
-              <tr><td class="empty" colspan="7">No hay cotizaciones que coincidan.</td></tr>
+              <tr>
+                <td class="empty" colspan="7">
+                  {quotesStore.items.length ? 'No hay cotizaciones que coincidan.' : 'Aún no hay cotizaciones.'}
+                </td>
+              </tr>
             {/each}
           </tbody>
         </table>
@@ -136,8 +157,8 @@
     </section>
   {:else if quotesStore.status === 'error'}
     <div class="card error-box">
-      <p>No pudimos cargar las cotizaciones.</p>
-      <button class="btn btn-outline" onclick={() => quotesStore.connect()}>Reintentar</button>
+      <p>{quotesStore.error}</p>
+      <button class="btn btn-outline" onclick={() => quotesStore.refresh()}>Reintentar</button>
     </div>
   {:else}
     <div class="stats-grid">

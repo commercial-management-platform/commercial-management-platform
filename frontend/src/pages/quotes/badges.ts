@@ -1,18 +1,17 @@
-import type { OrderStatus, QuoteStatus } from '../../lib/types'
+import type { QuoteStatus } from '../../lib/services/quotesApi'
+import type { SalesOrderStatus } from '../../lib/services/salesOrdersApi'
 
 /** Variante de la clase global `.badge` según el estado. */
 export const quoteBadge: Record<QuoteStatus, string> = {
-  borrador: 'neutral',
-  enviada: '',
-  en_revision: 'deep',
-  aprobada: 'deep',
-  rechazada: 'danger',
+  draft: 'neutral',
+  sent: '',
+  approved: 'deep',
+  rejected: 'danger',
 }
 
-export const orderBadge: Record<OrderStatus, string> = {
-  confirmado: '',
-  preparando: 'deep',
-  en_ruta: 'deep',
-  entregado: '',
-  cancelado: 'danger',
+export const orderBadge: Record<SalesOrderStatus, string> = {
+  pending: 'neutral',
+  confirmed: '',
+  delivered: 'deep',
+  cancelled: 'danger',
 }
