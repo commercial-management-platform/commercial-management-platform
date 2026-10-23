@@ -19,6 +19,9 @@ export const ACTIVITY_ACTIONS = [
   // Follow-ups of a client/visit (HU-10).
   'follow_up.created',
   'follow_up.completed',
+  // Quotes (HU-12).
+  'quote.created',
+  'quote.status_changed',
 ] as const;
 
 export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number];

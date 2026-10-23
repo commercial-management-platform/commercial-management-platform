@@ -1,22 +1,24 @@
-# Local development database. Values match backend/.env.example (never real credentials).
+# Local development: API (with reload), PostgreSQL and pgAdmin.
+# Every value comes from the .env next to this file (copy .env.example): nothing
+# is fixed here, not even the ports. Production uses docker-compose.prod.yml.
 services:
   postgres:
     image: postgres:16-alpine
     container_name: cmp-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: cmp_user
-      POSTGRES_PASSWORD: change_me
-      POSTGRES_DB: cmp_db
+      POSTGRES_USER: ${DB_USER:?set DB_USER in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      POSTGRES_DB: ${DB_NAME:?set DB_NAME in .env}
+      # PostgreSQL listens on DB_PORT, inside the container and on the host.
+      PGPORT: ${DB_PORT:?set DB_PORT in .env}
     ports:
-      # Puerto del host configurable: si ya tienes PostgreSQL instalado en tu equipo
-      # usando el 5432, define POSTGRES_HOST_PORT=5433 en un .env junto a este archivo
-      # y DB_PORT=5433 en backend/.env.
-      - "${POSTGRES_HOST_PORT:-5432}:5432"
+      - "${DB_PORT:?}:${DB_PORT:?}"
     volumes:
       - cmp_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cmp_user -d cmp_db"]
+      # pg_isready reads PGPORT from the environment.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -26,18 +28,50 @@ services:
     container_name: cmp-pgadmin
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: change_me
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:?set PGADMIN_EMAIL in .env}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:?set PGADMIN_PASSWORD in .env}
+      PGADMIN_LISTEN_PORT: ${PGADMIN_PORT:?set PGADMIN_PORT in .env}
       PGADMIN_CONFIG_SERVER_MODE: "False"
       PGADMIN_DISABLE_POSTFIX: "True"
     ports:
-      - "5050:80"
+      - "${PGADMIN_PORT:?}:${PGADMIN_PORT:?}"
     volumes:
       - cmp_pgadmin_data:/var/lib/pgadmin
     depends_on:
       postgres:
         condition: service_healthy
 
+  api:
+    build:
+      context: ./backend
+      target: development
+    container_name: cmp-api
+    restart: unless-stopped
+    # The same .env: DB_HOST=postgres reaches the container above.
+    env_file: .env
+    environment:
+      # Polling watch so changes on Windows/macOS volumes trigger the reload: files
+      # (edits) and directories (new or deleted files, e.g. a new migration).
+      CHOKIDAR_USEPOLLING: "true"
+      TSC_WATCHFILE: DynamicPriorityPolling
+      TSC_WATCHDIRECTORY: RecursiveDirectoryUsingDynamicPriorityPolling
+    # A single compilation: after each build the watcher runs scripts/dev-start.sh,
+    # which applies pending migrations and starts the API only if they succeed.
+    command: npx nest start --watch --exec "exec sh scripts/dev-start.sh"
+    ports:
+      - "${PORT:?set PORT in .env}:${PORT:?}"
+    volumes:
+      - ./backend:/app
+      # Container's own node_modules: not hidden by the code mount nor mixed with the host's.
+      - cmp_api_node_modules:/app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # The test comes from the Dockerfile; the first build and watch take longer.
+    healthcheck:
+      start_period: 180s
+
 volumes:
   cmp_postgres_data:
   cmp_pgadmin_data:
+  cmp_api_node_modules:

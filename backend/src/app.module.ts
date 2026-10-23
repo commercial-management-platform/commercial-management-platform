@@ -10,6 +10,7 @@ import { ClientsModule } from './modules/clients/clients.module.js';
 import { ContactsModule } from './modules/contacts/contacts.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { PortfoliosModule } from './modules/portfolios/portfolios.module.js';
+import { QuotesModule } from './modules/quotes/quotes.module.js';
 import { RoutesModule } from './modules/routes/routes.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 import { VisitsModule } from './modules/visits/visits.module.js';
@@ -33,6 +34,7 @@ import { FollowUpsModule } from './modules/follow-ups/follow-ups.module.js';
     PortfoliosModule,
     VisitsModule,
     FollowUpsModule,
+    QuotesModule,
     ActivityLogModule,
   ],
 })
