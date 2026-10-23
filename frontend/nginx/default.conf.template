@@ -1,0 +1,36 @@
+# Rendered at start-up by the official Nginx image: ${WEB_PORT} and ${API_PORT}
+# come from the container environment (docker-compose.prod.yml).
+server {
+    listen ${WEB_PORT};
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Documents attached to quotes (HU-12 / HU-20).
+    client_max_body_size 10m;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+
+    # The API keeps its /api prefix (NestJS global prefix).
+    location /api/ {
+        proxy_pass http://api:${API_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Vite fingerprints these files, so they can be cached for a long time.
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # Hash-based router: every route is served by index.html.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
