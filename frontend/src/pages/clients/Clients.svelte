@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import { fade } from 'svelte/transition'
   import AnimatedNumber from '../../lib/components/AnimatedNumber.svelte'
   import Icon from '../../lib/components/Icon.svelte'
@@ -7,12 +8,17 @@
   import { clientDisplayName, type ApiClient } from '../../lib/services/clientsApi'
   import { catalogs } from '../../lib/stores/catalogs.svelte'
   import { clientDirectory, useClientDirectory } from '../../lib/stores/clientDirectory.svelte'
+  import { clientPortfolios } from '../../lib/stores/clientPortfolios.svelte'
   import { downloadCsv } from '../../lib/utils/csv'
   import { formatDate } from '../../lib/utils/format'
   import ClientDrawer from './ClientDrawer.svelte'
   import ClientFormModal from './ClientFormModal.svelte'
 
   useClientDirectory()
+  // Para el filtro por portafolio (HU-06); el detalle también los usa.
+  $effect(() => {
+    untrack(() => clientPortfolios.load())
+  })
 
   const PAGE_SIZE = 10
   const shortDate = new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -26,6 +32,7 @@
   let typeId = $state<number | ''>('')
   let potentialId = $state<number | ''>('')
   let zoneId = $state<number | ''>('')
+  let portfolioId = $state<number | ''>('')
   let sort = $state<{ key: SortKey; dir: 1 | -1 }>({ key: 'creado', dir: -1 })
   let page = $state(0)
   let filtersOpen = $state(false)
@@ -38,7 +45,7 @@
 
   let detail = $derived(detailId !== null ? (clientDirectory.byId.get(detailId) ?? null) : null)
   let activeFilters = $derived(
-    statusIds.length + (activity ? 1 : 0) + (typeId !== '' ? 1 : 0) + (potentialId !== '' ? 1 : 0) + (zoneId !== '' ? 1 : 0),
+    statusIds.length + (activity ? 1 : 0) + (typeId !== '' ? 1 : 0) + (potentialId !== '' ? 1 : 0) + (zoneId !== '' ? 1 : 0) + (portfolioId !== '' ? 1 : 0),
   )
 
   let rows = $derived.by(() => {
@@ -50,6 +57,7 @@
         (typeId === '' || c.clientTypeId === typeId) &&
         (potentialId === '' || c.clientPotentialId === potentialId) &&
         (zoneId === '' || c.zoneId === zoneId) &&
+        (portfolioId === '' || !!clientPortfolios.membership[c.id]?.includes(portfolioId)) &&
         (!q || `${c.tradeName ?? ''} ${c.businessName} ${c.nit} ${c.municipality ?? ''}`.toLowerCase().includes(q)),
     )
     return filtered.toSorted((a, b) => {
@@ -63,7 +71,7 @@
 
   // Al cambiar filtros o búsqueda se vuelve a la primera página.
   $effect(() => {
-    void [query, activity, statusIds, typeId, potentialId, zoneId]
+    void [query, activity, statusIds, typeId, potentialId, zoneId, portfolioId]
     page = 0
   })
   $effect(() => {
@@ -81,7 +89,7 @@
   function clearFilters() {
     statusIds = []
     activity = ''
-    typeId = potentialId = zoneId = ''
+    typeId = potentialId = zoneId = portfolioId = ''
   }
 
   function openCreate() {
@@ -202,6 +210,13 @@
                   <option value="">Todas</option>
                   {#each catalogs.zones as z (z.id)}<option value={z.id}>{z.name}</option>{/each}
                 </select>
+                {#if clientPortfolios.portfolios.length}
+                  <p class="popover-title">Portafolio</p>
+                  <select class="select" bind:value={portfolioId}>
+                    <option value="">Todos</option>
+                    {#each clientPortfolios.portfolios as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
+                  </select>
+                {/if}
                 {#if activeFilters}<button class="clear" onclick={clearFilters}>Limpiar filtros</button>{/if}
               </div>
             {/if}
