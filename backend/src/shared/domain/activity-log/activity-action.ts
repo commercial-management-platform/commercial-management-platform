@@ -16,6 +16,9 @@ export const ACTIVITY_ACTIONS = [
   // Portfolios of a client (HU-06).
   'client.portfolio_added',
   'client.portfolio_removed',
+  // Follow-ups of a client/visit (HU-10).
+  'follow_up.created',
+  'follow_up.completed',
   // Quotes (HU-12).
   'quote.created',
   'quote.status_changed',
