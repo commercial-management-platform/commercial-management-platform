@@ -33,7 +33,8 @@ class AdvisorsStore {
 
   name(advisorId: number) {
     if (can.isAdvisor) return session.current?.user.name ?? 'Tú'
-    return this.byId.get(advisorId)?.name ?? `Asesor #${advisorId}`
+    // "…" mientras carga; el id solo si el asesor no está en la lista.
+    return this.byId.get(advisorId)?.name ?? (this.list.length ? `Asesor #${advisorId}` : '…')
   }
 }
 
