@@ -19,6 +19,7 @@
     'rutas/asesores': 'Asesor asignado',
     clientes: 'Gestión de clientes',
     visitas: 'Visitas',
+    seguimientos: 'Seguimientos',
     cotizaciones: 'Cotizaciones',
     pedidos: 'Pedidos',
     administracion: 'Administración',

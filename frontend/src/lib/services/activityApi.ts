@@ -15,6 +15,8 @@ export type ActivityAction =
   | 'client.portfolio_removed'
   | 'quote.created'
   | 'quote.status_changed'
+  | 'follow_up.created'
+  | 'follow_up.completed'
 
 export interface ApiActivityEntry {
   id: number
@@ -38,6 +40,8 @@ export const ACTIVITY_LABELS: Record<ActivityAction, string> = {
   'client.portfolio_removed': 'Retirado de portafolio',
   'quote.created': 'Cotización creada',
   'quote.status_changed': 'Estado de cotización',
+  'follow_up.created': 'Seguimiento programado',
+  'follow_up.completed': 'Seguimiento completado',
 }
 
 /** Más reciente primero. El asesor solo consulta clientes de sus rutas (si no, 404). */

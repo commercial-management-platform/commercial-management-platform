@@ -43,6 +43,7 @@
     { route: "rutas/asignadas", label: "Mis rutas", icon: "activity", only: "advisor" },
     { route: "clientes", label: "Clientes", icon: "users" },
     { route: "visitas", label: "Visitas", icon: "map-pin" },
+    { route: "seguimientos", label: "Seguimientos", icon: "clock" },
     { route: "cotizaciones", label: "Cotizaciones", icon: "file-text" },
     { route: "pedidos", label: "Pedidos", icon: "package" },
     { route: "administracion", label: "Administración", icon: "user-check", only: "admin" },

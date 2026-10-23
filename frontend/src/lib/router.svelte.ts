@@ -7,6 +7,7 @@ export const ROUTES = [
   'rutas/asesores',
   'clientes',
   'visitas',
+  'seguimientos',
   'cotizaciones',
   'pedidos',
   'administracion',
