@@ -1,3 +1,4 @@
+import type { FollowUpPayload } from './followUpsApi'
 import { http, type Paginated } from './http'
 
 // Visitas del backend (/api/visits, HU-08 y HU-09).
@@ -126,6 +127,8 @@ export interface OutcomePayload {
   /** Solo si la visita no se inició con startVisit. */
   startedAt?: string
   finishedAt?: string
+  /** HU-10: se crea en la misma petición; si no es válido, la visita tampoco se registra. */
+  nextFollowUp?: Omit<FollowUpPayload, 'responsibleAdvisorId'>
 }
 
 export type SkipReason = 'inactive_client' | 'already_scheduled'
@@ -140,6 +143,9 @@ export const businessDateTime = (date: string, time: string) => `${date}T${time}
 
 /** Fecha de hoy (YYYY-MM-DD) en hora de Colombia, como la calcula el backend. */
 export const businessToday = () => new Date(Date.now() - 5 * 3_600_000).toISOString().slice(0, 10)
+
+/** Hora (HH:mm) en hora de Colombia de una fecha ISO del backend. */
+export const businessTime = (iso: string) => new Date(Date.parse(iso) - 5 * 3_600_000).toISOString().slice(11, 16)
 
 export const listVisits = (query: ListVisitsQuery = {}) => http<Paginated<ApiVisit>>('/visits', { query: { ...query } })
 

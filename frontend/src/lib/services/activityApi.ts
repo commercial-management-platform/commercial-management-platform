@@ -17,6 +17,7 @@ export type ActivityAction =
   | 'quote.status_changed'
   | 'follow_up.created'
   | 'follow_up.completed'
+  | 'visit.completed'
 
 export interface ApiActivityEntry {
   id: number
@@ -42,6 +43,7 @@ export const ACTIVITY_LABELS: Record<ActivityAction, string> = {
   'quote.status_changed': 'Estado de cotización',
   'follow_up.created': 'Seguimiento programado',
   'follow_up.completed': 'Seguimiento completado',
+  'visit.completed': 'Visita registrada',
 }
 
 /** Más reciente primero. El asesor solo consulta clientes de sus rutas (si no, 404). */

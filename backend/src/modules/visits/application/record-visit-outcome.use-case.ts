@@ -1,8 +1,13 @@
 import { ValidationError } from '../../../shared/domain/errors/index.js';
+import type { ActivityLogPort } from '../../../shared/application/ports/activity-log.port.js';
 import type {
   CatalogLookupPort,
   CatalogName,
 } from '../../catalogs/application/ports/catalog-lookup.port.js';
+import type {
+  FollowUpCreatorPort,
+  NextFollowUpInput,
+} from './ports/follow-up-creator.port.js';
 import type { InterestLevel, InterestReason } from '../domain/visit-interest.js';
 import { VisitOutcome } from '../domain/visit-outcome.js';
 import { VisitStatus } from '../domain/visit-status.js';
@@ -20,6 +25,8 @@ export class RecordVisitOutcomeUseCase {
   constructor(
     private readonly visitRepository: VisitRepository,
     private readonly catalogs: CatalogLookupPort,
+    private readonly activityLog: ActivityLogPort,
+    private readonly followUpCreator: FollowUpCreatorPort,
   ) {}
 
   async execute(
@@ -36,11 +43,18 @@ export class RecordVisitOutcomeUseCase {
       /** Used only when the visit was never started with /start. */
       startedAt: Date | null;
       finishedAt: Date | null;
+      /** HU-09 CA-09: when sent, a follow-up linked to this visit is created too. */
+      nextFollowUp?: NextFollowUpInput;
     },
   ): Promise<RecordedVisitOutcome> {
     const observation = input.observation.trim();
     if (observation.length === 0) {
       throw new ValidationError('observation must not be empty');
+    }
+    // Checked before saving the outcome, so an invalid follow-up leaves the
+    // visit untouched instead of recorded without it.
+    if (input.nextFollowUp) {
+      this.followUpCreator.validate(input.nextFollowUp);
     }
 
     const visit = await findVisibleVisit(this.visitRepository, actor, visitId);
@@ -81,8 +95,16 @@ export class RecordVisitOutcomeUseCase {
       );
     }
 
-    // HU-16: registrar visit_completed
-    // HU-10: crear el follow_up si viene próximo seguimiento
+    await this.activityLog.record({
+      action: 'visit.completed',
+      userId: actor.id,
+      clientId: result.visit.clientId,
+      description: `Visit completed with result '${result.outcome.visitResultId}'`,
+      occurredAt: new Date(),
+    });
+    if (input.nextFollowUp) {
+      await this.followUpCreator.create(actor, visit.id!, input.nextFollowUp);
+    }
     // HU-12 y HU-14: cotización y pedido vinculados con visit_id
 
     return result;

@@ -2,6 +2,7 @@ import { ValidationError, NotFoundError } from '../../../../shared/domain/errors
 import { FollowUp } from '../../domain/entities/follow-up.js';
 import type { FollowUpRepository } from '../../domain/ports/follow-up.repository.js';
 import type { VisitRepository } from '../../../visits/domain/visit.repository.js';
+import { VisitStatus } from '../../../visits/domain/visit-status.js';
 import type { ActivityLogPort } from '../../../../shared/application/ports/activity-log.port.js';
 import { UserRole } from '../../../auth/domain/types/user-role.enum.js';
 import { businessToday } from '../../../../shared/domain/time/business-time.js';
@@ -32,10 +33,14 @@ export class CreateFollowUpUseCase {
       if (!assigned) throw new NotFoundError('Visit not found');
     }
 
-    const today = businessToday();
-    if (input.nextDate < today) {
-      throw new ValidationError('nextDate cannot be in the past');
+    // HU-10 CA-01: only a recorded visit gets follow-ups.
+    if (visit.status !== VisitStatus.Visited) {
+      throw new ValidationError(
+        `Only a visited visit can have follow-ups; this visit is ${visit.status}`,
+      );
     }
+
+    FollowUp.assertSchedulable(input, businessToday());
 
     const responsibleAdvisorId = input.responsibleAdvisorId ?? visit.advisorId;
 

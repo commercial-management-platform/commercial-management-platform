@@ -43,16 +43,23 @@ function setup(visit: Visit = todayVisit()) {
     })),
   };
   const catalogs = { isActive: vi.fn().mockResolvedValue(true) };
+  const activityLog = { record: vi.fn().mockResolvedValue(undefined) };
+  const followUpCreator = {
+    validate: vi.fn(),
+    create: vi.fn().mockResolvedValue(undefined),
+  };
   const useCase = new RecordVisitOutcomeUseCase(
     visitRepository as unknown as VisitRepository,
     catalogs,
+    activityLog,
+    followUpCreator,
   );
-  return { visitRepository, catalogs, useCase };
+  return { visitRepository, catalogs, activityLog, followUpCreator, useCase };
 }
 
 describe('RecordVisitOutcomeUseCase', () => {
   it('records the outcome and marks the visit visited', async () => {
-    const { visitRepository, useCase } = setup();
+    const { visitRepository, activityLog, useCase } = setup();
 
     const result = await useCase.execute(advisorActor, 1, input);
 
@@ -67,6 +74,10 @@ describe('RecordVisitOutcomeUseCase', () => {
       expect.objectContaining({ visitResultId: 3 }),
       VisitStatus.Scheduled,
     );
+    expect(activityLog.record).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'visit.completed', userId: advisorActor.id, clientId: 10,
+      description: "Visit completed with result '3'",
+    }));
   });
 
   it('trims the observation', async () => {
@@ -124,12 +135,13 @@ describe('RecordVisitOutcomeUseCase', () => {
       scheduledDate: businessDateTimeToInstant('2099-01-02', '09:00'),
       visitOrder: null,
     });
-    const { visitRepository, useCase } = setup(other);
+    const { visitRepository, activityLog, useCase } = setup(other);
 
     await expect(useCase.execute(advisorActor, 1, input)).rejects.toThrow(
       ValidationError,
     );
     expect(visitRepository.recordOutcome).not.toHaveBeenCalled();
+    expect(activityLog.record).not.toHaveBeenCalled();
   });
 
   it('rejects a visit that is not scheduled (already visited)', async () => {
@@ -168,5 +180,81 @@ describe('RecordVisitOutcomeUseCase', () => {
     await expect(useCase.execute(advisorActor, 1, input)).rejects.toThrow(
       ValidationError,
     );
+  });
+
+  // HU-09 CA-11
+  it('writes visit.completed to the client activity log', async () => {
+    const { activityLog, useCase } = setup();
+
+    await useCase.execute(advisorActor, 1, input);
+
+    expect(activityLog.record).toHaveBeenCalledWith({
+      action: 'visit.completed',
+      userId: 'usr_advisor_1',
+      clientId: 10,
+      description: expect.any(String),
+      occurredAt: expect.any(Date),
+    });
+  });
+
+  it('writes nothing to the activity log when the outcome is rejected', async () => {
+    const { visitRepository, activityLog, useCase } = setup();
+    visitRepository.recordOutcome.mockResolvedValueOnce(null as never);
+
+    await expect(useCase.execute(advisorActor, 1, input)).rejects.toThrow(
+      ValidationError,
+    );
+    expect(activityLog.record).not.toHaveBeenCalled();
+  });
+
+  // HU-09 CA-09
+  it('does not create a follow-up when none is sent', async () => {
+    const { followUpCreator, useCase } = setup();
+
+    await useCase.execute(advisorActor, 1, input);
+
+    expect(followUpCreator.create).not.toHaveBeenCalled();
+  });
+
+  it('creates the follow-up linked to the visit after saving the outcome', async () => {
+    const { followUpCreator, useCase } = setup();
+
+    await useCase.execute(advisorActor, 1, {
+      ...input,
+      nextFollowUp: {
+        nextDate: '2026-10-25',
+        nextTime: '09:00',
+        activity: 'Enviar cotización',
+        observation: 'Cliente interesado',
+      },
+    });
+
+    expect(followUpCreator.create).toHaveBeenCalledWith(
+      advisorActor,
+      1,
+      expect.objectContaining({
+        nextDate: '2026-10-25',
+        nextTime: '09:00',
+        activity: 'Enviar cotización',
+        observation: 'Cliente interesado',
+      }),
+    );
+  });
+
+  it('rejects an invalid follow-up before saving the outcome', async () => {
+    const { visitRepository, activityLog, followUpCreator, useCase } = setup();
+    followUpCreator.validate.mockImplementationOnce(() => {
+      throw new ValidationError('nextDate cannot be in the past');
+    });
+
+    await expect(
+      useCase.execute(advisorActor, 1, {
+        ...input,
+        nextFollowUp: { nextDate: '2020-01-01', activity: 'Llamar' },
+      }),
+    ).rejects.toThrow(ValidationError);
+    expect(visitRepository.recordOutcome).not.toHaveBeenCalled();
+    expect(activityLog.record).not.toHaveBeenCalled();
+    expect(followUpCreator.create).not.toHaveBeenCalled();
   });
 });

@@ -70,8 +70,9 @@ import { AdvisorsController } from './presentation/advisors.controller.js';
     },
     {
       provide: UpdateUserUseCase,
-      inject: [USER_REPOSITORY],
-      useFactory: (repo: UserRepository) => new UpdateUserUseCase(repo),
+      inject: [USER_REPOSITORY, ADVISOR_PROFILE_PORT],
+      useFactory: (repo: UserRepository, advisors: AdvisorProfilePort) =>
+        new UpdateUserUseCase(repo, advisors),
     },
     {
       provide: ChangeUserRoleUseCase,
