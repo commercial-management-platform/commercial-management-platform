@@ -1,24 +1,44 @@
 import { ApiProperty } from '@nestjs/swagger';
-import type { Quote } from '../../domain/entities/quote.js';
-import { QuoteResponseDto } from './quote-response.dto.js';
+import type { QuoteDetail } from '../../domain/entities/quote-detail.js';
 
-/** HU-13 will replace the empty details list with persisted quote_detail records. */
-export class QuoteDetailResponseDto extends QuoteResponseDto {
+export class QuoteDetailResponseDto {
+  @ApiProperty({ example: 1 })
+  id: number;
+
+  @ApiProperty({ example: 1 })
+  quoteId: number;
+
+  @ApiProperty({ example: 'Premium cleaning service' })
+  product: string;
+
+  @ApiProperty({ example: '2.500' })
+  quantity: string;
+
+  @ApiProperty({ example: '12500.000' })
+  price: string;
+
   @ApiProperty({
-    type: 'array',
-    items: { type: 'object' },
-    example: [],
-    description: 'Empty until HU-13 implements quote details',
+    example: '31250.000000',
+    description: 'Calculated by the backend',
   })
-  details: [];
+  subtotal: string;
 
-  static fromDomain(quote: Quote): QuoteDetailResponseDto {
-    return Object.assign(
-      new QuoteDetailResponseDto(),
-      QuoteResponseDto.fromDomain(quote),
-      {
-        details: [],
-      },
-    );
+  @ApiProperty()
+  createdAt: Date;
+
+  @ApiProperty()
+  updatedAt: Date;
+
+  static fromDomain(detail: QuoteDetail): QuoteDetailResponseDto {
+    return Object.assign(new QuoteDetailResponseDto(), {
+      id: detail.id!,
+      quoteId: detail.quoteId,
+      product: detail.product,
+      quantity: detail.quantity,
+      price: detail.price,
+      subtotal: detail.subtotal,
+      createdAt: detail.createdAt!,
+      updatedAt: detail.updatedAt!,
+    });
   }
 }
