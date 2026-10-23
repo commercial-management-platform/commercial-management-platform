@@ -115,9 +115,9 @@
         {/if}
       </div>
 
-      <button class="btn btn-primary" onclick={exportCsv} disabled={rows.length === 0}>
+      <button class="btn btn-primary export" onclick={exportCsv} disabled={rows.length === 0} aria-label="Exportar a CSV">
         <Icon name="download" size={16} />
-        Exportar
+        <span>Exportar</span>
       </button>
     </div>
   </header>
@@ -158,6 +158,32 @@
       </tbody>
     </table>
   </div>
+
+  <!-- En pantallas pequeñas la tabla se reemplaza por tarjetas compactas. -->
+  <ul class="cards">
+    {#each visibleRows as visit (visit.id)}
+      <li class:flash={dashboard.highlights[visit.id]}>
+        <div class="card-head">
+          <div>
+            <p class="client">{visit.cliente}</p>
+            <p class="meta">{visit.municipio} · {visit.tipo}</p>
+          </div>
+          <span class="badge {visit.estado}">{visitStatusLabel[visit.estado]}</span>
+        </div>
+        <dl>
+          <div><dt>Fecha</dt><dd>{formatDate(visit.fecha)}</dd></div>
+          <div><dt>Cotización</dt><dd class="num">{visit.cotizacion ? formatMoney(visit.cotizacion) : '—'}</dd></div>
+          <div><dt>Potencial</dt><dd>{visit.potencial}</dd></div>
+          <div><dt>Resultado</dt><dd>{visit.resultado ?? '—'}</dd></div>
+        </dl>
+        <button class="detail" onclick={() => (detail = visit)}>
+          Ver detalle <Icon name="chevron-right" size={16} />
+        </button>
+      </li>
+    {:else}
+      <li class="empty">No hay visitas para los filtros seleccionados.</li>
+    {/each}
+  </ul>
 
   {#if rows.length > PAGE}
     <footer>
@@ -212,7 +238,7 @@
     min-width: 20px;
     height: 20px;
     padding: 0 6px;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     font-weight: 700;
     color: #fff;
     border-radius: 999px;
@@ -236,7 +262,7 @@
   }
 
   .popover-title {
-    font-size: 0.72rem;
+    font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -281,7 +307,7 @@
 
   th {
     padding: 12px 16px;
-    font-size: 0.68rem;
+    font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.06em;
     text-align: left;
@@ -321,7 +347,7 @@
   .badge {
     display: inline-block;
     padding: 3px 10px;
-    font-size: 0.72rem;
+    font-size: 0.75rem;
     font-weight: 600;
     white-space: nowrap;
     border-radius: 999px;
@@ -367,6 +393,123 @@
     padding: 40px 16px;
     text-align: center;
     color: var(--text-muted);
+  }
+
+  .cards {
+    display: none;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--border-default);
+  }
+
+  .cards li {
+    padding: 16px;
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .cards li:last-child {
+    border-bottom: 0;
+  }
+
+  .cards li.flash {
+    animation: live-flash 2.4s ease-out;
+  }
+
+  .card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .card-head .client {
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+
+  .meta {
+    margin-top: 2px;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+  }
+
+  dl {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 16px;
+    margin: 12px 0 0;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--bg-page);
+  }
+
+  dt {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  dd {
+    margin: 2px 0 0;
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  .detail {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-top: 10px;
+    padding: 8px 2px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--brand-600);
+    border: 0;
+    background: none;
+    cursor: pointer;
+  }
+
+  .cards .empty {
+    padding: 32px 16px;
+  }
+
+  @media (max-width: 760px) {
+    header {
+      padding: 18px 16px;
+    }
+
+    .controls {
+      width: 100%;
+    }
+
+    .controls .select {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .scroll {
+      display: none;
+    }
+
+    .cards {
+      display: block;
+    }
+  }
+
+  /* El botón de exportar queda solo con el icono para que los controles quepan en una fila. */
+  @media (max-width: 420px) {
+    .export span {
+      display: none;
+    }
+
+    .export {
+      width: 44px;
+      padding: 0;
+    }
   }
 
   footer {

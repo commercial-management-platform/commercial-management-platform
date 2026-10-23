@@ -1,82 +1,111 @@
 <script lang="ts">
-  import AnimatedNumber from '../lib/components/AnimatedNumber.svelte'
-  import Icon, { type IconName } from '../lib/components/Icon.svelte'
-  import KestrelLogo from '../lib/components/KestrelLogo.svelte'
-  import { router, type Route } from '../lib/router.svelte'
-  import { dashboard } from '../lib/stores/dashboard.svelte'
-  import { session } from '../lib/stores/session.svelte'
-  import { percent } from '../lib/utils/format'
+  import AnimatedNumber from "../lib/components/AnimatedNumber.svelte";
+  import Icon, { type IconName } from "../lib/components/Icon.svelte";
+  import KestrelLogo from "../lib/components/KestrelLogo.svelte";
+  import { can } from "../lib/permissions.svelte";
+  import { router, type Route } from "../lib/router.svelte";
+  import { dashboard } from "../lib/stores/dashboard.svelte";
+  import { session } from "../lib/stores/session.svelte";
+  import { percent } from "../lib/utils/format";
 
   interface Props {
-    collapsed: boolean
-    mobileOpen: boolean
-    ontogglecollapse: () => void
-    onnavigate: () => void
+    collapsed: boolean;
+    mobileOpen: boolean;
+    ontogglecollapse: () => void;
+    onnavigate: () => void;
   }
 
-  let { collapsed, mobileOpen, ontogglecollapse, onnavigate }: Props = $props()
+  let { collapsed, mobileOpen, ontogglecollapse, onnavigate }: Props = $props();
 
   interface NavItem {
-    route: Route
-    label: string
-    icon: IconName
-    children?: { route: Route; label: string }[]
+    route: Route;
+    label: string;
+    icon: IconName;
+    children?: { route: Route; label: string }[];
+    /** Perfil que ve la opción; sin valor, la ven todos. */
+    only?: "manager" | "advisor" | "admin";
   }
 
-  const items: NavItem[] = [
-    { route: 'dashboard', label: 'Dashboard', icon: 'home' },
+  const allItems: NavItem[] = [
+    { route: "dashboard", label: "Dashboard", icon: "home" },
     {
-      route: 'rutas/crear',
-      label: 'Planeación de rutas',
-      icon: 'activity',
+      route: "rutas/crear",
+      label: "Planeación de rutas",
+      icon: "activity",
+      only: "manager",
       children: [
-        { route: 'rutas/crear', label: 'Creación de rutas' },
-        { route: 'rutas/asignadas', label: 'Rutas asignadas' },
-        { route: 'rutas/asesores', label: 'Asesor asignado' },
+        { route: "rutas/crear", label: "Creación de rutas" },
+        { route: "rutas/asignadas", label: "Rutas asignadas" },
+        { route: "rutas/asesores", label: "Asesor asignado" },
       ],
     },
-    { route: 'clientes', label: 'Clientes', icon: 'users' },
-    { route: 'visitas', label: 'Visitas', icon: 'map-pin' },
-    { route: 'cotizaciones', label: 'Cotizaciones', icon: 'file-text' },
-    { route: 'pedidos', label: 'Pedidos', icon: 'package' },
-  ]
+    // El asesor no planea: solo consulta sus rutas, en un enlace directo.
+    { route: "rutas/asignadas", label: "Mis rutas", icon: "activity", only: "advisor" },
+    { route: "clientes", label: "Clientes", icon: "users" },
+    { route: "visitas", label: "Visitas", icon: "map-pin" },
+    { route: "cotizaciones", label: "Cotizaciones", icon: "file-text" },
+    { route: "pedidos", label: "Pedidos", icon: "package" },
+    { route: "administracion", label: "Administración", icon: "user-check", only: "admin" },
+  ];
 
-  const inGroup = (item: NavItem) => !!item.children?.some((c) => c.route === router.route)
+  let items = $derived(
+    allItems.filter(
+      (item) =>
+        !item.only ||
+        (item.only === "admin"
+          ? can.isAdmin
+          : item.only === "manager"
+            ? can.isManager
+            : can.isAdvisor),
+    ),
+  );
+
+  const inGroup = (item: NavItem) =>
+    !!item.children?.some((c) => c.route === router.route);
 
   // Grupos desplegados; el del módulo actual se abre solo.
-  let openGroups = $state<Record<string, boolean>>({})
+  let openGroups = $state<Record<string, boolean>>({});
   $effect(() => {
-    for (const item of items) if (inGroup(item)) openGroups[item.label] = true
-  })
+    for (const item of items) if (inGroup(item)) openGroups[item.label] = true;
+  });
 
   // En móvil el menú siempre se muestra completo, aunque esté "contraído" en escritorio.
-  let iconOnly = $derived(collapsed && !mobileOpen)
+  let iconOnly = $derived(collapsed && !mobileOpen);
 
   function toggleGroup(item: NavItem) {
     if (iconOnly) {
-      router.go(item.route)
-      onnavigate()
-      return
+      router.go(item.route);
+      onnavigate();
+      return;
     }
-    openGroups[item.label] = !openGroups[item.label]
+    openGroups[item.label] = !openGroups[item.label];
   }
 
-  let user = $derived(session.current?.user)
+  let user = $derived(session.current?.user);
   let initials = $derived(
-    (user?.name ?? '')
-      .split(' ')
+    (user?.name ?? "")
+      .split(" ")
       .slice(0, 2)
       .map((w) => w[0])
-      .join('')
+      .join("")
       .toUpperCase(),
-  )
-  let goal = $derived(percent(dashboard.weekly.visitasRealizadas, dashboard.weekly.metaVisitas))
+  );
+  let goal = $derived(
+    percent(
+      dashboard.weekly.visitasRealizadas,
+      dashboard.weekly.visitasProgramadas,
+    ),
+  );
 </script>
 
 <aside class="sidebar" class:collapsed class:open={mobileOpen}>
   <div class="brand">
     <KestrelLogo size={42} showWordmark={!collapsed} />
-    <button class="collapse" onclick={ontogglecollapse} aria-label={collapsed ? 'Expandir menú' : 'Contraer menú'}>
+    <button
+      class="collapse"
+      onclick={ontogglecollapse}
+      aria-label={collapsed ? "Expandir menú" : "Contraer menú"}
+    >
       <Icon name="chevron-left" size={16} />
     </button>
   </div>
@@ -94,7 +123,9 @@
         >
           <Icon name={item.icon} size={20} />
           <span class="label">{item.label}</span>
-          <Icon name="chevron-down" size={16} class="sub {open ? 'up' : ''}" />
+          <span class="chev" class:up={open}
+            ><Icon name="chevron-down" size={16} /></span
+          >
         </button>
         {#if open}
           <ul class="subnav">
@@ -103,7 +134,9 @@
                 <a
                   href="#/{child.route}"
                   class:active={router.route === child.route}
-                  aria-current={router.route === child.route ? 'page' : undefined}
+                  aria-current={router.route === child.route
+                    ? "page"
+                    : undefined}
                   onclick={onnavigate}
                 >
                   <span class="bullet"></span>{child.label}
@@ -117,7 +150,7 @@
           href="#/{item.route}"
           class="nav-link"
           class:active={router.route === item.route}
-          aria-current={router.route === item.route ? 'page' : undefined}
+          aria-current={router.route === item.route ? "page" : undefined}
           title={collapsed ? item.label : undefined}
           onclick={onnavigate}
         >
@@ -128,25 +161,44 @@
     {/each}
   </nav>
 
-  <section class="goal" class:flash={dashboard.highlights['kpi:visitasRealizadas']} aria-label="Objetivo semanal">
-    <span class="goal-icon"><Icon name="trending-up" size={16} /></span>
-    <p class="goal-label">Objetivo semanal</p>
-    <p class="goal-value"><AnimatedNumber value={goal} />%</p>
-    <div class="bar" role="progressbar" aria-valuenow={goal} aria-valuemin={0} aria-valuemax={100}>
-      <span style:width="{Math.min(goal, 100)}%"></span>
+  <section
+    class="goal"
+    class:flash={dashboard.highlights["kpi:visitasRealizadas"]}
+    aria-label="Objetivo semanal"
+  >
+    <div
+      class="ring"
+      role="progressbar"
+      aria-valuenow={goal}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      style:--goal="{Math.min(goal, 100)}%"
+    >
+      <span><AnimatedNumber value={goal} />%</span>
     </div>
-    <p class="goal-detail">
-      {dashboard.weekly.visitasRealizadas} de {dashboard.weekly.metaVisitas} visitas completadas
-    </p>
+    <div class="goal-text">
+      <p class="goal-label">Objetivo semanal</p>
+      <p class="goal-detail">
+        <strong>{dashboard.weekly.visitasRealizadas}</strong> de {dashboard
+          .weekly.visitasProgramadas} visitas completadas
+      </p>
+    </div>
   </section>
 
   <div class="user">
     <span class="avatar">{initials}</span>
     <div class="user-info">
       <strong>{user?.name}</strong>
-      <button class="logout" onclick={() => session.signOut()}>Cerrar sesión</button>
+      <button class="logout" onclick={() => session.signOut()}
+        >Cerrar sesión</button
+      >
     </div>
-    <button class="logout-icon" onclick={() => session.signOut()} aria-label="Cerrar sesión" title="Cerrar sesión">
+    <button
+      class="logout-icon"
+      onclick={() => session.signOut()}
+      aria-label="Cerrar sesión"
+      title="Cerrar sesión"
+    >
       <Icon name="log-out" size={18} />
     </button>
   </div>
@@ -161,7 +213,7 @@
     width: 260px;
     height: 100vh;
     height: 100dvh;
-    padding: 20px 20px 24px;
+    padding: 20px 16px 24px;
     background: var(--bg-surface);
     border-right: 1px solid var(--border-default);
     transition: width 0.2s ease;
@@ -211,10 +263,10 @@
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
     height: 48px;
     padding: 0 14px;
-    font-size: 0.98rem;
+    font-size: 0.94rem;
     color: var(--text-secondary);
     border-radius: 12px;
     text-decoration: none;
@@ -239,12 +291,26 @@
     flex-shrink: 0;
   }
 
-  .nav-link :global(.sub) {
-    margin-left: auto;
+  .nav-link .label {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Flecha en su propio compartimiento, separada del texto */
+  .chev {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 34px;
+    height: 28px;
+    margin-right: -12px;
+  }
+
+  .chev :global(svg) {
     transition: transform 0.2s;
   }
 
-  .nav-link :global(.sub.up) {
+  .chev.up :global(svg) {
     transform: rotate(180deg);
   }
 
@@ -292,7 +358,10 @@
 
   .goal {
     position: relative;
-    margin-top: 36px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: var(--space-4);
     padding: 16px;
     color: #fff;
     border-radius: 16px;
@@ -312,50 +381,62 @@
     }
   }
 
-  .goal-icon {
+  /* Anillo de progreso: el relleno sale de --goal */
+  .ring {
+    position: relative;
     display: grid;
     place-items: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.12);
-    color: var(--brand-300);
+    flex-shrink: 0;
+    width: 68px;
+    height: 68px;
   }
 
-  .goal-label {
-    margin-top: 18px;
-    font-size: 0.82rem;
-    color: rgba(255, 255, 255, 0.8);
+  .ring::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(
+      var(--brand-300) var(--goal),
+      rgba(255, 255, 255, 0.18) 0
+    );
+    -webkit-mask: radial-gradient(
+      farthest-side,
+      transparent calc(100% - 6px),
+      #000 calc(100% - 5px)
+    );
+    mask: radial-gradient(
+      farthest-side,
+      transparent calc(100% - 6px),
+      #000 calc(100% - 5px)
+    );
   }
 
-  .goal-value {
-    font-family: var(--font-heading);
-    margin-top: 6px;
-    font-size: 1.6rem;
-    font-weight: 800;
+  .ring span {
+    font: 800 1.05rem/1 var(--font-heading);
     font-variant-numeric: tabular-nums;
   }
 
-  .bar {
-    height: 6px;
-    margin-top: 10px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.18);
-    overflow: hidden;
+  .goal-text {
+    min-width: 0;
   }
 
-  .bar span {
-    display: block;
-    height: 100%;
-    border-radius: inherit;
-    background: var(--brand-300);
-    transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  .goal-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--Neutral-100);
   }
 
   .goal-detail {
-    margin-top: 10px;
-    font-size: 0.75rem;
+    margin-top: 4px;
+    font-size: 0.8125rem;
+    line-height: 1.35;
+    font-variant-numeric: tabular-nums;
     color: rgba(255, 255, 255, 0.85);
+  }
+
+  .goal-detail strong {
+    color: #fff;
   }
 
   .user {
@@ -399,7 +480,7 @@
     padding: 0;
     border: 0;
     background: none;
-    font-size: 0.8rem;
+    font-size: 0.8125rem;
     color: var(--text-muted);
     text-align: left;
     cursor: pointer;
@@ -434,7 +515,7 @@
   }
 
   .collapsed .label,
-  .collapsed .nav-link :global(.sub),
+  .collapsed .chev,
   .collapsed .goal,
   .collapsed .user-info {
     display: none;

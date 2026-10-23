@@ -3,7 +3,7 @@
   import { clientDisplayName } from '../../lib/services/clientsApi'
   import { dashboard } from '../../lib/stores/dashboard.svelte'
   import { portfolio, useLivePortfolio } from '../../lib/stores/portfolio.svelte'
-  import { session } from '../../lib/stores/session.svelte'
+  import { can } from '../../lib/permissions.svelte'
   import { formatTime, percent } from '../../lib/utils/format'
   import ClientsMap from './ClientsMap.svelte'
   import KpiCard from './KpiCard.svelte'
@@ -54,15 +54,20 @@
       {#each Array(4) as _, i (i)}<div class="skeleton" style:height="156px"></div>{/each}
     </div>
   {:else if t.total === 0}
-    <div class="card notice">
-      <Icon name="users" size={18} />
-      <p>
-        {#if session.hasRole('advisor')}
-          Aún no tienes clientes asignados. Aparecerán aquí cuando te asignen rutas con clientes.
+    <div class="card empty">
+      <span class="empty-icon"><Icon name="users" size={22} /></span>
+      <div class="empty-text">
+        {#if can.isAdvisor}
+          <strong>Aún no tienes clientes asignados</strong>
+          <p>Aparecerán aquí cuando te asignen rutas con clientes.</p>
         {:else}
-          Todavía no hay clientes registrados. Ejecuta <code>npm run seed</code> en el backend para cargar datos de ejemplo.
+          <strong>Todavía no hay clientes registrados</strong>
+          <p>Ejecuta <code>npm run seed</code> en el backend para cargar datos de ejemplo.</p>
         {/if}
-      </p>
+      </div>
+      <a class="btn btn-soft" href={can.isAdvisor ? '#/rutas/asignadas' : '#/clientes'}>
+        {can.isAdvisor ? 'Ver rutas' : 'Ir a clientes'}
+      </a>
     </div>
   {:else}
     {#if portfolio.error}
@@ -131,7 +136,9 @@
   .portfolio {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: var(--space-2);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border-default);
   }
 
   .section-head {
@@ -152,7 +159,7 @@
     flex-wrap: wrap;
     gap: 10px;
     margin-top: 4px;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--text-muted);
   }
 
@@ -161,7 +168,7 @@
     align-items: center;
     gap: 6px;
     padding: 2px 10px;
-    font: 700 11px/18px var(--font-heading);
+    font: 700 12px/18px var(--font-heading);
     border-radius: 999px;
   }
 
@@ -214,12 +221,44 @@
     flex: 1;
   }
 
+  .empty {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .empty-icon {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    color: var(--brand-600);
+    background: var(--brand-50);
+  }
+
+  .empty-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .empty-text strong {
+    font: 700 15px/22px var(--font-heading);
+  }
+
+  .empty-text p {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
   .stale {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 12px;
-    color: #b45309;
+    font-size: 13px;
+    color: #92400e;
   }
 
   .grid {
@@ -257,7 +296,7 @@
   }
 
   .card-head p {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--text-muted);
   }
 
@@ -329,12 +368,12 @@
   }
 
   small {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--text-muted);
   }
 
   .when {
-    font-size: 11px;
+    font-size: 12px;
     white-space: nowrap;
     color: var(--text-muted);
   }
@@ -378,6 +417,12 @@
   @media (max-width: 1400px) {
     .kpis.five {
       grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 900px) {
+    .kpis.five {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 

@@ -1,38 +1,40 @@
 <script lang="ts">
-  import { flip } from 'svelte/animate'
-  import { fade } from 'svelte/transition'
-  import Icon, { type IconName } from '../../lib/components/Icon.svelte'
-  import { planner } from '../../lib/stores/routePlanner.svelte'
+  import { flip } from "svelte/animate";
+  import { fade } from "svelte/transition";
+  import Icon, { type IconName } from "../../lib/components/Icon.svelte";
+  import { planner } from "../../lib/stores/routePlanner.svelte";
 
-  const PAGE = 4
+  const PAGE = 4;
 
   const tipoIcon: Record<string, IconName> = {
-    Industrial: 'briefcase',
-    Distribuidor: 'users',
-    Tecnología: 'activity',
-    Retail: 'package',
-    Servicios: 'file-text',
-  }
+    Industrial: "briefcase",
+    Distribuidor: "users",
+    Tecnología: "activity",
+    Retail: "package",
+    Servicios: "file-text",
+  };
 
-  let query = $state('')
-  let tipo = $state('')
-  let municipio = $state('')
-  let expanded = $state(false)
-  let searchInput: HTMLInputElement
+  let query = $state("");
+  let tipo = $state("");
+  let municipio = $state("");
+  let expanded = $state(false);
+  let searchInput: HTMLInputElement;
 
   /** Lo usa la página para enfocar el buscador desde "Agregar cliente". */
   export function focus() {
-    searchInput.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    searchInput.focus({ preventScroll: true })
+    searchInput.scrollIntoView({ behavior: "smooth", block: "center" });
+    searchInput.focus({ preventScroll: true });
   }
 
-  let tipos = $derived([...new Set(planner.clients.map((c) => c.tipo))].sort())
-  let municipios = $derived([...new Set(planner.clients.map((c) => c.municipio))].sort())
+  let tipos = $derived([...new Set(planner.clients.map((c) => c.tipo))].sort());
+  let municipios = $derived(
+    [...new Set(planner.clients.map((c) => c.municipio))].sort(),
+  );
 
   // Clientes disponibles: sin los ya agregados y con los de la zona elegida primero.
   let results = $derived.by(() => {
-    const q = query.trim().toLowerCase()
-    const inRoute = new Set(planner.stops.map((s) => s.clientId))
+    const q = query.trim().toLowerCase();
+    const inRoute = new Set(planner.stops.map((s) => s.clientId));
     return planner.clients
       .filter(
         (c) =>
@@ -41,10 +43,14 @@
           (!municipio || c.municipio === municipio) &&
           (!q || `${c.nombre} ${c.direccion}`.toLowerCase().includes(q)),
       )
-      .sort((a, b) => Number(b.zona === planner.info.zona) - Number(a.zona === planner.info.zona))
-  })
+      .sort(
+        (a, b) =>
+          Number(b.zona === planner.info.zona) -
+          Number(a.zona === planner.info.zona),
+      );
+  });
 
-  let visible = $derived(expanded ? results : results.slice(0, PAGE))
+  let visible = $derived(expanded ? results : results.slice(0, PAGE));
 </script>
 
 <section class="card picker" id="client-picker" aria-labelledby="picker-title">
@@ -53,7 +59,12 @@
 
   <label class="search">
     <Icon name="search" size={16} />
-    <input bind:this={searchInput} type="search" placeholder="Buscar cliente…" bind:value={query} />
+    <input
+      bind:this={searchInput}
+      type="search"
+      placeholder="Buscar cliente…"
+      bind:value={query}
+    />
   </label>
 
   <div class="filters">
@@ -70,15 +81,23 @@
   <ul class="results">
     {#each visible as client (client.id)}
       <li animate:flip={{ duration: 250 }} out:fade={{ duration: 150 }}>
-        <span class="icon"><Icon name={tipoIcon[client.tipo] ?? 'briefcase'} size={16} /></span>
+        <span class="icon"
+          ><Icon name={tipoIcon[client.tipo] ?? "briefcase"} size={16} /></span
+        >
         <span class="info">
           <strong>{client.nombre}</strong>
-          <small>
+          <p class="sub">
             {client.tipo} · {client.municipio}
-            {#if planner.info.zona && client.zona === planner.info.zona}<em>En zona</em>{/if}
-          </small>
+            {#if planner.info.zona && client.zona === planner.info.zona}<em
+                >En zona</em
+              >{/if}
+          </p>
         </span>
-        <button class="add" onclick={() => planner.addStop(client.id)} aria-label="Agregar {client.nombre} a la ruta">
+        <button
+          class="add"
+          onclick={() => planner.addStop(client.id)}
+          aria-label="Agregar {client.nombre} a la ruta"
+        >
           <Icon name="plus" size={16} strokeWidth={2.2} />
         </button>
       </li>
@@ -89,23 +108,23 @@
 
   {#if results.length > PAGE}
     <button class="more" onclick={() => (expanded = !expanded)}>
-      {expanded ? 'Ver menos' : `Ver más clientes (${results.length - PAGE})`}
+      {expanded ? "Ver menos" : `Ver más clientes (${results.length - PAGE})`}
     </button>
   {/if}
 </section>
 
 <style>
   .picker {
-    padding: 20px 16px;
+    padding: 24px 20px;
   }
 
   h2 {
-    font-size: 15px;
+    font-size: 16px;
     line-height: 22px;
   }
 
   .sub {
-    font-size: 11px;
+    font-size: 0.75rem;
     color: var(--text-muted);
   }
 
@@ -148,7 +167,7 @@
     min-width: 0;
     height: 36px;
     padding: 0 22px 0 8px;
-    font-size: 11px;
+    font-size: 12px;
     background-position: right 6px center;
     background-size: 14px;
   }
@@ -191,14 +210,14 @@
   }
 
   .info strong {
-    font: 700 12px/18px var(--font-heading);
+    font: 700 13px/18px var(--font-heading);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   small {
-    font-size: 10px;
+    font-size: 12px;
     color: var(--text-muted);
   }
 
@@ -239,7 +258,7 @@
   .empty {
     justify-content: center;
     padding: 20px 0;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--text-muted);
   }
 
@@ -248,7 +267,7 @@
     width: 100%;
     margin-top: 10px;
     padding: 8px;
-    font-size: 15px;
+    font-size: 16px;
     color: var(--text-brand);
     border: 0;
     background: none;

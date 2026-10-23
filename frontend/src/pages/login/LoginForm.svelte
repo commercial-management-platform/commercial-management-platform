@@ -1,59 +1,63 @@
 <script lang="ts">
-  import Icon from '../../lib/components/Icon.svelte'
-  import KestrelLogo from '../../lib/components/KestrelLogo.svelte'
-  import { AuthError, login, type Session } from '../../lib/services/auth'
+  import Icon from "../../lib/components/Icon.svelte";
+  import KestrelLogo from "../../lib/components/KestrelLogo.svelte";
+  import { AuthError, login, type Session } from "../../lib/services/auth";
 
   interface Props {
-    onSuccess: (session: Session) => void
+    onSuccess: (session: Session) => void;
   }
 
-  let { onSuccess }: Props = $props()
+  let { onSuccess }: Props = $props();
 
-  const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-  let email = $state('')
-  let password = $state('')
-  let remember = $state(false)
-  let showPassword = $state(false)
-  let loading = $state(false)
-  let submitted = $state(false)
-  let formError = $state('')
-  let notice = $state('')
+  let email = $state("");
+  let password = $state("");
+  let remember = $state(false);
+  let showPassword = $state(false);
+  let loading = $state(false);
+  let submitted = $state(false);
+  let formError = $state("");
+  let notice = $state("");
 
   let emailError = $derived.by(() => {
-    if (!email.trim()) return 'Ingresa tu correo electrónico.'
-    if (!EMAIL_PATTERN.test(email.trim())) return 'Ingresa un correo válido.'
-    return ''
-  })
+    if (!email.trim()) return "Ingresa tu correo electrónico.";
+    if (!EMAIL_PATTERN.test(email.trim())) return "Ingresa un correo válido.";
+    return "";
+  });
 
   let passwordError = $derived.by(() => {
-    if (!password) return 'Ingresa tu contraseña.'
-    if (password.length < 8) return 'La contraseña debe tener al menos 8 caracteres.'
-    return ''
-  })
+    if (!password) return "Ingresa tu contraseña.";
+    if (password.length < 8)
+      return "La contraseña debe tener al menos 8 caracteres.";
+    return "";
+  });
 
   async function handleSubmit(event: SubmitEvent) {
-    event.preventDefault()
-    submitted = true
-    formError = ''
-    notice = ''
-    if (emailError || passwordError) return
+    event.preventDefault();
+    submitted = true;
+    formError = "";
+    notice = "";
+    if (emailError || passwordError) return;
 
-    loading = true
+    loading = true;
     try {
-      const session = await login(email, password, remember)
-      onSuccess(session)
+      const session = await login(email, password, remember);
+      onSuccess(session);
     } catch (error) {
-      formError = error instanceof AuthError ? error.message : 'No pudimos iniciar sesión. Intenta de nuevo.'
+      formError =
+        error instanceof AuthError
+          ? error.message
+          : "No pudimos iniciar sesión. Intenta de nuevo.";
     } finally {
-      loading = false
+      loading = false;
     }
   }
 
   function handleForgot(event: MouseEvent) {
-    event.preventDefault()
-    formError = ''
-    notice = 'La recuperación de contraseña estará disponible pronto.'
+    event.preventDefault();
+    formError = "";
+    notice = "La recuperación de contraseña estará disponible pronto.";
   }
 </script>
 
@@ -63,7 +67,9 @@
   <header>
     <p class="eyebrow">Bienvenido de nuevo</p>
     <h1>Inicia sesión</h1>
-    <p class="subtitle">Ingresa tus datos para acceder a tu espacio de trabajo.</p>
+    <p class="subtitle">
+      Ingresa tus datos para acceder a tu espacio de trabajo.
+    </p>
   </header>
 
   <form onsubmit={handleSubmit} novalidate>
@@ -105,7 +111,7 @@
         <Icon name="lock" size={18} class="lead-icon" />
         <input
           id="password"
-          type={showPassword ? 'text' : 'password'}
+          type={showPassword ? "text" : "password"}
           autocomplete="current-password"
           placeholder="Ingresa tu contraseña"
           bind:value={password}
@@ -117,9 +123,11 @@
           type="button"
           class="toggle"
           onclick={() => (showPassword = !showPassword)}
-          aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+          aria-label={showPassword
+            ? "Ocultar contraseña"
+            : "Mostrar contraseña"}
         >
-          <Icon name={showPassword ? 'eye-off' : 'eye'} size={18} />
+          <Icon name={showPassword ? "eye-off" : "eye"} size={18} />
         </button>
       </div>
       {#if submitted && passwordError}
@@ -150,7 +158,6 @@
     <Icon name="lock" size={14} />
     Acceso seguro y datos protegidos
   </p>
-
 </div>
 
 <style>
@@ -169,7 +176,7 @@
   }
 
   .eyebrow {
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     font-weight: 600;
     letter-spacing: 0.02em;
     text-transform: uppercase;
@@ -193,7 +200,7 @@
     display: flex;
     flex-direction: column;
     gap: 22px;
-    margin-top: 36px;
+    margin-top: 24px;
   }
 
   .alert {
@@ -386,14 +393,75 @@
     color: var(--text-muted);
   }
 
+  /* Sobre el fondo verde de móvil la tarjeta flota: sin borde y con más sombra. */
+  @media (max-width: 960px) {
+    .card {
+      max-width: 440px;
+      border-color: transparent;
+      box-shadow: 0 24px 48px -16px rgba(0, 20, 14, 0.55);
+    }
+  }
 
   @media (max-width: 480px) {
     .card {
-      padding: 32px 22px 28px;
+      padding: 28px 20px 24px;
+      border-radius: 20px;
+    }
+
+    header {
+      margin-top: 22px;
+    }
+
+    .eyebrow {
+      font-size: 0.75rem;
+      letter-spacing: 0.06em;
     }
 
     h1 {
-      font-size: 1.9rem;
+      margin-top: 6px;
+      font-size: 1.65rem;
+    }
+
+    .subtitle {
+      margin-top: 8px;
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+
+    form {
+      gap: 18px;
+      margin-top: 20px;
+    }
+
+    .field {
+      gap: 6px;
+    }
+
+    label {
+      font-size: 0.85rem;
+    }
+
+    .control {
+      height: 48px;
+    }
+
+    /* 16px evita que iOS haga zoom al enfocar el campo. */
+    .control input {
+      font-size: 16px;
+    }
+
+    .row {
+      font-size: 0.85rem;
+    }
+
+    .submit {
+      height: 50px;
+      font-size: 1rem;
+    }
+
+    .secure {
+      margin-top: 20px;
+      font-size: 0.78rem;
     }
   }
 </style>

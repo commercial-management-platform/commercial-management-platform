@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from '../lib/components/Icon.svelte'
   import { router, type Route } from '../lib/router.svelte'
+  import { can } from '../lib/permissions.svelte'
   import { dashboard } from '../lib/stores/dashboard.svelte'
   import { currentWeekLabel } from '../lib/utils/format'
 
@@ -17,9 +18,10 @@
     'rutas/asignadas': 'Rutas asignadas',
     'rutas/asesores': 'Asesor asignado',
     clientes: 'Gestión de clientes',
-    visitas: 'Registrar visita',
+    visitas: 'Visitas',
     cotizaciones: 'Cotizaciones',
     pedidos: 'Pedidos',
+    administracion: 'Administración',
   }
 
   const week = currentWeekLabel()
@@ -31,7 +33,7 @@
   </button>
 
   <p class="crumbs">
-    <span>Kestrel</span> / <strong>{titles[router.route]}</strong>
+    <span>Kestrel /</span> <strong>{titles[router.route]}</strong>
   </p>
 
   <div class="actions">
@@ -39,10 +41,13 @@
       class="live"
       class:paused={!dashboard.live}
       onclick={() => dashboard.toggleLive()}
-      title={dashboard.live ? 'Pausar actualizaciones en vivo' : 'Reanudar actualizaciones en vivo'}
+      title={dashboard.live ? 'Datos en tiempo real. Clic para pausar las actualizaciones' : 'Actualizaciones pausadas. Clic para reanudarlas'}
+      aria-pressed={!dashboard.live}
+      aria-label={dashboard.live ? 'En vivo. Pausar actualizaciones' : 'Actualización pausada. Reanudar'}
     >
       <span class="dot"></span>
-      {dashboard.live ? 'En vivo' : 'En pausa'}
+      <span class="long">{dashboard.live ? 'En vivo' : 'Actualización pausada'}</span>
+      <span class="short">{dashboard.live ? 'En vivo' : 'Pausado'}</span>
       <Icon name={dashboard.live ? 'pause' : 'play'} size={12} />
     </button>
 
@@ -51,14 +56,15 @@
       <input type="search" placeholder="Buscar cliente…" bind:value={dashboard.query} />
     </label>
 
-    <div class="week">
+    <div class="week" title="Semana en curso">
       <span>Semana</span>
       <strong>{week}</strong>
     </div>
 
-    <button class="btn btn-primary register" onclick={onregister}>
+    <button class="btn btn-primary register" onclick={onregister} aria-label={can.isAdvisor ? 'Registrar visita' : 'Programar visita'}>
       <Icon name="plus" size={18} strokeWidth={2.2} />
-      <span>Registrar visita</span>
+      <!-- El gestor no registra resultados (HU-09): programa visitas. -->
+      <span>{can.isAdvisor ? 'Registrar visita' : 'Programar visita'}</span>
     </button>
   </div>
 </header>
@@ -89,9 +95,12 @@
   }
 
   .crumbs {
+    min-width: 0;
+    overflow: hidden;
     font-size: 0.82rem;
     color: var(--text-muted);
     white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   .crumbs span {
@@ -108,22 +117,29 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    min-width: 0;
     margin-left: auto;
   }
 
   .live {
     display: inline-flex;
+    flex-shrink: 0;
     align-items: center;
     gap: 8px;
+    white-space: nowrap;
     height: 32px;
     padding: 0 12px;
-    font-size: 0.78rem;
+    font-size: 0.8125rem;
     font-weight: 600;
     color: var(--brand-700);
     border: 1px solid var(--brand-100);
     border-radius: 999px;
     background: var(--brand-50);
     cursor: pointer;
+  }
+
+  .live .short {
+    display: none;
   }
 
   .live :global(svg) {
@@ -211,7 +227,7 @@
   }
 
   .week span {
-    font-size: 0.6rem;
+    font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -219,13 +235,15 @@
   }
 
   .week strong {
-    font-size: 0.8rem;
+    font-size: 0.8125rem;
     font-weight: 500;
     white-space: nowrap;
   }
 
   .register {
+    flex-shrink: 0;
     height: 44px;
+    white-space: nowrap;
   }
 
   @media (max-width: 1280px) {
@@ -247,18 +265,34 @@
     .menu {
       display: grid;
     }
-  }
 
-  @media (max-width: 760px) {
-    .topbar {
-      height: 64px;
+    .actions {
+      gap: 8px;
     }
 
-    .crumbs,
-    .search {
+    /* La marca ya está en el menú lateral: aquí solo el nombre de la pantalla. */
+    .crumbs span {
       display: none;
     }
 
+    .live .long {
+      display: none;
+    }
+
+    .live .short {
+      display: inline;
+    }
+
+    .search {
+      flex: 1 1 200px;
+      width: auto;
+      min-width: 140px;
+      max-width: 240px;
+    }
+  }
+
+  /* Tablet angosta: el botón principal queda solo con el icono. */
+  @media (max-width: 900px) {
     .register span {
       display: none;
     }
@@ -266,6 +300,31 @@
     .register {
       width: 44px;
       padding: 0;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .topbar {
+      height: 64px;
+    }
+
+    .search {
+      display: none;
+    }
+
+    .crumbs {
+      font-size: 0.95rem;
+    }
+  }
+
+  /* En celulares el indicador queda como un punto con el icono de pausa/reanudar. */
+  @media (max-width: 420px) {
+    .live .short {
+      display: none;
+    }
+
+    .live {
+      padding: 0 10px;
     }
   }
 </style>

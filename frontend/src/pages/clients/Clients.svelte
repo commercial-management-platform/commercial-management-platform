@@ -1,57 +1,68 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import { fade } from 'svelte/transition'
   import AnimatedNumber from '../../lib/components/AnimatedNumber.svelte'
   import Icon from '../../lib/components/Icon.svelte'
-  import { MUNICIPIOS, POTENCIALES, SEGMENTOS, clientStatusLabel, isOverdue } from '../../lib/domain/clients'
-  import { clientsStore, useLiveClients } from '../../lib/stores/clients.svelte'
-  import type { Client, ClientStatus } from '../../lib/types'
+  import { can } from '../../lib/permissions.svelte'
+  import { clientStatusTone } from '../../lib/domain/clients'
+  import { clientDisplayName, type ApiClient } from '../../lib/services/clientsApi'
+  import { catalogs } from '../../lib/stores/catalogs.svelte'
+  import { clientDirectory, useClientDirectory } from '../../lib/stores/clientDirectory.svelte'
+  import { clientPortfolios } from '../../lib/stores/clientPortfolios.svelte'
   import { downloadCsv } from '../../lib/utils/csv'
   import { formatDate } from '../../lib/utils/format'
   import ClientDrawer from './ClientDrawer.svelte'
   import ClientFormModal from './ClientFormModal.svelte'
 
-  useLiveClients()
+  useClientDirectory()
+  // Para el filtro por portafolio (HU-06); el detalle también los usa.
+  $effect(() => {
+    untrack(() => clientPortfolios.load())
+  })
 
   const PAGE_SIZE = 10
-  const STATUSES = Object.keys(clientStatusLabel) as ClientStatus[]
-  const shortDate = new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'short' })
+  const shortDate = new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
 
-  type SortKey = 'nombre' | 'ultimaVisita'
+  type SortKey = 'nombre' | 'creado'
+  type Activity = '' | 'active' | 'inactive'
 
   let query = $state('')
-  let statuses = $state<ClientStatus[]>([])
-  let segmento = $state('')
-  let potencial = $state('')
-  let municipio = $state('')
-  let sort = $state<{ key: SortKey; dir: 1 | -1 }>({ key: 'ultimaVisita', dir: -1 })
+  let activity = $state<Activity>('')
+  let statusIds = $state<number[]>([])
+  let typeId = $state<number | ''>('')
+  let potentialId = $state<number | ''>('')
+  let zoneId = $state<number | ''>('')
+  let portfolioId = $state<number | ''>('')
+  let sort = $state<{ key: SortKey; dir: 1 | -1 }>({ key: 'creado', dir: -1 })
   let page = $state(0)
   let filtersOpen = $state(false)
   let filtersEl = $state<HTMLDivElement>()
 
-  // Modales: detalle (por id, para que siga los cambios en vivo) y formulario.
-  let detailId = $state<string | null>(null)
+  // Modales: detalle (por id, para que siga los cambios al refrescar) y formulario.
+  let detailId = $state<number | null>(null)
   let formOpen = $state(false)
-  let editing = $state<Client | null>(null)
+  let editing = $state<ApiClient | null>(null)
 
-  let detail = $derived(detailId ? (clientsStore.byId.get(detailId) ?? null) : null)
-  let activeFilters = $derived(statuses.length + (segmento ? 1 : 0) + (potencial ? 1 : 0) + (municipio ? 1 : 0))
+  let detail = $derived(detailId !== null ? (clientDirectory.byId.get(detailId) ?? null) : null)
+  let activeFilters = $derived(
+    statusIds.length + (activity ? 1 : 0) + (typeId !== '' ? 1 : 0) + (potentialId !== '' ? 1 : 0) + (zoneId !== '' ? 1 : 0) + (portfolioId !== '' ? 1 : 0),
+  )
 
   let rows = $derived.by(() => {
     const q = query.trim().toLowerCase()
-    const filtered = clientsStore.clients.filter(
+    const filtered = clientDirectory.clients.filter(
       (c) =>
-        (statuses.length === 0 || statuses.includes(c.estado)) &&
-        (!segmento || c.tipo === segmento) &&
-        (!potencial || c.potencial === potencial) &&
-        (!municipio || c.municipio === municipio) &&
-        (!q || `${c.nombre} ${c.razonSocial} ${c.nit} ${c.contacto.nombre}`.toLowerCase().includes(q)),
+        (!activity || c.active === (activity === 'active')) &&
+        (statusIds.length === 0 || (c.clientStatusId !== null && statusIds.includes(c.clientStatusId))) &&
+        (typeId === '' || c.clientTypeId === typeId) &&
+        (potentialId === '' || c.clientPotentialId === potentialId) &&
+        (zoneId === '' || c.zoneId === zoneId) &&
+        (portfolioId === '' || !!clientPortfolios.membership[c.id]?.includes(portfolioId)) &&
+        (!q || `${c.tradeName ?? ''} ${c.businessName} ${c.nit} ${c.municipality ?? ''}`.toLowerCase().includes(q)),
     )
     return filtered.toSorted((a, b) => {
-      if (sort.key === 'nombre') return a.nombre.localeCompare(b.nombre) * sort.dir
-      // Sin visita siempre al final.
-      const av = a.ultimaVisita ? Date.parse(a.ultimaVisita) : -Infinity
-      const bv = b.ultimaVisita ? Date.parse(b.ultimaVisita) : -Infinity
-      return (av - bv) * sort.dir || a.nombre.localeCompare(b.nombre)
+      if (sort.key === 'nombre') return clientDisplayName(a).localeCompare(clientDisplayName(b)) * sort.dir
+      return (Date.parse(a.createdAt) - Date.parse(b.createdAt)) * sort.dir || a.id - b.id
     })
   })
 
@@ -60,7 +71,7 @@
 
   // Al cambiar filtros o búsqueda se vuelve a la primera página.
   $effect(() => {
-    void [query, statuses, segmento, potencial, municipio]
+    void [query, activity, statusIds, typeId, potentialId, zoneId, portfolioId]
     page = 0
   })
   $effect(() => {
@@ -71,13 +82,14 @@
     sort = sort.key === key ? { key, dir: sort.dir === 1 ? -1 : 1 } : { key, dir: key === 'nombre' ? 1 : -1 }
   }
 
-  function toggleStatus(status: ClientStatus) {
-    statuses = statuses.includes(status) ? statuses.filter((s) => s !== status) : [...statuses, status]
+  function toggleStatus(id: number) {
+    statusIds = statusIds.includes(id) ? statusIds.filter((s) => s !== id) : [...statusIds, id]
   }
 
   function clearFilters() {
-    statuses = []
-    segmento = potencial = municipio = ''
+    statusIds = []
+    activity = ''
+    typeId = potentialId = zoneId = portfolioId = ''
   }
 
   function openCreate() {
@@ -85,7 +97,7 @@
     formOpen = true
   }
 
-  function openEdit(client: Client) {
+  function openEdit(client: ApiClient) {
     editing = client
     formOpen = true
   }
@@ -93,28 +105,29 @@
   function exportCsv() {
     downloadCsv(
       `kestrel-clientes-${new Date().toISOString().slice(0, 10)}.csv`,
-      ['Nombre comercial', 'Razón social', 'NIT', 'Segmento', 'Potencial', 'Estado', 'Municipio', 'Dirección', 'Contacto', 'Celular', 'Correo', 'Última visita'],
+      ['Nombre comercial', 'Razón social', 'NIT', 'Tipo', 'Potencial', 'Estado', 'Zona', 'Municipio', 'Dirección', 'Teléfono', 'Correo', 'Activo', 'Creado'],
       rows.map((c) => [
-        c.nombre,
-        c.razonSocial,
+        c.tradeName ?? '',
+        c.businessName,
         c.nit,
-        c.tipo,
-        c.potencial,
-        clientStatusLabel[c.estado],
-        c.municipio,
-        c.direccion,
-        c.contacto.nombre,
-        c.contacto.telefono,
-        c.contacto.email,
-        c.ultimaVisita ? formatDate(c.ultimaVisita) : '',
+        catalogs.name('clientTypes', c.clientTypeId),
+        catalogs.name('potentials', c.clientPotentialId),
+        catalogs.name('clientStatuses', c.clientStatusId),
+        catalogs.name('zones', c.zoneId),
+        c.municipality ?? '',
+        c.address ?? '',
+        c.phone ?? '',
+        c.email ?? '',
+        c.active ? 'Sí' : 'No',
+        formatDate(c.createdAt),
       ]),
     )
   }
 
   const stats = [
     { key: 'total', label: 'Total', prefix: '' },
-    { key: 'enProceso', label: 'En proceso', prefix: '' },
-    { key: 'esteMes', label: 'Este mes', prefix: '+' },
+    { key: 'active', label: 'Activos', prefix: '' },
+    { key: 'newThisMonth', label: 'Este mes', prefix: '+' },
   ] as const
 </script>
 
@@ -125,20 +138,30 @@
     <div>
       <p class="eyebrow">Base comercial</p>
       <h1>Clientes</h1>
-      <p class="subtitle">Consulta y administra tu cartera de clientes.</p>
+      <p class="subtitle">
+        {can.isAdvisor ? 'Consulta los clientes de tus rutas.' : 'Consulta y administra tu cartera de clientes.'}
+      </p>
     </div>
-    <button class="btn btn-primary" onclick={openCreate}>
-      <Icon name="plus" size={16} strokeWidth={2.2} /> Nuevo cliente
-    </button>
+    {#if can.createClient}
+      <button class="btn btn-primary" onclick={openCreate}>
+        <Icon name="plus" size={16} strokeWidth={2.2} /> Nuevo cliente
+      </button>
+    {/if}
   </header>
 
-  {#if clientsStore.status === 'ready'}
+  {#if clientDirectory.status === 'ready'}
+    {#if clientDirectory.error}
+      <p class="warning" role="status">
+        <Icon name="alert-circle" size={16} /> {clientDirectory.error} Mostramos los últimos datos cargados.
+      </p>
+    {/if}
+
     <div class="stats">
       {#each stats as stat (stat.key)}
-        <article class="card stat" class:flash={clientsStore.highlights[`kpi:${stat.key}`]}>
+        <article class="card stat" class:flash={clientDirectory.highlights[`kpi:${stat.key}`]}>
           <p>{stat.label}</p>
           <strong>
-            <AnimatedNumber value={clientsStore.totals[stat.key]} format={(v) => `${stat.prefix}${Math.round(v)}`} />
+            <AnimatedNumber value={clientDirectory.totals[stat.key]} format={(v) => `${stat.prefix}${Math.round(v)}`} />
           </strong>
         </article>
       {/each}
@@ -148,7 +171,7 @@
       <header class="list-head">
         <label class="search">
           <Icon name="search" size={16} />
-          <input type="search" placeholder="Buscar en clientes…" bind:value={query} />
+          <input type="search" placeholder="Buscar por nombre, NIT o municipio…" bind:value={query} />
         </label>
 
         <div class="controls">
@@ -159,28 +182,41 @@
             </button>
             {#if filtersOpen}
               <div class="popover" transition:fade={{ duration: 120 }}>
-                <p class="popover-title">Estado</p>
-                {#each STATUSES as status (status)}
+                <p class="popover-title">Activación</p>
+                <select class="select" bind:value={activity}>
+                  <option value="">Todos</option>
+                  <option value="active">Activos</option>
+                  <option value="inactive">Desactivados</option>
+                </select>
+                <p class="popover-title">Estado comercial</p>
+                {#each catalogs.clientStatuses as status (status.id)}
                   <label class="check">
-                    <input type="checkbox" checked={statuses.includes(status)} onchange={() => toggleStatus(status)} />
-                    {clientStatusLabel[status]}
+                    <input type="checkbox" checked={statusIds.includes(status.id)} onchange={() => toggleStatus(status.id)} />
+                    {status.name}
                   </label>
                 {/each}
-                <p class="popover-title">Segmento</p>
-                <select class="select" bind:value={segmento}>
+                <p class="popover-title">Tipo</p>
+                <select class="select" bind:value={typeId}>
                   <option value="">Todos</option>
-                  {#each SEGMENTOS as s (s)}<option>{s}</option>{/each}
+                  {#each catalogs.clientTypes as t (t.id)}<option value={t.id}>{t.name}</option>{/each}
                 </select>
                 <p class="popover-title">Potencial</p>
-                <select class="select" bind:value={potencial}>
+                <select class="select" bind:value={potentialId}>
                   <option value="">Todos</option>
-                  {#each POTENCIALES as p (p)}<option>{p}</option>{/each}
+                  {#each catalogs.potentials as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
                 </select>
-                <p class="popover-title">Municipio</p>
-                <select class="select" bind:value={municipio}>
-                  <option value="">Todos</option>
-                  {#each MUNICIPIOS as m (m)}<option>{m}</option>{/each}
+                <p class="popover-title">Zona</p>
+                <select class="select" bind:value={zoneId}>
+                  <option value="">Todas</option>
+                  {#each catalogs.zones as z (z.id)}<option value={z.id}>{z.name}</option>{/each}
                 </select>
+                {#if clientPortfolios.portfolios.length}
+                  <p class="popover-title">Portafolio</p>
+                  <select class="select" bind:value={portfolioId}>
+                    <option value="">Todos</option>
+                    {#each clientPortfolios.portfolios as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
+                  </select>
+                {/if}
                 {#if activeFilters}<button class="clear" onclick={clearFilters}>Limpiar filtros</button>{/if}
               </div>
             {/if}
@@ -201,48 +237,54 @@
                   {#if sort.key === 'nombre'}<Icon name={sort.dir === 1 ? 'arrow-up' : 'arrow-down'} size={12} />{/if}
                 </button>
               </th>
-              <th>Contacto</th>
-              <th>Segmento</th>
-              <th>
-                <button class="sort" onclick={() => toggleSort('ultimaVisita')}>
-                  Última visita
-                  {#if sort.key === 'ultimaVisita'}
-                    <Icon name={sort.dir === 1 ? 'arrow-up' : 'arrow-down'} size={12} />
-                  {/if}
-                </button>
-              </th>
+              <th>NIT</th>
+              <th>Tipo</th>
+              <th>Zona</th>
               <th>Potencial</th>
               <th>Estado</th>
+              <th>
+                <button class="sort" onclick={() => toggleSort('creado')}>
+                  Creado
+                  {#if sort.key === 'creado'}<Icon name={sort.dir === 1 ? 'arrow-up' : 'arrow-down'} size={12} />{/if}
+                </button>
+              </th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {#each visible as client (client.id)}
-              <tr class:flash={clientsStore.highlights[client.id]}>
+              {@const status = catalogs.name('clientStatuses', client.clientStatusId)}
+              <tr class:flash={clientDirectory.highlights[client.id]} class:off={!client.active}>
                 <td class="name">
-                  {client.nombre}
-                  <small>{client.municipio}</small>
+                  {clientDisplayName(client)}
+                  <small>{client.municipality ?? 'Sin municipio'}</small>
                 </td>
-                <td>{client.contacto.nombre}</td>
-                <td>{client.tipo}</td>
-                <td class="date">
-                  {#if client.ultimaVisita}
-                    {shortDate.format(new Date(client.ultimaVisita)).replace(' de ', ' ').replace('.', '')}
-                    {#if client.estado !== 'inactivo' && isOverdue(client.ultimaVisita, client.frecuenciaVisita)}
-                      <span class="overdue" title="Pasó su frecuencia de visita de {client.frecuenciaVisita} días">
-                        Vencida
-                      </span>
-                    {/if}
+                <td class="nit">{client.nit}</td>
+                <td>{catalogs.name('clientTypes', client.clientTypeId) || '—'}</td>
+                <td>{catalogs.name('zones', client.zoneId) || '—'}</td>
+                <td>{catalogs.name('potentials', client.clientPotentialId) || '—'}</td>
+                <td>
+                  {#if !client.active}
+                    <span class="badge inactivo">Desactivado</span>
+                  {:else if status}
+                    <span class="badge {clientStatusTone(status)}">{status}</span>
                   {:else}
-                    <span class="muted">Sin visitas</span>
+                    <span class="muted">Sin estado</span>
                   {/if}
                 </td>
-                <td>{client.potencial}</td>
-                <td><span class="badge {client.estado}">{clientStatusLabel[client.estado]}</span></td>
+                <td class="date">{shortDate.format(new Date(client.createdAt)).replace(/ de /g, ' ').replace('.', '')}</td>
                 <td><button class="link" onclick={() => (detailId = client.id)}>Ver detalle</button></td>
               </tr>
             {:else}
-              <tr><td class="empty" colspan="7">No hay clientes que coincidan con la búsqueda.</td></tr>
+              <tr>
+                <td class="empty" colspan="8">
+                  {clientDirectory.clients.length === 0
+                    ? can.isAdvisor
+                      ? 'Aún no tienes clientes asignados en tus rutas.'
+                      : 'Aún no hay clientes registrados.'
+                    : 'No hay clientes que coincidan con la búsqueda.'}
+                </td>
+              </tr>
             {/each}
           </tbody>
         </table>
@@ -265,10 +307,10 @@
         </footer>
       {/if}
     </section>
-  {:else if clientsStore.status === 'error'}
+  {:else if clientDirectory.status === 'error'}
     <div class="card error">
-      <p>No pudimos cargar los clientes.</p>
-      <button class="btn btn-outline" onclick={() => clientsStore.connect()}>Reintentar</button>
+      <p>{clientDirectory.error}</p>
+      <button class="btn btn-outline" onclick={() => clientDirectory.refresh()}>Reintentar</button>
     </div>
   {:else}
     <div class="stats">
@@ -293,7 +335,9 @@
     display: flex;
     flex-direction: column;
     gap: 24px;
-    max-width: 1160px;
+    width: 100%;
+    max-width: var(--content-max);
+    margin-inline: auto;
   }
 
   .intro {
@@ -532,16 +576,24 @@
     color: var(--text-muted);
   }
 
-  .date {
+  .date,
+  .nit {
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
 
-  .overdue {
-    margin-left: 6px;
-    padding: 1px 6px;
-    font: 700 10px/14px var(--font-heading);
+  tr.off td {
+    opacity: 0.6;
+  }
+
+  .warning {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
     color: #b45309;
-    border-radius: 999px;
+    border-radius: var(--radius-sm);
     background: #fffbeb;
   }
 
@@ -559,7 +611,7 @@
     background: var(--brand-50);
   }
 
-  .badge.seguimiento {
+  .badge.activo {
     background: var(--brand-100);
   }
 

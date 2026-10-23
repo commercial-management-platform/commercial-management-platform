@@ -1,18 +1,11 @@
-export const ACTIVITY_LOG = Symbol('ACTIVITY_LOG');
-
-export type ClientActivityAction =
-  | 'client.created'
-  | 'client.updated'
-  | 'client.status_changed';
-
-export interface ActivityLogEntry {
-  action: ClientActivityAction;
-  userId: string;
-  clientId: number;
-  description: string;
-  occurredAt: Date;
-}
-
-export interface ActivityLogPort {
-  record(entry: ActivityLogEntry): Promise<void>;
-}
+/**
+ * The activity log port moved to shared (HU-16) so any module can use it.
+ * Re-exported here so the existing imports of clients, contacts and
+ * portfolios keep working; new code imports it from shared.
+ */
+export {
+  ACTIVITY_LOG,
+  type ActivityLogEntry,
+  type ActivityLogPort,
+  type ActivityAction as ClientActivityAction,
+} from '../../../../shared/application/ports/activity-log.port.js';

@@ -1,0 +1,19 @@
+node_modules
+dist
+*.tsbuildinfo
+
+# The build must not pick up local settings: the API is always /api.
+.env
+.env.*
+
+logs
+*.log
+
+.git
+.gitignore
+
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store

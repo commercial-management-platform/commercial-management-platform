@@ -32,14 +32,14 @@
 
 <style>
   .assign {
-    padding: 20px 16px;
+    padding: 24px 20px;
   }
 
   h2 {
     display: flex;
     align-items: center;
     gap: 10px;
-    font-size: 15px;
+    font-size: 16px;
     line-height: 22px;
   }
 
@@ -61,7 +61,7 @@
   }
 
   .field span {
-    font: 600 12px/18px var(--font-heading);
+    font: 600 13px/18px var(--font-heading);
   }
 
   .select {
@@ -74,13 +74,13 @@
 
   .load {
     margin-top: 8px;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--text-muted);
   }
 
   .error {
     margin-top: 8px;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--danger);
   }
 </style>

@@ -77,6 +77,15 @@ export class EnvironmentVariables {
   @IsString()
   @IsNotEmpty()
   BETTER_AUTH_URL: string = 'http://localhost:3000';
+
+  /**
+   * Radius in meters within which a visit's check-in location is confirmed
+   * against the client's coordinates (HU-09). Default value pending
+   * confirmation with the challenge's creator.
+   */
+  @IsInt()
+  @Min(1)
+  VISIT_CHECKIN_RADIUS_METERS: number = 15;
 }
 
 function parseBoolean(value: unknown): unknown {

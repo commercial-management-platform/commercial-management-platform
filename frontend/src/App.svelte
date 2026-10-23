@@ -8,12 +8,14 @@
   import Clients from './pages/clients/Clients.svelte'
   import Orders from './pages/orders/Orders.svelte'
   import Quotes from './pages/quotes/Quotes.svelte'
-  import RegisterVisit from './pages/visits/RegisterVisit.svelte'
+  import Visits from './pages/visits/Visits.svelte'
+  import Admin from './pages/admin/Admin.svelte'
   import Advisors from './pages/routes/Advisors.svelte'
   import AssignedRoutes from './pages/routes/AssignedRoutes.svelte'
   import CreateRoute from './pages/routes/CreateRoute.svelte'
 
   import { onMount } from 'svelte'
+  import { can } from './lib/permissions.svelte'
   import KestrelLogo from './lib/components/KestrelLogo.svelte'
   import Toasts from './lib/components/Toasts.svelte'
 
@@ -21,6 +23,12 @@
 
   // Si hay una sesión guardada, se confirma con el backend antes de mostrar la app.
   onMount(() => session.verify())
+
+  // Una pantalla sin permiso (enlace directo o rol cambiado) redirige al dashboard.
+  let allowed = $derived(can.visit(router.route))
+  $effect(() => {
+    if (session.current && !allowed) router.replace('dashboard')
+  })
 </script>
 
 {#if session.status === 'checking'}
@@ -30,7 +38,9 @@
   </div>
 {:else if session.current}
   <AppShell>
-    {#if router.route === 'dashboard'}
+    {#if !allowed}
+      <!-- Redirigiendo: no se monta la pantalla sin permiso. -->
+    {:else if router.route === 'dashboard'}
       <Dashboard />
     {:else if router.route === 'rutas/crear'}
       <CreateRoute />
@@ -41,11 +51,13 @@
     {:else if router.route === 'clientes'}
       <Clients />
     {:else if router.route === 'visitas'}
-      <RegisterVisit />
+      <Visits />
     {:else if router.route === 'cotizaciones'}
       <Quotes />
     {:else if router.route === 'pedidos'}
       <Orders />
+    {:else if router.route === 'administracion'}
+      <Admin />
     {:else}
       <ComingSoon title={pending[router.route] ?? ''} />
     {/if}

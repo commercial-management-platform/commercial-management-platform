@@ -4,6 +4,7 @@
   import AnimatedNumber from '../../lib/components/AnimatedNumber.svelte'
   import Icon, { type IconName } from '../../lib/components/Icon.svelte'
   import { DIAS, ZONAS, routeStatusLabel, zonaLabel } from '../../lib/domain/routes'
+  import { can } from '../../lib/permissions.svelte'
   import { router } from '../../lib/router.svelte'
   import { routesStore, useLiveRoutes } from '../../lib/stores/routes.svelte'
   import type { AssignedRoute, RouteStatus, Zona } from '../../lib/types'
@@ -74,11 +75,17 @@
     <div>
       <p class="eyebrow">Planeación comercial</p>
       <h1>Rutas asignadas</h1>
-      <p class="subtitle">Consulta las rutas activas, su responsable y el avance de cada recorrido.</p>
+      <p class="subtitle">
+        {can.isAdvisor
+          ? 'Consulta tus rutas y el avance de cada recorrido.'
+          : 'Consulta las rutas activas, su responsable y el avance de cada recorrido.'}
+      </p>
     </div>
-    <button class="btn btn-primary" onclick={() => router.go('rutas/crear', { nueva: '1' })}>
-      <Icon name="plus" size={16} strokeWidth={2.2} /> Nueva ruta
-    </button>
+    {#if can.manageRoutes}
+      <button class="btn btn-primary" onclick={() => router.go('rutas/crear', { nueva: '1' })}>
+        <Icon name="plus" size={16} strokeWidth={2.2} /> Nueva ruta
+      </button>
+    {/if}
   </header>
 
   {#if routesStore.status === 'ready'}
@@ -214,7 +221,9 @@
     display: flex;
     flex-direction: column;
     gap: 24px;
-    max-width: 1240px;
+    width: 100%;
+    max-width: var(--content-max);
+    margin-inline: auto;
   }
 
   .intro {

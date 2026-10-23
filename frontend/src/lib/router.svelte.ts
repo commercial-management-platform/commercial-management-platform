@@ -9,6 +9,7 @@ export const ROUTES = [
   'visitas',
   'cotizaciones',
   'pedidos',
+  'administracion',
 ] as const
 export type Route = (typeof ROUTES)[number]
 
@@ -39,6 +40,13 @@ class Router {
   go(route: Route, params?: Record<string, string>) {
     const query = params ? `?${new URLSearchParams(params)}` : ''
     location.hash = `/${route}${query}`
+  }
+
+  /** Como go(), pero sin dejar la ruta actual en el historial (para redirecciones). */
+  replace(route: Route) {
+    history.replaceState(history.state, '', `#/${route}`)
+    this.route = route
+    this.params = {}
   }
 }
 

@@ -18,6 +18,14 @@ export class ApiError extends Error {
   }
 }
 
+/** Respuesta paginada estándar del backend (page empieza en 1). */
+export interface Paginated<T> {
+  data: T[]
+  total: number
+  page: number
+  limit: number
+}
+
 interface HttpConfig {
   getToken: () => string | null
   /** Se llama cuando una petición autenticada recibe 401 (sesión vencida o revocada). */
