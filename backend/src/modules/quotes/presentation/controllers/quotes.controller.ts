@@ -147,19 +147,19 @@ export class QuotesController {
   }
 
   @Post(':id/details')
-  @Roles(UserRole.Admin, UserRole.Director)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Add a product to a quote (admin and director only)',
+    summary:
+      'Add a product to a draft quote. Advisors only for clients on their routes',
   })
   @ApiCreatedResponse({ type: QuoteDetailResponseDto })
   @ApiBadRequestResponse({
-    description: 'Invalid product, quantity, price, or closed quote',
+    description:
+      'Invalid product, quantity, price, amount too large, or quote not in draft',
   })
-  @ApiForbiddenResponse({
-    description: 'Only admin and director can change quote details',
+  @ApiNotFoundResponse({
+    description: 'Quote does not exist or is not visible',
   })
-  @ApiNotFoundResponse({ description: 'Quote does not exist' })
   async addDetail(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: CreateQuoteDetailDto,
@@ -171,18 +171,18 @@ export class QuotesController {
   }
 
   @Patch(':id/details/:detailId')
-  @Roles(UserRole.Admin, UserRole.Director)
   @ApiOperation({
-    summary: 'Change detail quantity or price (admin and director only)',
+    summary:
+      'Change detail quantity or price of a draft quote. Advisors only for clients on their routes',
   })
   @ApiOkResponse({ type: QuoteDetailResponseDto })
   @ApiBadRequestResponse({
-    description: 'Invalid quantity, price, empty update, or closed quote',
+    description:
+      'Invalid quantity, price, amount too large, empty update, or quote not in draft',
   })
-  @ApiForbiddenResponse({
-    description: 'Only admin and director can change quote details',
+  @ApiNotFoundResponse({
+    description: 'Quote or detail does not exist or is not visible',
   })
-  @ApiNotFoundResponse({ description: 'Quote or detail does not exist' })
   async updateDetail(
     @Param('id', ParseIntPipe) id: number,
     @Param('detailId', ParseIntPipe) detailId: number,
@@ -195,15 +195,16 @@ export class QuotesController {
   }
 
   @Delete(':id/details/:detailId')
-  @Roles(UserRole.Admin, UserRole.Director)
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Remove a quote detail (admin and director only)' })
-  @ApiNoContentResponse({ description: 'Quote detail removed' })
-  @ApiBadRequestResponse({ description: 'The quote is closed' })
-  @ApiForbiddenResponse({
-    description: 'Only admin and director can change quote details',
+  @ApiOperation({
+    summary:
+      'Remove a detail from a draft quote. Advisors only for clients on their routes',
   })
-  @ApiNotFoundResponse({ description: 'Quote or detail does not exist' })
+  @ApiNoContentResponse({ description: 'Quote detail removed' })
+  @ApiBadRequestResponse({ description: 'The quote is not in draft' })
+  @ApiNotFoundResponse({
+    description: 'Quote or detail does not exist or is not visible',
+  })
   async removeDetail(
     @Param('id', ParseIntPipe) id: number,
     @Param('detailId', ParseIntPipe) detailId: number,

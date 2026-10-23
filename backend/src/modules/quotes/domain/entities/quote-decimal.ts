@@ -8,8 +8,21 @@ import { ValidationError } from '../../../../shared/domain/errors/index.js';
 export const QUOTE_INPUT_DECIMAL_SCALE = 3;
 export const QUOTE_TOTAL_DECIMAL_SCALE = 6;
 
-export const QUOTE_INPUT_DECIMAL_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d{1,3})?$/;
-export const QUOTE_INPUT_DECIMAL_MESSAGE = `must be a non-negative decimal with at most ${QUOTE_INPUT_DECIMAL_SCALE} decimal places`;
+/**
+ * Integer digits that fit the columns: quantity and price are numeric(14,3)
+ * and subtotal and quote value are numeric(18,6). Larger values are rejected
+ * here instead of failing in PostgreSQL with "numeric field overflow".
+ */
+export const QUOTE_INPUT_MAX_INTEGER_DIGITS = 11;
+export const QUOTE_TOTAL_MAX_INTEGER_DIGITS = 12;
+
+export const QUOTE_INPUT_DECIMAL_PATTERN = new RegExp(
+  `^(?:0|[1-9]\\d{0,${QUOTE_INPUT_MAX_INTEGER_DIGITS - 1}})(?:\\.\\d{1,${QUOTE_INPUT_DECIMAL_SCALE}})?$`,
+);
+export const QUOTE_INPUT_DECIMAL_MESSAGE = `must be a non-negative decimal with at most ${QUOTE_INPUT_MAX_INTEGER_DIGITS} integer digits and ${QUOTE_INPUT_DECIMAL_SCALE} decimal places`;
+
+const QUOTE_TOTAL_LIMIT =
+  10n ** BigInt(QUOTE_TOTAL_MAX_INTEGER_DIGITS + QUOTE_TOTAL_DECIMAL_SCALE);
 
 export function assertDecimal(
   value: string,
@@ -31,7 +44,9 @@ export function calculateSubtotal(quantity: string, price: string): string {
     positive: true,
   });
   const priceScaled = assertDecimal(price, 'price');
-  return fromScaled(quantityScaled * priceScaled, QUOTE_TOTAL_DECIMAL_SCALE);
+  const subtotal = quantityScaled * priceScaled;
+  assertFitsTotal(subtotal, 'subtotal');
+  return fromScaled(subtotal, QUOTE_TOTAL_DECIMAL_SCALE);
 }
 
 export function calculateTotal(subtotals: readonly string[]): string {
@@ -39,7 +54,17 @@ export function calculateTotal(subtotals: readonly string[]): string {
     (sum, subtotal) => sum + parseStoredDecimal(subtotal),
     0n,
   );
+  assertFitsTotal(total, 'quote value');
   return fromScaled(total, QUOTE_TOTAL_DECIMAL_SCALE);
+}
+
+/** `scaled` uses QUOTE_TOTAL_DECIMAL_SCALE decimal places. */
+function assertFitsTotal(scaled: bigint, field: string): void {
+  if (scaled >= QUOTE_TOTAL_LIMIT) {
+    throw new ValidationError(
+      `${field} must have at most ${QUOTE_TOTAL_MAX_INTEGER_DIGITS} integer digits`,
+    );
+  }
 }
 
 function parseStoredDecimal(value: string): bigint {

@@ -22,8 +22,10 @@ export const QUOTE_STATUS_RULES: Readonly<
     }
   >
 > = {
+  // Details are editable only while the quote is a draft: once it is sent to
+  // the client, its products and prices no longer change.
   draft: { allowedNext: ['sent'], detailsEditable: true },
-  sent: { allowedNext: ['approved', 'rejected'], detailsEditable: true },
+  sent: { allowedNext: ['approved', 'rejected'], detailsEditable: false },
   approved: { allowedNext: [], detailsEditable: false },
   rejected: { allowedNext: [], detailsEditable: false },
 };

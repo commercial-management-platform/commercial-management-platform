@@ -484,7 +484,78 @@ describe('Quotes (HU-12)', () => {
     expect(current.body.details).toHaveLength(1);
   });
 
-  it('rejects invalid amounts, closed quotes, missing sessions, and advisor detail changes', async () => {
+  it('lets an advisor change the details of quotes for clients on their routes', async () => {
+    context = await createTestApp();
+    const server = context.app.getHttpServer();
+    const own = await request(server)
+      .post('/api/quotes')
+      .set('Authorization', `Bearer ${TOKENS[advisor.id]}`)
+      .send({ clientId: 1, date: '2026-10-22' })
+      .expect(201);
+    const other = await request(server)
+      .post('/api/quotes')
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ clientId: 2, advisorId: 2, date: '2026-10-22' })
+      .expect(201);
+    const url = `/api/quotes/${own.body.id}/details`;
+
+    const detail = await request(server)
+      .post(url)
+      .set('Authorization', `Bearer ${TOKENS[advisor.id]}`)
+      .send({ product: 'Service', quantity: '2.000', price: '10.500' })
+      .expect(201);
+    expect(detail.body.subtotal).toBe('21.000000');
+    await request(server)
+      .patch(`${url}/${detail.body.id}`)
+      .set('Authorization', `Bearer ${TOKENS[advisor.id]}`)
+      .send({ quantity: '3.000' })
+      .expect(200)
+      .expect(({ body }) => expect(body.subtotal).toBe('31.500000'));
+    await request(server)
+      .delete(`${url}/${detail.body.id}`)
+      .set('Authorization', `Bearer ${TOKENS[advisor.id]}`)
+      .expect(204);
+    await request(server)
+      .post(`/api/quotes/${other.body.id}/details`)
+      .set('Authorization', `Bearer ${TOKENS[advisor.id]}`)
+      .send({ product: 'Service', quantity: '1.000', price: '1.000' })
+      .expect(404);
+  });
+
+  it('rejects amounts that do not fit the decimal columns', async () => {
+    context = await createTestApp();
+    const server = context.app.getHttpServer();
+    const quote = await request(server)
+      .post('/api/quotes')
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ clientId: 1, advisorId: 1, date: '2026-10-22' })
+      .expect(201);
+    const url = `/api/quotes/${quote.body.id}/details`;
+
+    // More than 11 integer digits for numeric(14,3).
+    await request(server)
+      .post(url)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ product: 'Service', quantity: '999999999999', price: '1' })
+      .expect(400);
+    // The largest accepted inputs, but their subtotal exceeds numeric(18,6).
+    await request(server)
+      .post(url)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({
+        product: 'Service',
+        quantity: '99999999999',
+        price: '99999999999',
+      })
+      .expect(400);
+    await request(server)
+      .post(url)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ product: 'Service', quantity: '1', price: '99999999999.999' })
+      .expect(201);
+  });
+
+  it('rejects invalid amounts, missing sessions, and changes once the quote is sent', async () => {
     context = await createTestApp();
     const server = context.app.getHttpServer();
     const quote = await request(server)
@@ -498,11 +569,6 @@ describe('Quotes (HU-12)', () => {
       .post(url)
       .send({ product: 'Service', quantity: '1.000', price: '1.000' })
       .expect(401);
-    await request(server)
-      .post(url)
-      .set('Authorization', `Bearer ${TOKENS[advisor.id]}`)
-      .send({ product: 'Service', quantity: '1.000', price: '1.000' })
-      .expect(403);
     await request(server)
       .post(url)
       .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
@@ -523,11 +589,33 @@ describe('Quotes (HU-12)', () => {
         subtotal: '999.000000',
       })
       .expect(400);
+    const detail = await request(server)
+      .post(url)
+      .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
+      .send({ product: 'Service', quantity: '1.000', price: '1.000' })
+      .expect(201);
     await request(server)
       .patch(`/api/quotes/${quote.body.id}/status`)
       .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
       .send({ status: 'sent' })
       .expect(200);
+    // Sent: products and prices are locked for every role.
+    for (const token of [TOKENS[admin.id], TOKENS[advisor.id]]) {
+      await request(server)
+        .post(url)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ product: 'Service', quantity: '1.000', price: '1.000' })
+        .expect(400);
+      await request(server)
+        .patch(`${url}/${detail.body.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ quantity: '2.000' })
+        .expect(400);
+      await request(server)
+        .delete(`${url}/${detail.body.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    }
     await request(server)
       .patch(`/api/quotes/${quote.body.id}/status`)
       .set('Authorization', `Bearer ${TOKENS[admin.id]}`)
