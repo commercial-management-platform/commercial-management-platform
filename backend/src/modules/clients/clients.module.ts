@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { ActivityLogWriterModule } from '../activity-log/activity-log-writer.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { CatalogsModule } from '../catalogs/catalogs.module.js';
@@ -18,35 +19,33 @@ import {
 import { ChangeClientStatusUseCase } from './application/use-cases/change-client-status.use-case.js';
 import { CreateClientUseCase } from './application/use-cases/create-client.use-case.js';
 import { GetClientByIdUseCase } from './application/use-cases/get-client-by-id.use-case.js';
+import { ImportClientsUseCase } from './application/use-cases/import-clients.use-case.js';
 import { ListClientsUseCase } from './application/use-cases/list-clients.use-case.js';
 import { UpdateClientUseCase } from './application/use-cases/update-client.use-case.js';
 import {
   CLIENT_REPOSITORY,
   type ClientRepository,
 } from './domain/repositories/client.repository.js';
+import {
+  CLIENT_IMPORT_REPOSITORY,
+  type ClientImportRepository,
+} from './domain/ports/client-import.repository.js';
+import { CLIENT_IMPORT_STORAGE } from './domain/ports/client-import-storage.port.js';
 import { CatalogLookupValidatorAdapter } from './infrastructure/adapters/catalog-lookup-validator.adapter.js';
 import { TypeOrmAdvisorClientAccessAdapter } from './infrastructure/adapters/typeorm-advisor-client-access.adapter.js';
+import { ClientImportOrmEntity } from './infrastructure/persistence/entities/client-import.orm-entity.js';
 import { ClientOrmEntity } from './infrastructure/persistence/entities/client.orm-entity.js';
+import { TypeOrmClientImportRepository } from './infrastructure/repositories/typeorm-client-import.repository.js';
 import { TypeOrmClientRepository } from './infrastructure/repositories/typeorm-client.repository.js';
 import { ClientsController } from './presentation/clients.controller.js';
 
 /**
  * Composition root of the clients module (HU-03). It is the only file that
  * knows every layer: each port is wired to its infrastructure adapter.
- *
- * CATALOG_VALIDATOR uses the catalog lookup exported by CatalogsModule
- * (HU-05): only active catalog entries can be assigned.
- *
- * ACTIVITY_LOG comes from ActivityLogWriterModule (HU-16), which writes into
- * activity_log; it is re-exported for contacts and portfolios.
- *
- * Deferred adapters until other stories are merged:
- * - ADVISOR_CLIENT_ACCESS → HU-07 (advisors/routes), denies every advisor
- *   until those tables exist.
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ClientOrmEntity]),
+    TypeOrmModule.forFeature([ClientOrmEntity, ClientImportOrmEntity]),
     AuthModule,
     CatalogsModule,
     ActivityLogWriterModule,
@@ -54,7 +53,16 @@ import { ClientsController } from './presentation/clients.controller.js';
   controllers: [ClientsController],
   providers: [
     { provide: CLIENT_REPOSITORY, useClass: TypeOrmClientRepository },
+    { provide: CLIENT_IMPORT_REPOSITORY, useClass: TypeOrmClientImportRepository },
     { provide: CATALOG_VALIDATOR, useClass: CatalogLookupValidatorAdapter },
+    {
+      provide: CLIENT_IMPORT_STORAGE,
+      useValue: {
+        save: async (file: { originalname?: string; buffer: Buffer }) => ({
+          fileKey: `clients-imports/${Date.now()}-${file.originalname ?? 'import.csv'}`,
+        }),
+      },
+    },
     {
       provide: ADVISOR_CLIENT_ACCESS,
       useClass: TypeOrmAdvisorClientAccessAdapter,
@@ -106,11 +114,33 @@ import { ClientsController } from './presentation/clients.controller.js';
       useFactory: (clients: ClientRepository, activityLog: ActivityLogPort) =>
         new ChangeClientStatusUseCase(clients, activityLog),
     },
+    {
+      provide: ImportClientsUseCase,
+      inject: [
+        CLIENT_REPOSITORY,
+        CLIENT_IMPORT_REPOSITORY,
+        CLIENT_IMPORT_STORAGE,
+        'CatalogRepository',
+        DataSource,
+      ],
+      useFactory: (
+        clients: ClientRepository,
+        clientImports: ClientImportRepository,
+        storage: { save: (file: { originalname?: string; buffer: Buffer }) => Promise<{ fileKey: string }> },
+        catalogs: any,
+        dataSource: DataSource,
+      ) =>
+        new ImportClientsUseCase(
+          clients,
+          clientImports,
+          storage,
+          catalogs,
+          dataSource,
+        ),
+    },
   ],
   exports: [
     CLIENT_REPOSITORY,
-    // Exported for the contacts module (HU-04): it needs the advisor
-    // visibility and the activity log of the client.
     ADVISOR_CLIENT_ACCESS,
     ActivityLogWriterModule,
     CreateClientUseCase,
@@ -118,6 +148,7 @@ import { ClientsController } from './presentation/clients.controller.js';
     GetClientByIdUseCase,
     UpdateClientUseCase,
     ChangeClientStatusUseCase,
+    ImportClientsUseCase,
   ],
 })
 export class ClientsModule {}
