@@ -16,6 +16,9 @@ export const ACTIVITY_ACTIONS = [
   // Portfolios of a client (HU-06).
   'client.portfolio_added',
   'client.portfolio_removed',
+  // Quotes (HU-12).
+  'quote.created',
+  'quote.status_changed',
 ] as const;
 
 export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number];
