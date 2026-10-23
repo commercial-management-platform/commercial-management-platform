@@ -15,6 +15,7 @@ import { RoutesModule } from './modules/routes/routes.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 import { VisitsModule } from './modules/visits/visits.module.js';
 import { FollowUpsModule } from './modules/follow-ups/follow-ups.module.js';
+import { SalesOrdersModule } from './modules/sales-orders/sales-orders.module.js';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { FollowUpsModule } from './modules/follow-ups/follow-ups.module.js';
     VisitsModule,
     FollowUpsModule,
     QuotesModule,
+    SalesOrdersModule,
     ActivityLogModule,
   ],
 })
