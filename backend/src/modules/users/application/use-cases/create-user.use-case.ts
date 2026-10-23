@@ -92,9 +92,7 @@ export class CreateUserUseCase {
     }
 
     if (!command.password || command.password.length < 8) {
-      throw new ValidationError(
-        'Password must be at least 8 characters long',
-      );
+      throw new ValidationError('Password must be at least 8 characters long');
     }
 
     if (!Object.values(UserRole).includes(command.role)) {
