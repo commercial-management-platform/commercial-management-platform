@@ -202,7 +202,17 @@
                 <td><button class="link" onclick={() => (detailId = row.route.id)}>Ver ruta</button></td>
               </tr>
             {:else}
-              <tr><td class="empty" colspan="8">No hay rutas para los filtros seleccionados.</td></tr>
+              <tr>
+                <td class="empty" colspan="8">
+                  {#if routesStore.routes.length}
+                    No hay rutas para los filtros seleccionados.
+                  {:else if can.isAdvisor}
+                    Aún no tienes rutas asignadas.
+                  {:else}
+                    Aún no hay rutas. Crea la primera desde "Nueva ruta".
+                  {/if}
+                </td>
+              </tr>
             {/each}
           </tbody>
         </table>

@@ -128,16 +128,15 @@
       </div>
     </fieldset>
 
-    <label class="field">
-      Frecuencia
-      <select class="select" bind:value={frequency}>
-        <option value="">Sin definir</option>
-        {#each FRECUENCIAS as f (f)}<option>{f}</option>{/each}
-        {#if frequency && !FRECUENCIAS.includes(frequency)}<option>{frequency}</option>{/if}
-      </select>
-    </label>
-
-    <div class="pair">
+    <div class="row full">
+      <label class="field">
+        Frecuencia
+        <select class="select" bind:value={frequency}>
+          <option value="">Sin definir</option>
+          {#each FRECUENCIAS as f (f)}<option>{f}</option>{/each}
+          {#if frequency && !FRECUENCIAS.includes(frequency)}<option>{frequency}</option>{/if}
+        </select>
+      </label>
       <label class="field">
         Hora inicial
         <input class="input" type="time" bind:value={start} />
@@ -154,7 +153,7 @@
     </label>
 
     <label class="field">
-      Hasta <span class="muted">(opcional)</span>
+      <span>Hasta <span class="muted">(opcional)</span></span>
       <input class="input" type="date" bind:value={endDate} min={startDate} />
     </label>
 
@@ -206,10 +205,10 @@
     grid-column: 1 / -1;
   }
 
-  .pair {
+  .row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
   }
 
   .days {
@@ -269,7 +268,8 @@
   }
 
   @media (max-width: 560px) {
-    .form {
+    .form,
+    .row {
       grid-template-columns: minmax(0, 1fr);
     }
   }
