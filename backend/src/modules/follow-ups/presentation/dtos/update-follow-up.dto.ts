@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsDateString, IsOptional,IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
 export class UpdateFollowUpDto {
   @ApiPropertyOptional({ example: '2026-10-26' })
