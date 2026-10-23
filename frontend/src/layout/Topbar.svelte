@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from '../lib/components/Icon.svelte'
   import { router, type Route } from '../lib/router.svelte'
+  import { can } from '../lib/permissions.svelte'
   import { dashboard } from '../lib/stores/dashboard.svelte'
   import { currentWeekLabel } from '../lib/utils/format'
 
@@ -17,9 +18,10 @@
     'rutas/asignadas': 'Rutas asignadas',
     'rutas/asesores': 'Asesor asignado',
     clientes: 'Gestión de clientes',
-    visitas: 'Registrar visita',
+    visitas: 'Visitas',
     cotizaciones: 'Cotizaciones',
     pedidos: 'Pedidos',
+    administracion: 'Administración',
   }
 
   const week = currentWeekLabel()
@@ -59,7 +61,8 @@
 
     <button class="btn btn-primary register" onclick={onregister}>
       <Icon name="plus" size={18} strokeWidth={2.2} />
-      <span>Registrar visita</span>
+      <!-- El gestor no registra resultados (HU-09): programa visitas. -->
+      <span>{can.isAdvisor ? 'Registrar visita' : 'Programar visita'}</span>
     </button>
   </div>
 </header>

@@ -1,13 +1,16 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import Icon from '../../lib/components/Icon.svelte'
   import Modal from '../../lib/components/Modal.svelte'
   import { can } from '../../lib/permissions.svelte'
   import { clientStatusTone } from '../../lib/domain/clients'
+  import { ACTIVITY_LABELS } from '../../lib/services/activityApi'
   import { clientDisplayName, type ApiClient } from '../../lib/services/clientsApi'
   import { catalogs } from '../../lib/stores/catalogs.svelte'
   import { clientDirectory, errorText } from '../../lib/stores/clientDirectory.svelte'
+  import { clientPortfolios } from '../../lib/stores/clientPortfolios.svelte'
   import { toasts } from '../../lib/stores/toasts.svelte'
-  import { formatDate } from '../../lib/utils/format'
+  import { formatDate, formatTime } from '../../lib/utils/format'
 
   interface Props {
     client: ApiClient | null
@@ -18,13 +21,36 @@
   let { client, onclose, onedit }: Props = $props()
 
   let contactsError = $state(false)
+  let activityError = $state(false)
   let toggling = $state(false)
+  let portfolioBusy = $state(false)
+  let portfolioToAdd = $state<number | ''>('')
+
+  // Por id: el objeto del cliente se reemplaza en cada consulta periódica.
+  let clientId = $derived(client?.id ?? null)
 
   $effect(() => {
-    if (!client) return
+    if (clientId === null) return
+    const id = clientId
     contactsError = false
-    clientDirectory.loadContacts(client.id).catch(() => (contactsError = true))
+    portfolioToAdd = ''
+    // untrack: solo debe repetirse al cambiar de cliente, no cuando terminan de cargar.
+    untrack(() => {
+      clientDirectory.loadContacts(id).catch(() => (contactsError = true))
+      clientPortfolios.load()
+    })
   })
+
+  // Se vuelve a pedir cuando un cambio invalida el historial cacheado (ver `invalidateActivity`).
+  $effect(() => {
+    if (clientId === null || clientDirectory.activity[clientId]) return
+    activityError = false
+    clientDirectory.loadActivity(clientId).catch(() => (activityError = true))
+  })
+
+  let activity = $derived(clientId !== null ? (clientDirectory.activity[clientId] ?? null) : null)
+  let memberOf = $derived(clientId !== null ? clientPortfolios.of(clientId) : [])
+  let addable = $derived(clientPortfolios.portfolios.filter((p) => p.active && !memberOf.some((m) => m.id === p.id)))
 
   let contacts = $derived(
     client ? (clientDirectory.contacts[client.id] ?? null)?.toSorted((a, b) => Number(b.isPrimary) - Number(a.isPrimary)) : null,
@@ -50,6 +76,25 @@
       toasts.push({ tone: 'warning', icon: 'alert-circle', title: 'No se pudo cambiar el estado', message: errorText(error, 'Intenta de nuevo.') })
     } finally {
       toggling = false
+    }
+  }
+
+  async function changePortfolio(portfolioId: number, add: boolean) {
+    if (clientId === null) return
+    portfolioBusy = true
+    try {
+      if (add) await clientPortfolios.add(portfolioId, clientId)
+      else await clientPortfolios.remove(portfolioId, clientId)
+      portfolioToAdd = ''
+    } catch (error) {
+      toasts.push({
+        tone: 'warning',
+        icon: 'alert-circle',
+        title: add ? 'No se pudo agregar al portafolio' : 'No se pudo retirar del portafolio',
+        message: errorText(error, 'Intenta de nuevo.'),
+      })
+    } finally {
+      portfolioBusy = false
     }
   }
 
@@ -146,9 +191,73 @@
     </section>
 
     <section>
+      <h3>Portafolios</h3>
+      {#if clientPortfolios.status === 'error'}
+        <p class="muted">No pudimos cargar los portafolios.</p>
+      {:else if clientPortfolios.status !== 'ready'}
+        <p class="muted">Cargando portafolios…</p>
+      {:else}
+        {#if memberOf.length}
+          <ul class="chips">
+            {#each memberOf as portfolio (portfolio.id)}
+              <li class="chip" class:off={!portfolio.active} title={portfolio.description ?? undefined}>
+                {portfolio.name}
+                {#if can.managePortfolios}
+                  <button
+                    onclick={() => changePortfolio(portfolio.id, false)}
+                    disabled={portfolioBusy}
+                    aria-label="Retirar de {portfolio.name}"
+                  >
+                    <Icon name="x" size={12} />
+                  </button>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        {:else}
+          <p class="muted">No pertenece a ningún portafolio.</p>
+        {/if}
+        {#if can.managePortfolios && addable.length}
+          <div class="add-portfolio">
+            <select class="select" bind:value={portfolioToAdd} aria-label="Portafolio a agregar">
+              <option value="">Agregar a portafolio…</option>
+              {#each addable as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
+            </select>
+            <button
+              class="btn btn-outline"
+              disabled={portfolioToAdd === '' || portfolioBusy}
+              onclick={() => portfolioToAdd !== '' && changePortfolio(portfolioToAdd, true)}
+            >
+              <Icon name="plus" size={16} /> Agregar
+            </button>
+          </div>
+        {/if}
+      {/if}
+    </section>
+
+    <section>
       <h3>Historial</h3>
-      <!-- Pendiente de HU-16 (activity log): el backend aún no expone el historial. -->
-      <p class="muted">El historial de actividad estará disponible cuando el backend lo exponga.</p>
+      {#if activityError}
+        <p class="muted">No pudimos cargar el historial.</p>
+      {:else if !activity}
+        <p class="muted">Cargando historial…</p>
+      {:else if activity.entries.length === 0}
+        <p class="muted">Sin actividad registrada.</p>
+      {:else}
+        <ol class="timeline">
+          {#each activity.entries as entry (entry.id)}
+            <li>
+              <p class="strong">{ACTIVITY_LABELS[entry.action] ?? entry.action}</p>
+              <p class="muted">
+                {formatDate(entry.createdAt)} · {formatTime(entry.createdAt)} · {entry.user.name ?? 'Usuario'}
+              </p>
+            </li>
+          {/each}
+        </ol>
+        {#if activity.total > activity.entries.length}
+          <p class="muted more">Mostrando las {activity.entries.length} más recientes de {activity.total}.</p>
+        {/if}
+      {/if}
     </section>
   {/if}
 </Modal>
@@ -241,6 +350,85 @@
   .tag.muted-tag {
     color: var(--text-muted);
     background: var(--neutral-100);
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    font: 600 12px/16px var(--font-heading);
+    color: var(--brand-700);
+    border-radius: 999px;
+    background: var(--brand-50);
+  }
+
+  .chip.off {
+    color: var(--text-muted);
+    background: var(--neutral-100);
+  }
+
+  .chip button {
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    margin-right: -4px;
+    padding: 0;
+    color: inherit;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    cursor: pointer;
+  }
+
+  .chip button:hover:not(:disabled) {
+    background: var(--brand-100);
+  }
+
+  .add-portfolio {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
+    padding: 0 0 0 16px;
+    list-style: none;
+    border-left: 2px solid var(--border-default);
+  }
+
+  .timeline li {
+    position: relative;
+  }
+
+  .timeline li::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: -21px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--brand-500);
+  }
+
+  .more {
+    margin-top: 10px;
   }
 
   .map-link {

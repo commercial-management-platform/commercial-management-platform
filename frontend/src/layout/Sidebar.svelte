@@ -23,7 +23,7 @@
     icon: IconName;
     children?: { route: Route; label: string }[];
     /** Perfil que ve la opción; sin valor, la ven todos. */
-    only?: "manager" | "advisor";
+    only?: "manager" | "advisor" | "admin";
   }
 
   const allItems: NavItem[] = [
@@ -45,13 +45,18 @@
     { route: "visitas", label: "Visitas", icon: "map-pin" },
     { route: "cotizaciones", label: "Cotizaciones", icon: "file-text" },
     { route: "pedidos", label: "Pedidos", icon: "package" },
+    { route: "administracion", label: "Administración", icon: "user-check", only: "admin" },
   ];
 
   let items = $derived(
     allItems.filter(
       (item) =>
         !item.only ||
-        (item.only === "manager" ? can.isManager : can.isAdvisor),
+        (item.only === "admin"
+          ? can.isAdmin
+          : item.only === "manager"
+            ? can.isManager
+            : can.isAdvisor),
     ),
   );
 

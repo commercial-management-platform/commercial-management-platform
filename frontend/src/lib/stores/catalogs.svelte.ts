@@ -1,4 +1,4 @@
-import { listCatalog, type CatalogEntry, type ClientCatalog } from '../services/catalogsApi'
+import { listCatalog, type CatalogEntry, type ClientCatalog, type VisitCatalog } from '../services/catalogsApi'
 
 /**
  * Catálogos de cliente (zonas, tipos, potenciales y estados). Cambian muy poco
@@ -25,6 +25,12 @@ class CatalogsStore {
     if (this.status === 'ready') return Promise.resolve()
     this.#pending ??= this.#fetch().finally(() => (this.#pending = null))
     return this.#pending
+  }
+
+  /** Tras editar un catálogo (zonas): la próxima carga vuelve a pedirlo. */
+  invalidate() {
+    this.status = 'idle'
+    return this.load()
   }
 
   /** Nombre de una entrada por id; '' si no tiene o el catálogo aún no carga. */
@@ -57,3 +63,48 @@ function toNames(entries: CatalogEntry[]) {
 }
 
 export const catalogs = new CatalogsStore()
+
+/** Catálogos del formulario de visita (HU-09): resultados, objetivos y tipos. Solo los usa el asesor. */
+class VisitCatalogsStore {
+  status = $state<'idle' | 'loading' | 'ready' | 'error'>('idle')
+  visitResults = $state<CatalogEntry[]>([])
+  visitObjectives = $state<CatalogEntry[]>([])
+  visitTypes = $state<CatalogEntry[]>([])
+
+  #names = $derived({
+    visitResults: toNames(this.visitResults),
+    visitObjectives: toNames(this.visitObjectives),
+    visitTypes: toNames(this.visitTypes),
+  })
+
+  #pending: Promise<void> | null = null
+
+  load() {
+    if (this.status === 'ready') return Promise.resolve()
+    this.#pending ??= this.#fetch().finally(() => (this.#pending = null))
+    return this.#pending
+  }
+
+  name(catalog: VisitCatalog, id: number | null) {
+    return id === null ? '' : (this.#names[catalog].get(id) ?? '')
+  }
+
+  async #fetch() {
+    this.status = 'loading'
+    try {
+      const [visitResults, visitObjectives, visitTypes] = await Promise.all([
+        listCatalog('visitResults'),
+        listCatalog('visitObjectives'),
+        listCatalog('visitTypes'),
+      ])
+      this.visitResults = visitResults
+      this.visitObjectives = visitObjectives
+      this.visitTypes = visitTypes
+      this.status = 'ready'
+    } catch {
+      this.status = 'error'
+    }
+  }
+}
+
+export const visitCatalogs = new VisitCatalogsStore()

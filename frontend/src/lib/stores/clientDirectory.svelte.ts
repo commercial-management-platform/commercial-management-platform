@@ -8,6 +8,7 @@ import {
   type ApiClient,
   type ClientPayload,
 } from '../services/clientsApi'
+import { listClientActivity, type ApiActivityEntry } from '../services/activityApi'
 import { createContact, listContacts, updateContact, type ApiContact, type ContactPayload } from '../services/contactsApi'
 import { ApiError } from '../services/http'
 import { catalogs } from './catalogs.svelte'
@@ -18,6 +19,8 @@ import { toasts } from './toasts.svelte'
 /** El backend aún no emite eventos: mientras "En vivo" esté activo se consulta cada 30 s. */
 const POLL_MS = 30_000
 const HIGHLIGHT_MS = 2400
+/** Entradas de historial que se muestran en el detalle del cliente. */
+const ACTIVITY_LIMIT = 8
 
 /**
  * Cartera de clientes del backend para la pantalla Clientes (HU-03).
@@ -30,6 +33,8 @@ class ClientDirectoryStore {
   clients = $state<ApiClient[]>([])
   /** Contactos por cliente; se cargan al abrir su detalle. */
   contacts = $state<Record<number, ApiContact[]>>({})
+  /** Últimas entradas del historial (HU-16) por cliente; se cargan al abrir su detalle. */
+  activity = $state<Record<number, { entries: ApiActivityEntry[]; total: number }>>({})
   highlights = $state<Record<string, boolean>>({})
 
   byId = $derived(new Map(this.clients.map((c) => [c.id, c])))
@@ -58,6 +63,7 @@ class ClientDirectoryStore {
       this.#owner = owner
       this.clients = []
       this.contacts = {}
+      this.activity = {}
       this.status = 'idle'
     }
     this.#loading = true
@@ -92,6 +98,17 @@ class ClientDirectoryStore {
     this.contacts[clientId] = await listContacts(clientId)
   }
 
+  async loadActivity(clientId: number) {
+    if (this.activity[clientId]) return
+    const page = await listClientActivity(clientId, 1, ACTIVITY_LIMIT)
+    this.activity[clientId] = { entries: page.data, total: page.total }
+  }
+
+  /** Tras un cambio el backend registra una entrada nueva: se vuelve a pedir al abrir el detalle. */
+  invalidateActivity(clientId: number) {
+    delete this.activity[clientId]
+  }
+
   async create(payload: ClientPayload, contact: ContactPayload | null) {
     const client = await createClient(payload)
     this.#upsert(client)
@@ -107,12 +124,14 @@ class ClientDirectoryStore {
   async update(clientId: number, payload: Partial<ClientPayload>) {
     const client = await updateClient(clientId, payload)
     this.#upsert(client)
+    this.invalidateActivity(clientId)
     return client
   }
 
   async setActive(clientId: number, active: boolean) {
     const client = await setClientActive(clientId, active)
     this.#upsert(client)
+    this.invalidateActivity(clientId)
     this.#flash('kpi:active')
     toasts.push({
       tone: active ? 'success' : 'info',
@@ -129,6 +148,7 @@ class ClientDirectoryStore {
       if (contactId === null) await createContact(clientId, payload)
       else await updateContact(clientId, contactId, payload)
       await this.loadContacts(clientId, true)
+      this.invalidateActivity(clientId)
       return true
     } catch (error) {
       toasts.push({
@@ -156,7 +176,10 @@ class ClientDirectoryStore {
   #flashChanges(next: ApiClient[]) {
     const previous = new Map(this.clients.map((c) => [c.id, c.updatedAt]))
     for (const client of next) {
-      if (previous.get(client.id) !== client.updatedAt) this.#flash(String(client.id))
+      if (previous.get(client.id) !== client.updatedAt) {
+        this.#flash(String(client.id))
+        this.invalidateActivity(client.id)
+      }
     }
   }
 }

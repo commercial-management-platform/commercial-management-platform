@@ -9,6 +9,7 @@ export const ROUTES = [
   'visitas',
   'cotizaciones',
   'pedidos',
+  'administracion',
 ] as const
 export type Route = (typeof ROUTES)[number]
 

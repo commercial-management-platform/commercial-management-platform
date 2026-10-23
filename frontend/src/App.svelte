@@ -8,7 +8,8 @@
   import Clients from './pages/clients/Clients.svelte'
   import Orders from './pages/orders/Orders.svelte'
   import Quotes from './pages/quotes/Quotes.svelte'
-  import RegisterVisit from './pages/visits/RegisterVisit.svelte'
+  import Visits from './pages/visits/Visits.svelte'
+  import Admin from './pages/admin/Admin.svelte'
   import Advisors from './pages/routes/Advisors.svelte'
   import AssignedRoutes from './pages/routes/AssignedRoutes.svelte'
   import CreateRoute from './pages/routes/CreateRoute.svelte'
@@ -50,11 +51,13 @@
     {:else if router.route === 'clientes'}
       <Clients />
     {:else if router.route === 'visitas'}
-      <RegisterVisit />
+      <Visits />
     {:else if router.route === 'cotizaciones'}
       <Quotes />
     {:else if router.route === 'pedidos'}
       <Orders />
+    {:else if router.route === 'administracion'}
+      <Admin />
     {:else}
       <ComingSoon title={pending[router.route] ?? ''} />
     {/if}
