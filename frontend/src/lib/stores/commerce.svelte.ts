@@ -8,6 +8,7 @@ import {
   removeQuoteDetail,
   toDecimal,
   updateQuoteDetail,
+  uploadQuoteDocument,
   type ApiQuote,
   type ApiQuoteDetail,
   type QuoteStatus,
@@ -93,6 +94,12 @@ export async function saveQuoteItems(quoteId: number, before: ApiQuoteDetail[], 
 
 export async function setQuoteStatus(id: number, status: QuoteStatus) {
   const quote = await changeQuoteStatus(id, status)
+  quotesStore.upsert(quote)
+  return quote
+}
+
+export async function attachQuoteDocument(id: number, file: File) {
+  const quote = await uploadQuoteDocument(id, file)
   quotesStore.upsert(quote)
   return quote
 }
