@@ -95,5 +95,20 @@ export const removeQuoteDetail = (quoteId: number, detailId: number) =>
 export const changeQuoteStatus = (id: number, status: QuoteStatus) =>
   http<ApiQuote>(`/quotes/${id}/status`, { method: 'PATCH', body: { status } })
 
+/** Tipos y tamaño que acepta el backend para el documento (HU-20). */
+export const QUOTE_DOCUMENT_ACCEPT = '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png'
+export const QUOTE_DOCUMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png']
+export const QUOTE_DOCUMENT_MAX_BYTES = 5 * 1024 * 1024
+
+/** Adjunta o reemplaza el documento (se guarda en S3). Quien ve la cotización puede adjuntarlo. */
+export function uploadQuoteDocument(id: number, file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return http<ApiQuote>(`/quotes/${id}/document`, { method: 'POST', body: form, signal: AbortSignal.timeout(60_000) })
+}
+
+/** URL firmada de corta duración para ver el documento. */
+export const getQuoteDocumentUrl = (id: number) => http<{ url: string }>(`/quotes/${id}/document`)
+
 /** Número a texto decimal como lo espera el backend (máximo 2 decimales). */
 export const toDecimal = (value: number) => String(Math.round(value * 100) / 100)

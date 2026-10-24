@@ -6,11 +6,28 @@
   import { can } from '../../lib/permissions.svelte'
   import { router } from '../../lib/router.svelte'
   import { clientDisplayName } from '../../lib/services/clientsApi'
-  import { QUOTE_STATUS_LABELS, getQuote, type ApiQuote, type ApiQuoteDetail, type QuoteStatus } from '../../lib/services/quotesApi'
+  import {
+    QUOTE_DOCUMENT_ACCEPT,
+    QUOTE_DOCUMENT_MAX_BYTES,
+    QUOTE_DOCUMENT_TYPES,
+    QUOTE_STATUS_LABELS,
+    getQuote,
+    getQuoteDocumentUrl,
+    type ApiQuote,
+    type ApiQuoteDetail,
+    type QuoteStatus,
+  } from '../../lib/services/quotesApi'
   import { businessToday } from '../../lib/services/visitsApi'
   import { advisors } from '../../lib/stores/advisors.svelte'
   import { clientDirectory, errorText } from '../../lib/stores/clientDirectory.svelte'
-  import { createOrderFromQuote, ordersStore, saveQuoteItems, setQuoteStatus, toLineItem } from '../../lib/stores/commerce.svelte'
+  import {
+    attachQuoteDocument,
+    createOrderFromQuote,
+    ordersStore,
+    saveQuoteItems,
+    setQuoteStatus,
+    toLineItem,
+  } from '../../lib/stores/commerce.svelte'
   import { toasts } from '../../lib/stores/toasts.svelte'
   import type { LineItem } from '../../lib/types'
   import { formatDate, formatMoney } from '../../lib/utils/format'
@@ -26,6 +43,8 @@
   let draftItems = $state<(LineItem & { detailId?: number })[]>([])
   let converting = $state(false)
   let entrega = $state('')
+  let uploading = $state(false)
+  let fileInput = $state<HTMLInputElement>()
 
   let client = $derived(quote ? clientDirectory.byId.get(quote.clientId) : undefined)
   let contact = $derived(
@@ -108,6 +127,51 @@
     })
   }
 
+  // Documento en S3 (HU-12 CA-08 y CA-09): el backend valida de nuevo tipo y tamaño.
+  async function attach(event: Event) {
+    const input = event.currentTarget as HTMLInputElement
+    const file = input.files?.[0]
+    input.value = ''
+    if (!quote || !file) return
+    if (!QUOTE_DOCUMENT_TYPES.includes(file.type)) {
+      toasts.push({ tone: 'warning', icon: 'alert-circle', title: 'Archivo no permitido', message: 'Solo PDF, JPG o PNG.' })
+      return
+    }
+    if (file.size > QUOTE_DOCUMENT_MAX_BYTES) {
+      toasts.push({ tone: 'warning', icon: 'alert-circle', title: 'Archivo muy pesado', message: 'El máximo es 5 MB.' })
+      return
+    }
+    const replacing = !!quote.documentKey
+    const id = quote.id
+    uploading = true
+    try {
+      const updated = await attachQuoteDocument(id, file)
+      toasts.push({ tone: 'success', icon: 'check', title: replacing ? 'Documento reemplazado' : 'Documento adjuntado', message: updated.number })
+    } catch (e) {
+      toasts.push({ tone: 'warning', icon: 'alert-circle', title: 'No se pudo adjuntar', message: errorText(e, 'Intenta de nuevo.') })
+    } finally {
+      uploading = false
+    }
+  }
+
+  async function viewDocument() {
+    if (!quote) return
+    // La ventana se abre antes de pedir la URL para que el navegador no la bloquee.
+    const win = window.open('', '_blank')
+    try {
+      const { url } = await getQuoteDocumentUrl(quote.id)
+      if (win) {
+        win.opener = null
+        win.location.href = url
+      } else {
+        window.location.assign(url)
+      }
+    } catch (e) {
+      win?.close()
+      toasts.push({ tone: 'warning', icon: 'alert-circle', title: 'No se pudo abrir el documento', message: errorText(e, 'Intenta de nuevo.') })
+    }
+  }
+
   function print() {
     if (!quote) return
     const ok = printDocument({
@@ -186,6 +250,27 @@
     {#if order}
       <p class="linked"><Icon name="package" size={14} /> Generó el pedido <strong>{order.number}</strong></p>
     {/if}
+
+    <h3>Documento</h3>
+    <div class="document">
+      <span class="doc-state" class:attached={!!quote.documentKey}>
+        <Icon name="file-text" size={16} />
+        {quote.documentKey ? 'Documento adjunto' : 'Sin documento adjunto'}
+      </span>
+      <div class="doc-actions">
+        {#if quote.documentKey}
+          <button class="btn btn-outline" disabled={uploading} onclick={viewDocument}>
+            <Icon name="eye" size={16} /> Ver
+          </button>
+        {/if}
+        <button class="btn btn-outline" disabled={uploading} onclick={() => fileInput?.click()}>
+          <Icon name="upload" size={16} />
+          {uploading ? 'Subiendo…' : quote.documentKey ? 'Reemplazar' : 'Adjuntar'}
+        </button>
+        <input bind:this={fileInput} type="file" accept={QUOTE_DOCUMENT_ACCEPT} onchange={attach} hidden />
+      </div>
+    </div>
+    <p class="muted hint">PDF, JPG o PNG de hasta 5 MB.</p>
 
     {#if converting}
       <div class="convert">
@@ -323,6 +408,31 @@
     margin-top: 16px;
     font-size: 13px;
     color: var(--text-brand);
+  }
+
+  .document {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .doc-state {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .doc-state.attached {
+    color: var(--text-brand);
+  }
+
+  .doc-actions {
+    display: flex;
+    gap: 8px;
   }
 
   .actions {

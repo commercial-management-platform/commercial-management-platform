@@ -3,6 +3,7 @@ import dataSource from '../../config/data-source.js';
 import { usersSeed } from './users.seed.js';
 import { catalogsSeed } from './catalogs.seed.js';
 import { clientsSeed } from './clients.seed.js';
+import { demoDataSeed } from './demo-data.seed.js';
 
 export interface Seed {
   name: string;
@@ -10,7 +11,7 @@ export interface Seed {
 }
 
 /** Seeds run in this order. Catalogs are added here by their user stories. */
-const seeds: Seed[] = [usersSeed, catalogsSeed, clientsSeed];
+const seeds: Seed[] = [usersSeed, catalogsSeed, clientsSeed, demoDataSeed];
 
 async function runSeeds(): Promise<void> {
   await dataSource.initialize();
