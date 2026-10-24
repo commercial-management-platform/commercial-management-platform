@@ -293,8 +293,8 @@ Los rangos de GitHub cambian con el tiempo. Para actualizar la regla del puerto 
 | Credencial `cmp-env` (Secret file) | Hecho |
 | Job `cmp-deploy` apuntando a la rama de la HU | Hecho |
 | Primer build manual en verde y `/api/health` = 200 | Hecho |
-| Secreto del webhook y webhook de GitHub con respuesta 200 | Pendiente |
-| Build disparado por un push | Pendiente |
-| Build con pruebas fallidas que no toca la versión desplegada | Pendiente |
+| Secreto del webhook y webhook de GitHub con respuesta 200 | Hecho |
+| Build disparado por un push (build #2, "Started by GitHub push") | Hecho |
+| Build con pruebas fallidas que no toca la versión desplegada (build #3: falla en Calidad, los contenedores no cambian) | Hecho |
 
-Antes de cerrar la HU, al cambiar el job de `*/feature/...` a `*/dev` y luego a `*/main`, repite el primer build manual y revisa `/api/health`.
+Build #4 (restauración de la prueba) en verde. Antes de cerrar la HU, al cambiar el job de `*/feature/...` a `*/dev` y luego a `*/main`, repite el primer build manual y revisa `/api/health`.
