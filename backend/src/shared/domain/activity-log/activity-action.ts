@@ -8,6 +8,8 @@ export const ACTIVITY_ACTIONS = [
   'client.created',
   'client.updated',
   'client.status_changed',
+  // Bulk import of clients from CSV (HU-22).
+  'client.imported',
   // Contacts of a client (HU-04).
   'contact.created',
   'contact.updated',
