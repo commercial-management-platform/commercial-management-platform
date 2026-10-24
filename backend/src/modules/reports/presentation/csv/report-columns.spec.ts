@@ -20,39 +20,66 @@ describe('report columns', () => {
   it('has the same columns as the dashboard tracking table (CA-01)', () => {
     expect(VISIT_TRACKING_COLUMNS.map((c) => c.header)).toEqual([
       'Fecha',
+      'Hora',
+      'Asesor',
+      'Territorio',
+      'Semana',
+      'Día',
+      'Ruta',
       'Cliente',
       'Municipio',
-      'Tipo',
+      'Tipo de cliente',
       'Potencial',
-      'Estado visita',
-      'Cotización',
+      'Estado de la visita',
       'Resultado',
+      'Cotización',
+      'Valor cotización',
+      'Pedido',
+      'Próximo seguimiento',
     ]);
   });
 
-  it('writes a visit with its business date, label and plain amount (CA-05)', () => {
+  it('writes a visit with its business date, week, label and plain amount (CA-05)', () => {
     const row: VisitTrackingRow = {
       visitId: 1,
-      // 2026-10-27 03:00 UTC is still 2026-10-26 in Bogota.
+      // 2026-10-27 03:00 UTC is still Monday 2026-10-26 in Bogota.
       scheduledDate: new Date('2026-10-27T03:00:00Z'),
+      advisorId: 3,
+      advisorName: 'Asesor Uno',
+      zone: 'Norte',
+      routeId: 7,
+      routeName: 'Ruta Norte',
+      clientId: 10,
       clientName: 'Ferretería El Tornillo',
       municipality: 'Barranquilla',
       clientType: 'Retail',
       clientPotential: 'Alto',
       status: VisitStatus.Visited,
-      quoteValue: '1500000.500000',
       result: 'Interesado',
+      quoteNumbers: 'COT-0001 / COT-0002',
+      quoteValue: '1500000.500000',
+      orderNumbers: 'PED-0001',
+      nextFollowUp: '2026-10-30',
     };
 
     expect(values(VISIT_TRACKING_COLUMNS, row)).toEqual([
       '2026-10-26',
+      '22:00',
+      'Asesor Uno',
+      'Norte',
+      44,
+      'lunes',
+      'Ruta Norte',
       'Ferretería El Tornillo',
       'Barranquilla',
       'Retail',
       'Alto',
-      'Visitado',
-      '1500000.5',
+      'Visitada',
       'Interesado',
+      'COT-0001 / COT-0002',
+      '1500000.5',
+      'PED-0001',
+      '2026-10-30',
     ]);
   });
 
@@ -60,22 +87,40 @@ describe('report columns', () => {
     const row: VisitTrackingRow = {
       visitId: 2,
       scheduledDate: new Date('2026-10-26T15:00:00Z'),
+      advisorId: 3,
+      advisorName: 'Asesor Uno',
+      zone: null,
+      routeId: null,
+      routeName: null,
+      clientId: 11,
       clientName: 'Acme',
       municipality: null,
       clientType: null,
       clientPotential: null,
       status: VisitStatus.Scheduled,
-      quoteValue: null,
       result: null,
+      quoteNumbers: null,
+      quoteValue: null,
+      orderNumbers: null,
+      nextFollowUp: null,
     };
 
     expect(values(VISIT_TRACKING_COLUMNS, row)).toEqual([
       '2026-10-26',
+      '10:00',
+      'Asesor Uno',
+      null,
+      44,
+      'lunes',
+      null,
       'Acme',
       null,
       null,
       null,
-      'Pendiente',
+      'Programada',
+      null,
+      null,
+      null,
       null,
       null,
     ]);

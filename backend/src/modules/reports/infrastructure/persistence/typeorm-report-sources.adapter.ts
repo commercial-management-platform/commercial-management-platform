@@ -2,6 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 import { queryWithCursor } from '../../../../shared/infrastructure/persistence/cursor-query.js';
+import { SqlConditions } from '../../../../shared/infrastructure/persistence/sql-conditions.js';
+import {
+  visitTrackingConditions,
+  visitTrackingSql,
+} from '../../../dashboard/infrastructure/persistence/visit-tracking.sql.js';
 import type { QuoteStatus } from '../../../quotes/domain/entities/quote-status.js';
 import type { SalesOrderStatus } from '../../../sales-orders/domain/entities/sales-order-status.js';
 import type {
@@ -15,24 +20,6 @@ import type {
   VisitTrackingFilter,
 } from '../../domain/ports/report-sources.port.js';
 
-/** Collects WHERE conditions with numbered placeholders ($1, $2...). */
-class SqlConditions {
-  readonly params: unknown[] = [];
-  private readonly conditions: string[] = [];
-
-  /** `sql` uses `?` where the value goes, e.g. 'v.status = ?'. */
-  add(sql: string, value: unknown): void {
-    this.params.push(value);
-    this.conditions.push(sql.replace('?', `$${this.params.length}`));
-  }
-
-  toSql(): string {
-    return this.conditions.length > 0
-      ? `WHERE ${this.conditions.join(' AND ')}`
-      : '';
-  }
-}
-
 /** Yields nothing, without opening a connection. */
 async function* noRows<T>(): AsyncGenerator<T> {}
 
@@ -45,40 +32,12 @@ async function* noRows<T>(): AsyncGenerator<T> {}
 export class TypeOrmReportSourcesAdapter implements ReportSourcesPort {
   constructor(private readonly dataSource: DataSource) {}
 
+  /** The dashboard table (HU-15) read whole: same rows and columns (CA-01). */
   visitTracking(filter: VisitTrackingFilter): AsyncIterable<VisitTrackingRow> {
-    const where = new SqlConditions();
-    if (filter.from) where.add('v.scheduled_date >= ?', filter.from);
-    if (filter.to) where.add('v.scheduled_date < ?', filter.to);
-    if (filter.zoneId !== undefined) where.add('c.zone_id = ?', filter.zoneId);
-    if (filter.advisorId !== undefined) {
-      where.add('v.advisor_id = ?', filter.advisorId);
-    }
-    if (filter.advisorUserId !== undefined) {
-      where.add('a.user_id = ?', filter.advisorUserId);
-    }
-    if (filter.status !== undefined) where.add('v.status = ?', filter.status);
-
-    // "Cotización" adds up every quote linked to the visit (quote.visit_id).
+    const where = visitTrackingConditions(filter);
     return queryWithCursor<VisitTrackingRow>(
       this.dataSource,
-      `SELECT v.id AS "visitId",
-              v.scheduled_date AS "scheduledDate",
-              c.business_name AS "clientName",
-              c.municipality AS "municipality",
-              ct.name AS "clientType",
-              cp.name AS "clientPotential",
-              v.status AS "status",
-              (SELECT sum(q.value)::text FROM quote q WHERE q.visit_id = v.id) AS "quoteValue",
-              vr.name AS "result"
-         FROM visit v
-         JOIN client c ON c.id = v.client_id
-         JOIN advisor a ON a.id = v.advisor_id
-         LEFT JOIN client_type ct ON ct.id = c.client_type_id
-         LEFT JOIN client_potential cp ON cp.id = c.client_potential_id
-         LEFT JOIN visit_outcome vo ON vo.visit_id = v.id
-         LEFT JOIN visit_result vr ON vr.id = vo.visit_result_id
-         ${where.toSql()}
-        ORDER BY v.scheduled_date DESC, v.id DESC`,
+      visitTrackingSql(where),
       where.params,
     );
   }

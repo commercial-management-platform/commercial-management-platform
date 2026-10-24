@@ -8,6 +8,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { CatalogsModule } from './modules/catalogs/catalogs.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { ContactsModule } from './modules/contacts/contacts.module.js';
+import { DashboardModule } from './modules/dashboard/dashboard.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { PortfoliosModule } from './modules/portfolios/portfolios.module.js';
 import { ReportsModule } from './modules/reports/reports.module.js';
@@ -39,6 +40,7 @@ import { SalesOrdersModule } from './modules/sales-orders/sales-orders.module.js
     QuotesModule,
     SalesOrdersModule,
     ActivityLogModule,
+    DashboardModule,
     ReportsModule,
   ],
 })

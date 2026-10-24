@@ -30,6 +30,13 @@ export function businessDateOf(instant: Date): string {
     .slice(0, 10);
 }
 
+/** Time of day (HH:mm) of `instant` in business time. */
+export function businessTimeOf(instant: Date): string {
+  return new Date(instant.getTime() + BUSINESS_UTC_OFFSET_MS)
+    .toISOString()
+    .slice(11, 16);
+}
+
 /** Today's calendar date (YYYY-MM-DD) in business time. */
 export function businessToday(now: Date = new Date()): string {
   return businessDateOf(now);

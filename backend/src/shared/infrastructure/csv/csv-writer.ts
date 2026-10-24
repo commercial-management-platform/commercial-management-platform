@@ -1,8 +1,11 @@
 /**
  * CSV generator shared by every report (HU-17).
  *
- * - RFC 4180: comma separator, CRLF line endings, a field with a comma, a
- *   double quote, CR or LF goes between double quotes and its quotes doubled.
+ * - Semicolon separator: Excel in Spanish (Colombian regional settings) uses
+ *   it as list separator, so with commas it opens every row in one column.
+ * - RFC 4180 otherwise: CRLF line endings, a field with the separator, a
+ *   comma, a double quote, CR or LF goes between double quotes and its quotes
+ *   doubled.
  * - UTF-8 with BOM, so Excel shows accents and ñ correctly.
  * - Spreadsheet formula injection (OWASP "CSV injection"): a text value that
  *   starts with =, +, -, @, tab or CR gets a leading apostrophe, so Excel does
@@ -13,6 +16,7 @@
  */
 export const UTF8_BOM = '﻿';
 export const CSV_LINE_END = '\r\n';
+export const CSV_SEPARATOR = ';';
 
 /** null and undefined are written as an empty field. */
 export type CsvValue = string | number | null | undefined;
@@ -22,7 +26,8 @@ export interface CsvColumn<T> {
   value: (row: T) => CsvValue;
 }
 
-const NEEDS_QUOTES = /[",\r\n]/;
+// Commas are quoted too, so the file also reads well where they separate.
+const NEEDS_QUOTES = /[";,\r\n]/;
 const FORMULA_START = /^[=+\-@\t\r]/;
 // A plain number cannot be a formula, so "-5" keeps its sign.
 const PLAIN_DECIMAL = /^-?\d+(\.\d+)?$/;
@@ -43,7 +48,7 @@ export function escapeCsvField(value: CsvValue): string {
 }
 
 export function toCsvLine(values: readonly CsvValue[]): string {
-  return values.map(escapeCsvField).join(',') + CSV_LINE_END;
+  return values.map(escapeCsvField).join(CSV_SEPARATOR) + CSV_LINE_END;
 }
 
 /**

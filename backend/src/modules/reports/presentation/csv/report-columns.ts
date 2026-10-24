@@ -2,7 +2,12 @@ import {
   formatCsvDecimal,
   type CsvColumn,
 } from '../../../../shared/infrastructure/csv/csv-writer.js';
-import { businessDateOf } from '../../../../shared/domain/time/business-time.js';
+import {
+  businessDateOf,
+  businessTimeOf,
+  isoWeekNumber,
+  weekdayOf,
+} from '../../../../shared/domain/time/business-time.js';
 import type { QuoteStatus } from '../../../quotes/domain/entities/quote-status.js';
 import type { SalesOrderStatus } from '../../../sales-orders/domain/entities/sales-order-status.js';
 import { VisitStatus } from '../../../visits/domain/visit-status.js';
@@ -19,9 +24,19 @@ import type {
  */
 
 export const VISIT_STATUS_LABELS: Record<VisitStatus, string> = {
-  [VisitStatus.Scheduled]: 'Pendiente',
-  [VisitStatus.Visited]: 'Visitado',
-  [VisitStatus.Cancelled]: 'Cancelado',
+  [VisitStatus.Scheduled]: 'Programada',
+  [VisitStatus.Visited]: 'Visitada',
+  [VisitStatus.Cancelled]: 'Cancelada',
+};
+
+const WEEKDAY_LABELS: Record<ReturnType<typeof weekdayOf>, string> = {
+  Monday: 'lunes',
+  Tuesday: 'martes',
+  Wednesday: 'miércoles',
+  Thursday: 'jueves',
+  Friday: 'viernes',
+  Saturday: 'sábado',
+  Sunday: 'domingo',
 };
 
 export const QUOTE_STATUS_LABELS: Record<QuoteStatus, string> = {
@@ -38,17 +53,28 @@ export const SALES_ORDER_STATUS_LABELS: Record<SalesOrderStatus, string> = {
   cancelled: 'Cancelado',
 };
 
-/** Same columns as the dashboard table "Seguimiento de rutas y visitas" (CA-01). */
+/** Calendar date of the visit in business time (America/Bogota). */
+const visitDate = (row: VisitTrackingRow) => businessDateOf(row.scheduledDate);
+
+/** Same columns as the dashboard table "Seguimiento de rutas y visitas" (CA-01, HU-15 CA-06). */
 export const VISIT_TRACKING_COLUMNS: readonly CsvColumn<VisitTrackingRow>[] = [
-  // Calendar date of the visit in business time (America/Bogota).
-  { header: 'Fecha', value: (row) => businessDateOf(row.scheduledDate) },
+  { header: 'Fecha', value: visitDate },
+  { header: 'Hora', value: (row) => businessTimeOf(row.scheduledDate) },
+  { header: 'Asesor', value: (row) => row.advisorName },
+  { header: 'Territorio', value: (row) => row.zone },
+  { header: 'Semana', value: (row) => isoWeekNumber(visitDate(row)) },
+  { header: 'Día', value: (row) => WEEKDAY_LABELS[weekdayOf(visitDate(row))] },
+  { header: 'Ruta', value: (row) => row.routeName },
   { header: 'Cliente', value: (row) => row.clientName },
   { header: 'Municipio', value: (row) => row.municipality },
-  { header: 'Tipo', value: (row) => row.clientType },
+  { header: 'Tipo de cliente', value: (row) => row.clientType },
   { header: 'Potencial', value: (row) => row.clientPotential },
-  { header: 'Estado visita', value: (row) => VISIT_STATUS_LABELS[row.status] },
-  { header: 'Cotización', value: (row) => formatCsvDecimal(row.quoteValue) },
+  { header: 'Estado de la visita', value: (row) => VISIT_STATUS_LABELS[row.status] },
   { header: 'Resultado', value: (row) => row.result },
+  { header: 'Cotización', value: (row) => row.quoteNumbers },
+  { header: 'Valor cotización', value: (row) => formatCsvDecimal(row.quoteValue) },
+  { header: 'Pedido', value: (row) => row.orderNumbers },
+  { header: 'Próximo seguimiento', value: (row) => row.nextFollowUp },
 ];
 
 export const QUOTE_COLUMNS: readonly CsvColumn<QuoteReportRow>[] = [

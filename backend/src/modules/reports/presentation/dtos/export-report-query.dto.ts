@@ -1,6 +1,15 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsIn, IsInt, IsOptional, Matches, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 import { DATE_ONLY_PATTERN } from '../../../../shared/domain/time/business-time.js';
 import {
@@ -65,6 +74,15 @@ export class ExportVisitTrackingQueryDto extends DateRangeQueryDto {
   @IsOptional()
   @IsEnum(VisitStatus)
   status?: VisitStatus;
+
+  @ApiPropertyOptional({
+    example: 'ferreteria',
+    description: 'Text in the client, municipality, advisor or route',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  search?: string;
 }
 
 /** Filters of GET /quotes, without pagination. */

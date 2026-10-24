@@ -33,6 +33,7 @@ describe('escapeCsvField (RFC 4180)', () => {
   it.each([
     ['plain text', 'Ferretería Ñandú', 'Ferretería Ñandú'],
     ['a comma', 'Cra 7, local 2', '"Cra 7, local 2"'],
+    ['a semicolon', 'Bodega 3; piso 2', '"Bodega 3; piso 2"'],
     ['a double quote', 'El "Tornillo"', '"El ""Tornillo"""'],
     ['a line break', 'line 1\nline 2', '"line 1\nline 2"'],
     ['a CRLF', 'a\r\nb', '"a\r\nb"'],
@@ -71,8 +72,8 @@ describe('escapeCsvField (RFC 4180)', () => {
 });
 
 describe('toCsvLine', () => {
-  it('joins with commas and ends with CRLF', () => {
-    expect(toCsvLine(['a', 1, null, 'b,c'])).toBe('a,1,,"b,c"\r\n');
+  it('joins with semicolons (Excel in Spanish) and ends with CRLF', () => {
+    expect(toCsvLine(['a', 1, null, 'b,c'])).toBe('a;1;;"b,c"\r\n');
   });
 });
 
@@ -100,7 +101,7 @@ describe('generateCsv', () => {
   it('starts with the UTF-8 BOM and the Spanish headers', async () => {
     const csv = (await collect(generateCsv(columns, fromArray<Row>([])))).join('');
 
-    expect(csv).toBe(`${UTF8_BOM}Nombre,Monto\r\n`);
+    expect(csv).toBe(`${UTF8_BOM}Nombre;Monto\r\n`);
     expect(Buffer.from(csv, 'utf8').subarray(0, 3)).toEqual(
       Buffer.from([0xef, 0xbb, 0xbf]),
     );
@@ -120,7 +121,7 @@ describe('generateCsv', () => {
     ).join('');
 
     expect(csv).toBe(
-      `${UTF8_BOM}Nombre,Monto\r\n"Acme, S.A.S",1200.5\r\nSin monto,\r\n`,
+      `${UTF8_BOM}Nombre;Monto\r\n"Acme, S.A.S";1200.5\r\nSin monto;\r\n`,
     );
   });
 
@@ -135,7 +136,7 @@ describe('generateCsv', () => {
 
     const chunks = generateCsv(columns, endless(), 100);
     const header = await chunks.next();
-    expect(header.value).toBe(`${UTF8_BOM}Nombre,Monto\r\n`);
+    expect(header.value).toBe(`${UTF8_BOM}Nombre;Monto\r\n`);
     expect(produced).toBe(0);
 
     const firstChunk = await chunks.next();

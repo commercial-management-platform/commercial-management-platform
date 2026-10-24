@@ -1,13 +1,14 @@
-import { ValidationError } from '../../../shared/domain/errors/index.js';
+import { ValidationError } from '../domain/errors/index.js';
 import {
   businessDayRange,
   businessWeekRange,
   type InstantRange,
-} from '../../../shared/domain/time/business-time.js';
+} from '../domain/time/business-time.js';
 
 /**
- * Date checks shared by the reports. They run before the CSV starts: once
- * the first byte is sent, an error can no longer become a 400.
+ * Date filters shared by the dashboard (HU-15) and the reports (HU-17). In the
+ * reports they run before the CSV starts: once the first byte is sent, an
+ * error can no longer become a 400.
  */
 
 /** A malformed or impossible date (RangeError of the helper) is a 400. */
