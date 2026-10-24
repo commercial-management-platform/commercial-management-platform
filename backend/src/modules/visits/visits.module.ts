@@ -13,6 +13,7 @@ import {
   type CatalogLookupPort,
 } from '../catalogs/application/ports/catalog-lookup.port.js';
 import { CatalogsModule } from '../catalogs/catalogs.module.js';
+import { FollowUpsModule } from '../follow-ups/follow-ups.module.js';
 import type { EnvironmentVariables } from '../../config/env.validation.js';
 import { CancelVisitUseCase } from './application/cancel-visit.use-case.js';
 import { GenerateRouteVisitsUseCase } from './application/generate-route-visits.use-case.js';
@@ -25,6 +26,10 @@ import {
   type VisitReferencesPort,
 } from './application/ports/visit-references.port.js';
 import { RecordVisitOutcomeUseCase } from './application/record-visit-outcome.use-case.js';
+import {
+  FOLLOW_UP_CREATOR,
+  type FollowUpCreatorPort,
+} from './application/ports/follow-up-creator.port.js';
 import { RescheduleVisitUseCase } from './application/reschedule-visit.use-case.js';
 import { ScheduleVisitUseCase } from './application/schedule-visit.use-case.js';
 import { StartVisitUseCase } from './application/start-visit.use-case.js';
@@ -58,6 +63,7 @@ export const VISIT_CHECKIN_RADIUS_METERS = Symbol('VISIT_CHECKIN_RADIUS_METERS')
     AuthModule,
     CatalogsModule,
     ActivityLogWriterModule,
+    FollowUpsModule,
   ],
   controllers: [VisitsController, RouteVisitsController],
   providers: [
@@ -123,9 +129,14 @@ export const VISIT_CHECKIN_RADIUS_METERS = Symbol('VISIT_CHECKIN_RADIUS_METERS')
     },
     {
       provide: RecordVisitOutcomeUseCase,
-      inject: [VISIT_REPOSITORY, CATALOG_LOOKUP, ACTIVITY_LOG],
-      useFactory: (repo: VisitRepository, catalogs: CatalogLookupPort, activityLog: ActivityLogPort) =>
-        new RecordVisitOutcomeUseCase(repo, catalogs, activityLog),
+      inject: [VISIT_REPOSITORY, CATALOG_LOOKUP, ACTIVITY_LOG, FOLLOW_UP_CREATOR],
+      useFactory: (
+        repo: VisitRepository,
+        catalogs: CatalogLookupPort,
+        activityLog: ActivityLogPort,
+        followUpCreator: FollowUpCreatorPort,
+      ) =>
+        new RecordVisitOutcomeUseCase(repo, catalogs, activityLog, followUpCreator),
     },
   ],
 })

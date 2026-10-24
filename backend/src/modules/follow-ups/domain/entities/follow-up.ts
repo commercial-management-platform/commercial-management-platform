@@ -1,3 +1,5 @@
+import { ValidationError } from '../../../../shared/domain/errors/index.js';
+
 export interface FollowUpProps {
   id: number | null;
   visitId: number;
@@ -37,6 +39,22 @@ export class FollowUp {
     this.completedAt = props.completedAt;
     this.createdAt = props.createdAt;
     this.updatedAt = props.updatedAt;
+  }
+
+  /**
+   * Rules a new follow-up must meet (HU-10 CA-02). Exposed so the visit outcome
+   * (HU-09 CA-09) can check them before saving anything.
+   */
+  static assertSchedulable(
+    input: { nextDate: string; activity: string },
+    today: string,
+  ): void {
+    if (input.nextDate < today) {
+      throw new ValidationError('nextDate cannot be in the past');
+    }
+    if (input.activity.trim().length === 0) {
+      throw new ValidationError('activity must not be empty');
+    }
   }
 
   static create(input: {

@@ -3,11 +3,17 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module.js';
 import { ACTIVITY_LOG } from '../../shared/application/ports/activity-log.port.js';
 import { ActivityLogWriterModule } from '../activity-log/activity-log-writer.module.js';
+import { businessToday } from '../../shared/domain/time/business-time.js';
 import { VISIT_REPOSITORY } from '../visits/domain/visit.repository.js';
 import { TypeOrmVisitRepository } from '../visits/infrastructure/repositories/visit.repository.impl.js';
 import { VisitOrmEntity } from '../visits/infrastructure/persistence/entities/visit.orm-entity.js';
 import { VisitOutcomeOrmEntity } from '../visits/infrastructure/persistence/entities/visit-outcome.orm-entity.js';
 import { AdvisorOrmEntity } from '../users/infrastructure/persistence/entities/advisor.orm-entity.js';
+import {
+  FOLLOW_UP_CREATOR,
+  type FollowUpCreatorPort,
+} from '../visits/application/ports/follow-up-creator.port.js';
+import { FollowUp } from './domain/entities/follow-up.js';
 import { FOLLOW_UP_REPOSITORY } from './domain/ports/follow-up.repository.js';
 import { TypeOrmFollowUpRepository } from './infrastructure/repositories/typeorm-follow-up.repository.js';
 import { FollowUpOrmEntity } from './infrastructure/persistence/entities/follow-up.orm-entity.js';
@@ -28,6 +34,16 @@ import { FollowUpsController } from './presentation/controllers/follow-ups.contr
   providers: [
     { provide: FOLLOW_UP_REPOSITORY, useClass: TypeOrmFollowUpRepository },
     { provide: VISIT_REPOSITORY, useClass: TypeOrmVisitRepository },
+    {
+      provide: FOLLOW_UP_CREATOR,
+      inject: [CreateFollowUpUseCase],
+      useFactory: (createFollowUp: CreateFollowUpUseCase): FollowUpCreatorPort => ({
+        validate: (input) => FollowUp.assertSchedulable(input, businessToday()),
+        create: async (actor, visitId, input) => {
+          await createFollowUp.execute(actor, visitId, input);
+        },
+      }),
+    },
     {
       provide: CreateFollowUpUseCase,
       inject: [FOLLOW_UP_REPOSITORY, VISIT_REPOSITORY, ACTIVITY_LOG],
@@ -54,5 +70,6 @@ import { FollowUpsController } from './presentation/controllers/follow-ups.contr
       useFactory: (fuRepo: any, visitRepo: any, activityLog: any) => new CompleteFollowUpUseCase(fuRepo, visitRepo, activityLog),
     },
   ],
+  exports: [FOLLOW_UP_CREATOR],
 })
 export class FollowUpsModule {}
