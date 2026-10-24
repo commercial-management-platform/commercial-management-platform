@@ -28,7 +28,7 @@ Región: **us-east-1**
 | ------ | ---------------------------------------------- | ------------------------------------ | ------------------------------------------ |
 | 80     | Aplicación (Nginx dentro del contenedor `web`) | Cualquiera (0.0.0.0/0)               | Acceso a la aplicación                     |
 | 22     | SSH / EC2 Instance Connect                     | Solo la IP del equipo                | Administración del servidor                |
-| 8080   | Jenkins (HU-19)                                | Solo las IP del equipo               | Panel de integración continua              |
+| 8080   | Jenkins (HU-19)                                | Rangos de webhooks de GitHub (`hooks` de `api.github.com/meta`) y la IP del equipo | Webhook de GitHub y panel de Jenkins       |
 | 5432   | PostgreSQL (RDS)                               | Solo el grupo de seguridad de la EC2 | RDS no es accesible desde internet (CA-06) |
 
 Dentro de Docker, la API (puerto 3000) solo es accesible desde el contenedor `web`. No se publica al exterior.
@@ -88,7 +88,7 @@ sudo mkdir -p /opt/cmp && sudo chown ubuntu:ubuntu /opt/cmp
 git clone -b feature/HU-18-deploy-aws https://github.com/commercial-management-platform/commercial-management-platform.git /opt/cmp/app
 ```
 
-Cuando el Pull Request se integre en `dev`, el servidor debe apuntar a esa rama: `git checkout dev && git pull`.
+Desde HU-19, Jenkins despliega desde su propio workspace (`/var/lib/jenkins/workspace/cmp-deploy`). Este clon queda solo para administración manual de emergencia; si se usa, debe estar en la misma rama que el job (`dev` o `main`).
 
 ### 4.3 Crear el `.env`
 
@@ -137,7 +137,7 @@ Desde el navegador: `http://<IP_ELASTICA>`.
 2. **Logs:** `docker compose -f docker-compose.prod.yml logs -f api` (y `web` si la página no carga)
 3. **Reinicio:** los contenedores tienen `restart: always`, así que vuelven solos si fallan o si se reinicia la EC2. Si no volvieron: `docker compose -f docker-compose.prod.yml up -d`
 4. **Base de datos:** en la consola de AWS, revisa que RDS `nexo-db` esté **Disponible**. Si está detenida, inícala y espera 5 a 10 minutos.
-5. **Actualizar la versión:** `cd /opt/cmp/app && git pull && docker compose -f docker-compose.prod.yml up -d --build`
+5. **Actualizar la versión:** lo hace Jenkins al recibir un push (ver sección 8). A mano, solo en emergencias: `cd /opt/cmp/app && git pull && docker compose -f docker-compose.prod.yml up -d --build`
 
 ---
 
@@ -188,3 +188,113 @@ Resultado: subida, descarga y borrado correctos.
 La base de datos guarda solo la clave, por ejemplo `quotes/{quoteId}/{uuid}.pdf`, nunca la URL completa.
 
 ---
+
+---
+
+## 8. Jenkins (HU-19)
+
+Jenkins corre en la misma EC2, en el puerto 8080, y ejecuta el `Jenkinsfile` de la raíz del repositorio. No usa PM2: despliega con Docker Compose, igual que el despliegue manual de la sección 4. El pipeline clona el repositorio en su workspace y copia allí el `.env` desde la credencial `cmp-env`, de modo que el `/opt/cmp/app` ya no es la fuente del despliegue.
+
+### 8.1 Instalar Jenkins (HU19-T01)
+
+Java 21 y el repositorio oficial de Jenkins LTS (si la llave cambia, revisar <https://www.jenkins.io/doc/book/installing/linux/>):
+
+```bash
+sudo apt update
+sudo apt install -y fontconfig openjdk-21-jre
+sudo wget -O /etc/apt/keyrings/jenkins-keyring.asc https://pkg.jenkins.io/debian-stable/jenkins.io-2026.key
+echo "deb [signed-by=/etc/apt/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/" | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
+sudo apt update
+sudo apt install -y jenkins
+sudo systemctl enable --now jenkins
+sudo systemctl status jenkins
+```
+
+Permitir que Jenkins use Docker (el usuario `jenkins` entra al grupo `docker`) y reiniciarlo:
+
+```bash
+sudo usermod -aG docker jenkins
+sudo systemctl restart jenkins
+sudo -u jenkins docker ps        # debe listar los contenedores sin error de permisos
+```
+
+> Estar en el grupo `docker` equivale a tener acceso de administrador en el servidor. Por eso Jenkins siempre exige usuario y contraseña, y el puerto 8080 está limitado en el grupo de seguridad.
+
+Memoria: la EC2 tiene 2 GB y Jenkins más los builds de Docker pueden agotarla. Se recomienda crear 2 GB de swap y limitar la memoria de Jenkins:
+
+```bash
+sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile
+sudo mkswap /swapfile && sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+sudo systemctl edit jenkins      # agregar: [Service] y Environment="JAVA_OPTS=-Xmx768m"
+sudo systemctl restart jenkins
+```
+
+### 8.2 Configuración inicial y seguridad
+
+1. Entrar a `http://<IP_ELASTICA>:8080` (solo funciona desde la IP permitida en el grupo de seguridad).
+2. Desbloquear con `sudo cat /var/lib/jenkins/secrets/initialAdminPassword`.
+3. Instalar los plugins sugeridos y **crear el usuario administrador** con una contraseña propia.
+4. En *Jenkins URL* escribir `http://<IP_ELASTICA>:8080/`.
+5. En *Manage Jenkins → Security*: autorización **Logged-in users can do anything**, sin acceso anónimo y con el registro de usuarios desactivado.
+
+### 8.3 Credenciales (nunca en el Jenkinsfile)
+
+En *Manage Jenkins → Credentials → System → Global credentials*:
+
+| ID                     | Tipo                    | Contenido                                                                  |
+| ---------------------- | ----------------------- | -------------------------------------------------------------------------- |
+| `cmp-env`              | Secret file             | El archivo `.env` de producción (sección 3), subido desde el equipo       |
+| `github-webhook-secret`| Secret text             | Secreto del webhook (ver 8.5)                                              |
+
+El `Jenkinsfile` copia `cmp-env` al workspace como `.env` al inicio y lo borra al terminar.
+
+### 8.4 Crear el job
+
+*New Item → Pipeline* (nombre `cmp-deploy`):
+
+- **Build Triggers:** marcar *GitHub hook trigger for GITScm polling*.
+- **Pipeline:** *Pipeline script from SCM* → Git → URL del repositorio (público, sin credenciales) → **Branch Specifier** `*/dev` durante las pruebas y `*/main` para la entrega → Script Path `Jenkinsfile`.
+
+Etapas del pipeline: checkout, preparar entorno, instalar dependencias, calidad (lint y pruebas), build, migraciones, desplegar y verificar `/api/health`. Si falla una etapa anterior a *Desplegar*, los contenedores que ya están corriendo no se tocan.
+
+### 8.5 Webhook de GitHub
+
+1. En Jenkins: *Manage Jenkins → System → GitHub → Advanced → Shared secret* → seleccionar `github-webhook-secret` (secreto de al menos 32 caracteres, generado en el equipo y nunca publicado).
+2. En GitHub: *Settings → Webhooks → Add webhook*:
+   - Payload URL: `http://<IP_ELASTICA>:8080/github-webhook/` (con la `/` final)
+   - Content type: `application/json`
+   - Secret: el mismo valor
+   - Eventos: solo *push*
+3. Revisar *Recent Deliveries*: la entrega debe responder **200**.
+
+Los rangos de GitHub cambian con el tiempo. Para actualizar la regla del puerto 8080: `curl -s https://api.github.com/meta | jq -r '.hooks[]'`.
+
+### 8.6 Pruebas del pipeline
+
+- **Despliegue correcto:** push a la rama configurada → el build termina en verde y `curl -i http://127.0.0.1/api/health` responde 200.
+- **Pruebas fallidas:** en una rama de prueba, romper a propósito una prueba unitaria y hacer push → el build falla en *Calidad* y la versión desplegada no cambia.
+
+### 8.7 Si algo falla
+
+- **Permission denied al usar Docker:** `usermod -aG docker jenkins` y reiniciar Jenkins (8.1).
+- **Webhook sin respuesta (timeout):** revisar que la regla del puerto 8080 incluya los rangos actuales de GitHub.
+- **Webhook responde 403:** el secreto de GitHub y el de Jenkins no coinciden.
+- **Build sin memoria (exit 137):** revisar el swap (8.1).
+- **Logs:** `journalctl -u jenkins -f` y la *Console Output* del build.
+
+### 8.8 Estado de la HU-19
+
+| Paso | Estado |
+| --- | --- |
+| Jenkins instalado con Java 21 (HU19-T01) | Hecho |
+| Usuario `jenkins` con acceso a Docker | Hecho |
+| Usuario administrador y login obligatorio | Hecho |
+| Credencial `cmp-env` (Secret file) | Hecho |
+| Job `cmp-deploy` apuntando a la rama de la HU | Hecho |
+| Primer build manual en verde y `/api/health` = 200 | Hecho |
+| Secreto del webhook y webhook de GitHub con respuesta 200 | Hecho |
+| Build disparado por un push (build #2, "Started by GitHub push") | Hecho |
+| Build con pruebas fallidas que no toca la versión desplegada (build #3: falla en Calidad, los contenedores no cambian) | Hecho |
+
+Build #4 (restauración de la prueba) en verde. Antes de cerrar la HU, al cambiar el job de `*/feature/...` a `*/dev` y luego a `*/main`, repite el primer build manual y revisa `/api/health`.
