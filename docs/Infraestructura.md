@@ -54,12 +54,15 @@ El archivo es `/opt/cmp/app/.env` (en la **raíz** del proyecto, junto a `docker
 | `DB_NAME`                     | `cmp_db`                                                                    |
 | `DB_SSL`                      | `true`                                                                      |
 | `VISIT_CHECKIN_RADIUS_METERS` | Radio de check-in de visitas (valor definido por el equipo)                 |
+| `AWS_REGION`                  | Región del bucket (`us-east-1`)                                             |
+| `S3_BUCKET_NAME`              | Bucket privado de archivos (`nexo-riwi-bucket-2026`). **Obligatoria**: sin ella la API no arranca |
+| `S3_SIGNED_URL_EXPIRES_SECONDS` | Segundos que dura una URL firmada (por defecto `300`)                     |
 | `SEED_*`                      | Solo para cargar usuarios de demo (`npm run seed:prod`). Ver `.env.example` |
 
 Notas:
 
 - En producción la aplicación no arranca si `BETTER_AUTH_SECRET` falta, tiene el valor de ejemplo o tiene menos de 32 caracteres.
-- Las variables de S3 (`AWS_REGION`, `S3_BUCKET_NAME`, `S3_SIGNED_URL_EXPIRES_SECONDS`) se agregarán al `.env` cuando se implemente HU-20.
+- Las variables de S3 (HU-20) deben estar también en la credencial `cmp-env` de Jenkins (sección 8.3) **antes** de desplegar esta versión; si falta `S3_BUCKET_NAME`, la API no arranca. No se usan llaves de AWS: el SDK toma las credenciales del rol IAM.
 
 ---
 
@@ -186,6 +189,13 @@ Resultado: subida, descarga y borrado correctos.
 ### 7.5 Claves de los objetos (CA-04)
 
 La base de datos guarda solo la clave, por ejemplo `quotes/{quoteId}/{uuid}.pdf`, nunca la URL completa.
+
+### 7.6 Uso desde la API (HU-20)
+
+- `POST /api/quotes/:id/document` (multipart, campo `file`): PDF, JPG o PNG de hasta 5 MB. Reemplaza el documento anterior y borra el archivo viejo del bucket.
+- `GET /api/quotes/:id/document`: devuelve `{ "url": "..." }`, una URL firmada que vence en `S3_SIGNED_URL_EXPIRES_SECONDS`. Solo la obtiene quien puede ver la cotización.
+- El CSV original de la importación de clientes (HU-22) se guarda en `clients/imports/{uuid}.csv`.
+- Si la API corre en Docker dentro de la EC2 y no obtiene credenciales del rol, revisa que IMDSv2 tenga `HttpPutResponseHopLimit = 2` (en un contenedor la petición pasa por un salto más).
 
 ---
 

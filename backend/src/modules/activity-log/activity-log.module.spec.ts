@@ -37,6 +37,7 @@ describe('ActivityLogModule', () => {
     process.env.BETTER_AUTH_SECRET ??=
       'cmp_test_secret_key_at_least_32_chars_12345';
     process.env.BETTER_AUTH_URL ??= 'http://localhost:3000';
+    process.env.S3_BUCKET_NAME ??= 'test-bucket';
   });
 
   function createDataSourceFake() {

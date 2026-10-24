@@ -1,6 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ActivityLogWriterModule } from '../activity-log/activity-log-writer.module.js';
+import {
+  STORAGE,
+  type StoragePort,
+} from '../../shared/application/ports/storage.port.js';
+import { StorageModule } from '../../shared/infrastructure/storage/storage.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { CatalogsModule } from '../catalogs/catalogs.module.js';
 import type { CatalogRepository } from '../catalogs/domain/repositories/catalog.repository.js';
@@ -46,7 +51,7 @@ import { ClientImportOrmEntity } from './infrastructure/persistence/entities/cli
 import { ClientOrmEntity } from './infrastructure/persistence/entities/client.orm-entity.js';
 import { TypeOrmClientImportRepository } from './infrastructure/repositories/typeorm-client-import.repository.js';
 import { TypeOrmClientRepository } from './infrastructure/repositories/typeorm-client.repository.js';
-import { PendingClientImportStorageAdapter } from './infrastructure/storage/pending-client-import-storage.adapter.js';
+import { S3ClientImportStorageAdapter } from './infrastructure/storage/s3-client-import-storage.adapter.js';
 import { ClientImportController } from './presentation/client-import.controller.js';
 import { ClientsController } from './presentation/clients.controller.js';
 
@@ -60,11 +65,12 @@ import { ClientsController } from './presentation/clients.controller.js';
  * ACTIVITY_LOG comes from ActivityLogWriterModule (HU-16), which writes into
  * activity_log; it is re-exported for contacts and portfolios.
  *
- * Deferred adapters until other stories are merged:
+ * Deferred adapter until other stories are merged:
  * - ADVISOR_CLIENT_ACCESS → HU-07 (advisors/routes), denies every advisor
  *   until those tables exist.
- * - CLIENT_IMPORT_STORAGE → HU-20 (files in S3): the CSV of an import gets
- *   its key but is not uploaded yet.
+ *
+ * CLIENT_IMPORT_STORAGE uploads the CSV of an import to S3 through the
+ * shared STORAGE port (HU-20).
  */
 @Module({
   imports: [
@@ -72,6 +78,7 @@ import { ClientsController } from './presentation/clients.controller.js';
     AuthModule,
     CatalogsModule,
     ActivityLogWriterModule,
+    StorageModule,
   ],
   // ClientImportController first: its static paths must win over GET /clients/:id.
   controllers: [ClientImportController, ClientsController],
@@ -132,7 +139,12 @@ import { ClientsController } from './presentation/clients.controller.js';
     // Import from CSV (HU-22).
     { provide: CLIENT_IMPORT_READER, useClass: CsvClientReader },
     { provide: CLIENT_IMPORT_REPOSITORY, useClass: TypeOrmClientImportRepository },
-    { provide: CLIENT_IMPORT_STORAGE, useClass: PendingClientImportStorageAdapter },
+    {
+      provide: CLIENT_IMPORT_STORAGE,
+      inject: [STORAGE],
+      useFactory: (storage: StoragePort) =>
+        new S3ClientImportStorageAdapter(storage),
+    },
     {
       provide: GetClientImportTemplateUseCase,
       inject: ['CatalogRepository'],

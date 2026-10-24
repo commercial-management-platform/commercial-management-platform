@@ -91,4 +91,12 @@ export class QuoteDao {
       .execute();
     return result.affected === 1 ? this.findById(id) : null;
   }
+
+  async updateDocumentKey(
+    id: number,
+    documentKey: string,
+  ): Promise<QuoteOrmEntity | null> {
+    const result = await this.repository.update({ id }, { documentKey });
+    return result.affected === 1 ? this.findById(id) : null;
+  }
 }

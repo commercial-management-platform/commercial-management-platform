@@ -42,4 +42,12 @@ export class QuoteRepositoryImpl implements QuoteRepositoryPort {
     const entity = await this.dao.updateStatusIfCurrent(id, status, expected);
     return entity ? QuoteMapper.toDomain(entity) : null;
   }
+
+  async updateDocumentKey(
+    id: number,
+    documentKey: string,
+  ): Promise<Quote | null> {
+    const entity = await this.dao.updateDocumentKey(id, documentKey);
+    return entity ? QuoteMapper.toDomain(entity) : null;
+  }
 }
