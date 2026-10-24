@@ -49,7 +49,7 @@ describe('validateEnv - BETTER_AUTH_SECRET', () => {
     delete env.BETTER_AUTH_SECRET;
 
     expect(validateEnv(env).BETTER_AUTH_SECRET).toBe(
-      DEVELOPMENT_BETTER_AUTH_SECRET,
+      D3333,
     );
   });
 });
