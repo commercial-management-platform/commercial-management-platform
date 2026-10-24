@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ActivityLogWriterModule } from '../activity-log/activity-log-writer.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { CatalogsModule } from '../catalogs/catalogs.module.js';
+import type { CatalogRepository } from '../catalogs/domain/repositories/catalog.repository.js';
 import {
   ADVISOR_CLIENT_ACCESS,
   type AdvisorClientAccessPort,
@@ -17,17 +18,36 @@ import {
 } from './application/ports/catalog-validator.port.js';
 import { ChangeClientStatusUseCase } from './application/use-cases/change-client-status.use-case.js';
 import { CreateClientUseCase } from './application/use-cases/create-client.use-case.js';
+import { GetClientImportTemplateUseCase } from './application/use-cases/get-client-import-template.use-case.js';
 import { GetClientByIdUseCase } from './application/use-cases/get-client-by-id.use-case.js';
+import { ImportClientsUseCase } from './application/use-cases/import-clients.use-case.js';
 import { ListClientsUseCase } from './application/use-cases/list-clients.use-case.js';
 import { UpdateClientUseCase } from './application/use-cases/update-client.use-case.js';
 import {
   CLIENT_REPOSITORY,
   type ClientRepository,
 } from './domain/repositories/client.repository.js';
+import {
+  CLIENT_IMPORT_READER,
+  type ClientImportReaderPort,
+} from './domain/ports/client-import-reader.port.js';
+import {
+  CLIENT_IMPORT_STORAGE,
+  type ClientImportStoragePort,
+} from './domain/ports/client-import-storage.port.js';
+import {
+  CLIENT_IMPORT_REPOSITORY,
+  type ClientImportRepository,
+} from './domain/ports/client-import.repository.js';
 import { CatalogLookupValidatorAdapter } from './infrastructure/adapters/catalog-lookup-validator.adapter.js';
 import { TypeOrmAdvisorClientAccessAdapter } from './infrastructure/adapters/typeorm-advisor-client-access.adapter.js';
+import { CsvClientReader } from './infrastructure/csv/csv-client-reader.js';
+import { ClientImportOrmEntity } from './infrastructure/persistence/entities/client-import.orm-entity.js';
 import { ClientOrmEntity } from './infrastructure/persistence/entities/client.orm-entity.js';
+import { TypeOrmClientImportRepository } from './infrastructure/repositories/typeorm-client-import.repository.js';
 import { TypeOrmClientRepository } from './infrastructure/repositories/typeorm-client.repository.js';
+import { PendingClientImportStorageAdapter } from './infrastructure/storage/pending-client-import-storage.adapter.js';
+import { ClientImportController } from './presentation/client-import.controller.js';
 import { ClientsController } from './presentation/clients.controller.js';
 
 /**
@@ -43,15 +63,18 @@ import { ClientsController } from './presentation/clients.controller.js';
  * Deferred adapters until other stories are merged:
  * - ADVISOR_CLIENT_ACCESS → HU-07 (advisors/routes), denies every advisor
  *   until those tables exist.
+ * - CLIENT_IMPORT_STORAGE → HU-20 (files in S3): the CSV of an import gets
+ *   its key but is not uploaded yet.
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ClientOrmEntity]),
+    TypeOrmModule.forFeature([ClientOrmEntity, ClientImportOrmEntity]),
     AuthModule,
     CatalogsModule,
     ActivityLogWriterModule,
   ],
-  controllers: [ClientsController],
+  // ClientImportController first: its static paths must win over GET /clients/:id.
+  controllers: [ClientImportController, ClientsController],
   providers: [
     { provide: CLIENT_REPOSITORY, useClass: TypeOrmClientRepository },
     { provide: CATALOG_VALIDATOR, useClass: CatalogLookupValidatorAdapter },
@@ -105,6 +128,32 @@ import { ClientsController } from './presentation/clients.controller.js';
       inject: [CLIENT_REPOSITORY, ACTIVITY_LOG],
       useFactory: (clients: ClientRepository, activityLog: ActivityLogPort) =>
         new ChangeClientStatusUseCase(clients, activityLog),
+    },
+    // Import from CSV (HU-22).
+    { provide: CLIENT_IMPORT_READER, useClass: CsvClientReader },
+    { provide: CLIENT_IMPORT_REPOSITORY, useClass: TypeOrmClientImportRepository },
+    { provide: CLIENT_IMPORT_STORAGE, useClass: PendingClientImportStorageAdapter },
+    {
+      provide: GetClientImportTemplateUseCase,
+      inject: ['CatalogRepository'],
+      useFactory: (catalogs: CatalogRepository) => new GetClientImportTemplateUseCase(catalogs),
+    },
+    {
+      provide: ImportClientsUseCase,
+      inject: [
+        CLIENT_IMPORT_READER,
+        CLIENT_IMPORT_REPOSITORY,
+        CLIENT_IMPORT_STORAGE,
+        'CatalogRepository',
+        ACTIVITY_LOG,
+      ],
+      useFactory: (
+        reader: ClientImportReaderPort,
+        imports: ClientImportRepository,
+        storage: ClientImportStoragePort,
+        catalogs: CatalogRepository,
+        activityLog: ActivityLogPort,
+      ) => new ImportClientsUseCase(reader, imports, storage, catalogs, activityLog),
     },
   ],
   exports: [

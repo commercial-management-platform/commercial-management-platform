@@ -1,4 +1,4 @@
-import { http } from './http'
+import { ApiError, http } from './http'
 
 // Clientes del backend (/api/clients). Admin y director ven todos;
 // un asesor solo ve los clientes de sus rutas.
@@ -56,6 +56,57 @@ export const updateClient = (id: number, payload: Partial<ClientPayload>) =>
 /** Solo admin y director. Desactivar no borra el cliente ni su historial. */
 export const setClientActive = (id: number, active: boolean) =>
   http<ApiClient>(`/clients/${id}/status`, { method: 'PATCH', body: { active } })
+
+// --- Importación masiva desde CSV (HU-22). Solo admin y director. ---------------
+
+/** Límites del backend: 2 MB y 5.000 filas. */
+export const IMPORT_MAX_BYTES = 2 * 1024 * 1024
+/** Validar miles de filas toma más que una petición normal. */
+const IMPORT_TIMEOUT_MS = 60_000
+
+export interface ClientImportError {
+  /** Número de fila del archivo (la 1 es el encabezado). */
+  rowNumber: number
+  column: string
+  /** Motivo en inglés, tal como lo genera el backend. */
+  reason: string
+}
+
+export interface ClientImportReport {
+  totalRows: number
+  importedRows: number
+  errorRows: number
+  /** validated = dryRun sin errores; failed = nada se guardó (todo o nada). */
+  status: 'validated' | 'imported' | 'failed'
+  errors: ClientImportError[]
+}
+
+/** Plantilla CSV con los encabezados esperados y una fila de ejemplo. */
+export const downloadImportTemplate = () => http<Blob>('/clients/import/template', { responseType: 'blob' })
+
+/**
+ * Con `dryRun` solo valida. Si alguna fila tiene errores el backend responde 400
+ * con el mismo reporte: aquí se devuelve como resultado, no como excepción.
+ */
+export async function importClients(file: File, dryRun: boolean): Promise<ClientImportReport> {
+  const form = new FormData()
+  form.append('file', file)
+  try {
+    return await http<ClientImportReport>('/clients/import', {
+      method: 'POST',
+      body: form,
+      query: { dryRun: dryRun || undefined },
+      signal: AbortSignal.timeout(IMPORT_TIMEOUT_MS),
+    })
+  } catch (error) {
+    if (error instanceof ApiError && isImportReport(error.body)) return error.body
+    throw error
+  }
+}
+
+function isImportReport(body: unknown): body is ClientImportReport {
+  return typeof body === 'object' && body !== null && Array.isArray((body as ClientImportReport).errors)
+}
 
 /** Nombre a mostrar: el comercial si existe, si no la razón social. */
 export const clientDisplayName = (client: ApiClient) => client.tradeName || client.businessName

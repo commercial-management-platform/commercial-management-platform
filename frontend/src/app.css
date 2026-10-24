@@ -25,6 +25,11 @@
   --map-block: #e2e9e2;
   --map-line: #cbd8cf;
 
+  /* Primitivos · Estado de la visita (mapa y leyenda, HU-11) */
+  --visit-scheduled: #d97706;
+  --visit-visited: #059669;
+  --visit-cancelled: #94a3b8;
+
   /* Semánticos */
   --bg-page: #f5f8f6;
   --bg-surface: var(--neutral-white);

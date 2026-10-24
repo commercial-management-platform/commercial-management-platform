@@ -1,10 +1,7 @@
 <script lang="ts">
-  import { onDestroy, onMount, type Snippet } from 'svelte'
-  import { dashboard } from '../lib/stores/dashboard.svelte'
-  import { ui } from '../lib/stores/ui.svelte'
+  import type { Snippet } from 'svelte'
   import { router } from '../lib/router.svelte'
   import AppFooter from './AppFooter.svelte'
-  import RegisterVisitModal from './RegisterVisitModal.svelte'
   import Sidebar from './Sidebar.svelte'
   import Topbar from './Topbar.svelte'
 
@@ -31,10 +28,6 @@
       /* almacenamiento no disponible */
     }
   }
-
-  // La conexión en tiempo real vive mientras el usuario esté dentro de la app.
-  onMount(() => dashboard.connect())
-  onDestroy(() => dashboard.disconnect())
 </script>
 
 <div class="shell">
@@ -57,12 +50,6 @@
     <AppFooter />
   </div>
 </div>
-
-<RegisterVisitModal
-  open={ui.registerVisit.open}
-  presetClientId={ui.registerVisit.clientId}
-  onclose={() => ui.closeRegisterVisit()}
-/>
 
 <style>
   .shell {

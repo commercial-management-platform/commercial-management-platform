@@ -17,6 +17,7 @@ Reference names for domain entities. Code, tables, columns, modules and commits 
 |---|---|---|
 | Usuario (betterAuth) | `user` (managed by betterAuth) | `users` |
 | Cliente | `client` | `clients` |
+| Importación de clientes desde CSV (HU-22) | `client_import` | `clients` |
 | Contacto | `contact` | `contacts` |
 | Asesor | `advisor` | `advisors` |
 | Cliente-Portafolio | `client_portfolio` | `portfolios` |

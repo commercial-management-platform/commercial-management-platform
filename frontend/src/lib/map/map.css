@@ -63,3 +63,33 @@
   color: var(--text-secondary);
   background: rgba(255, 255, 255, 0.85);
 }
+
+/* Visitas del día (HU-11): número según el orden de la ruta, color según el estado */
+.k-visit {
+  display: grid;
+  place-items: center;
+  font: 700 12px var(--font-heading);
+  color: #fff;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.3);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.k-visit.scheduled {
+  background: var(--visit-scheduled);
+}
+
+.k-visit.visited {
+  background: var(--visit-visited);
+}
+
+.k-visit.cancelled {
+  background: var(--visit-cancelled);
+}
+
+.k-visit.selected {
+  transform: scale(1.25);
+  box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.25), 0 4px 12px rgba(15, 23, 42, 0.35);
+}

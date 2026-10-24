@@ -52,7 +52,7 @@ function ApiCsvExport(fileExample: string, headers: string) {
   return applyDecorators(
     ApiProduces('text/csv'),
     ApiOkResponse({
-      description: `CSV file, UTF-8 with BOM, RFC 4180, streamed. Content-Disposition: attachment; filename="${fileExample}". Header line: ${headers}`,
+      description: `CSV file, UTF-8 with BOM, semicolon separator (Excel in Spanish), RFC 4180 quoting, streamed. Content-Disposition: attachment; filename="${fileExample}". Header line: ${headers}`,
       content: {
         'text/csv': { schema: { type: 'string', format: 'binary' } },
       },

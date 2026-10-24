@@ -1,6 +1,6 @@
 import type { QuoteStatus } from '../../../quotes/domain/entities/quote-status.js';
 import type { SalesOrderStatus } from '../../../sales-orders/domain/entities/sales-order-status.js';
-import type { VisitStatus } from '../../../visits/domain/visit-status.js';
+import type { VisitTrackingFilter } from '../../../dashboard/domain/ports/dashboard-read.port.js';
 import type {
   QuoteReportRow,
   SalesOrderReportRow,
@@ -9,16 +9,8 @@ import type {
 
 export const REPORT_SOURCES = Symbol('REPORT_SOURCES');
 
-export interface VisitTrackingFilter {
-  /** Half-open range on the scheduled date: from <= date < to. */
-  from?: Date;
-  to?: Date;
-  zoneId?: number;
-  advisorId?: number;
-  /** Only the visits of the advisor linked to this betterAuth user. */
-  advisorUserId?: string;
-  status?: VisitStatus;
-}
+/** Same filters as the dashboard tracking table (HU-15). */
+export type { VisitTrackingFilter };
 
 /** Same filters as GET /quotes and GET /sales-orders. */
 export interface CommercialDocumentFilter<S> {

@@ -2,7 +2,7 @@ import { UserRole } from '../../../auth/domain/types/user-role.enum.js';
 import type { VisitStatus } from '../../../visits/domain/visit-status.js';
 import type { VisitTrackingRow } from '../../domain/entities/report-rows.js';
 import type { ReportSourcesPort } from '../../domain/ports/report-sources.port.js';
-import { scheduledWithin } from '../report-dates.js';
+import { scheduledWithin } from '../../../../shared/application/business-date-filters.js';
 import type { ReportActor } from '../types/report-actor.js';
 
 /** Same filters as the dashboard tracking table (CA-02). */
@@ -15,6 +15,8 @@ export interface ExportVisitTrackingInput {
   zoneId?: number;
   advisorId?: number;
   status?: VisitStatus;
+  /** Text in the client, municipality, advisor or route (case and accents as typed). */
+  search?: string;
 }
 
 /**
@@ -37,6 +39,7 @@ export class ExportVisitTrackingUseCase {
       to: range.end,
       zoneId: input.zoneId,
       status: input.status,
+      search: input.search,
       ...(actor.role === UserRole.Advisor
         ? { advisorUserId: actor.id }
         : { advisorId: input.advisorId }),

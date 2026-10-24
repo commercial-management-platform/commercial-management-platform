@@ -10,7 +10,7 @@ import type {
   CommercialDocumentFilter,
   ReportSourcesPort,
 } from '../../domain/ports/report-sources.port.js';
-import { assertDateRange } from '../report-dates.js';
+import { assertDateRange } from '../../../../shared/application/business-date-filters.js';
 import type { ReportActor } from '../types/report-actor.js';
 
 /** Same filters as GET /quotes and GET /sales-orders. */

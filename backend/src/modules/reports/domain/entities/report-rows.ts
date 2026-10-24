@@ -1,6 +1,5 @@
 import type { QuoteStatus } from '../../../quotes/domain/entities/quote-status.js';
 import type { SalesOrderStatus } from '../../../sales-orders/domain/entities/sales-order-status.js';
-import type { VisitStatus } from '../../../visits/domain/visit-status.js';
 
 /**
  * Read models of the CSV reports (HU-17). Plain data: the reports only read,
@@ -8,20 +7,8 @@ import type { VisitStatus } from '../../../visits/domain/visit-status.js';
  * text, as PostgreSQL returns numeric, to keep their exact value.
  */
 
-/** One row of "Seguimiento de rutas y visitas" (dashboard table, HU-15). */
-export interface VisitTrackingRow {
-  visitId: number;
-  scheduledDate: Date;
-  clientName: string;
-  municipality: string | null;
-  clientType: string | null;
-  clientPotential: string | null;
-  status: VisitStatus;
-  /** Sum of the quotes linked to the visit; null if it has none. */
-  quoteValue: string | null;
-  /** Visit result catalog name (HU-09); null until the outcome is recorded. */
-  result: string | null;
-}
+/** The CSV of the dashboard table reuses its read model (HU-15). */
+export type { VisitTrackingRow } from '../../../dashboard/domain/entities/visit-tracking-row.js';
 
 export interface QuoteReportRow {
   number: string;

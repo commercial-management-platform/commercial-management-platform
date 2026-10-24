@@ -92,24 +92,42 @@ const visits: VisitTrackingRow[] = [
   {
     visitId: 2,
     scheduledDate: new Date('2026-10-27T03:00:00Z'),
+    advisorId: 3,
+    advisorName: 'Asesor Uno',
+    zone: 'Norte',
+    routeId: 7,
+    routeName: 'Ruta Norte; lunes',
+    clientId: 10,
     clientName: 'Ferretería "El Tornillo", S.A.S',
     municipality: 'Barranquilla',
     clientType: 'Retail',
     clientPotential: 'Alto',
     status: VisitStatus.Visited,
-    quoteValue: '1500000.500000',
     result: 'Interesado',
+    quoteNumbers: 'COT-0001',
+    quoteValue: '1500000.500000',
+    orderNumbers: 'PED-0001',
+    nextFollowUp: '2026-10-30',
   },
   {
     visitId: 1,
     scheduledDate: new Date('2026-10-20T15:00:00Z'),
+    advisorId: 3,
+    advisorName: 'Asesor Uno',
+    zone: null,
+    routeId: null,
+    routeName: null,
+    clientId: 11,
     clientName: 'Ñandú Ltda',
     municipality: null,
     clientType: null,
     clientPotential: null,
     status: VisitStatus.Scheduled,
-    quoteValue: null,
     result: null,
+    quoteNumbers: null,
+    quoteValue: null,
+    orderNumbers: null,
+    nextFollowUp: null,
   },
 ];
 
@@ -252,7 +270,7 @@ describe('CSV reports (HU-17) - e2e', () => {
       .expect(401);
   });
 
-  it('downloads the tracking CSV: headers, BOM, Spanish columns and RFC 4180 (CA-01, CA-04, CA-05, CA-06)', async () => {
+  it('downloads the tracking CSV: headers, BOM, Spanish columns and semicolons for Excel (CA-01, CA-04, CA-05, CA-06)', async () => {
     ({ app, sources } = await createApp());
 
     const res = await download('visit-tracking/export', UserRole.Director).expect(200);
@@ -265,9 +283,9 @@ describe('CSV reports (HU-17) - e2e', () => {
     expect(res.headers['cache-control']).toBe('no-store');
     expect(body.subarray(0, 3)).toEqual(Buffer.from([0xef, 0xbb, 0xbf]));
     expect(body.subarray(3).toString('utf8')).toBe(
-      'Fecha,Cliente,Municipio,Tipo,Potencial,Estado visita,Cotización,Resultado\r\n' +
-        '2026-10-26,"Ferretería ""El Tornillo"", S.A.S",Barranquilla,Retail,Alto,Visitado,1500000.5,Interesado\r\n' +
-        '2026-10-20,Ñandú Ltda,,,,Pendiente,,\r\n',
+      'Fecha;Hora;Asesor;Territorio;Semana;Día;Ruta;Cliente;Municipio;Tipo de cliente;Potencial;Estado de la visita;Resultado;Cotización;Valor cotización;Pedido;Próximo seguimiento\r\n' +
+        '2026-10-26;22:00;Asesor Uno;Norte;44;lunes;"Ruta Norte; lunes";"Ferretería ""El Tornillo"", S.A.S";Barranquilla;Retail;Alto;Visitada;Interesado;COT-0001;1500000.5;PED-0001;2026-10-30\r\n' +
+        '2026-10-20;10:00;Asesor Uno;;43;martes;;Ñandú Ltda;;;;Programada;;;;;\r\n',
     );
   });
 
@@ -342,8 +360,8 @@ describe('CSV reports (HU-17) - e2e', () => {
       `attachment; filename="cotizaciones-${businessToday()}.csv"`,
     );
     expect((res.body as Buffer).subarray(3).toString('utf8')).toBe(
-      'Número,Fecha,Cliente,NIT,Asesor,Estado,Valor,Moneda\r\n' +
-        'COT-0001,2026-10-20,Acme,900123456-5,Asesor Uno,Enviada,250000,COP\r\n',
+      'Número;Fecha;Cliente;NIT;Asesor;Estado;Valor;Moneda\r\n' +
+        'COT-0001;2026-10-20;Acme;900123456-5;Asesor Uno;Enviada;250000;COP\r\n',
     );
     expect(sources.documentFilters[0]).toEqual({ status: 'sent', clientIds: [10] });
   });
@@ -357,8 +375,8 @@ describe('CSV reports (HU-17) - e2e', () => {
       `attachment; filename="pedidos-${businessToday()}.csv"`,
     );
     expect((res.body as Buffer).subarray(3).toString('utf8')).toBe(
-      'Número,Fecha,Cliente,NIT,Asesor,Cotización,Estado,Valor,Entrega estimada\r\n' +
-        'PED-0001,2026-10-21,Acme,900123456-5,Asesor Uno,,Pendiente,99.9,2026-10-28\r\n',
+      'Número;Fecha;Cliente;NIT;Asesor;Cotización;Estado;Valor;Entrega estimada\r\n' +
+        'PED-0001;2026-10-21;Acme;900123456-5;Asesor Uno;;Pendiente;99.9;2026-10-28\r\n',
     );
     expect(sources.documentFilters[0]).toEqual({ clientIds: undefined });
   });
