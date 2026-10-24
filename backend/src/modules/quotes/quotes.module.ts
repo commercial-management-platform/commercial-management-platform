@@ -2,6 +2,11 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { ActivityLogWriterModule } from '../activity-log/activity-log-writer.module.js';
+import {
+  STORAGE,
+  type StoragePort,
+} from '../../shared/application/ports/storage.port.js';
+import { StorageModule } from '../../shared/infrastructure/storage/storage.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import {
   ADVISOR_CLIENT_ACCESS,
@@ -12,6 +17,8 @@ import {
   ACTIVITY_LOG,
   type ActivityLogPort,
 } from '../../shared/application/ports/activity-log.port.js';
+import { AttachQuoteDocumentUseCase } from './application/use-cases/attach-quote-document.use-case.js';
+import { GetQuoteDocumentUrlUseCase } from './application/use-cases/get-quote-document-url.use-case.js';
 import { ChangeQuoteStatusUseCase } from './application/use-cases/change-quote-status.use-case.js';
 import { AddQuoteDetailUseCase } from './application/use-cases/add-quote-detail.use-case.js';
 import { CreateQuoteUseCase } from './application/use-cases/create-quote.use-case.js';
@@ -44,13 +51,14 @@ import { QuoteDetailRepositoryImpl } from './infrastructure/repositories/quote-d
 import { QuoteRepositoryImpl } from './infrastructure/repositories/quote.repository.impl.js';
 import { QuotesController } from './presentation/controllers/quotes.controller.js';
 
-/** Composition root for HU-12. HU-20 will own document upload and signed URLs. */
+/** Composition root for HU-12. The quote document goes to S3 through STORAGE (HU-20). */
 @Module({
   imports: [
     TypeOrmModule.forFeature([QuoteOrmEntity, QuoteDetailOrmEntity]),
     AuthModule,
     ClientsModule,
     ActivityLogWriterModule,
+    StorageModule,
   ],
   controllers: [QuotesController],
   providers: [
@@ -99,6 +107,24 @@ import { QuotesController } from './presentation/controllers/quotes.controller.j
       inject: [QUOTE_REPOSITORY, ACTIVITY_LOG],
       useFactory: (quotes: QuoteRepositoryPort, activityLog: ActivityLogPort) =>
         new ChangeQuoteStatusUseCase(quotes, activityLog),
+    },
+    {
+      provide: AttachQuoteDocumentUseCase,
+      inject: [QUOTE_REPOSITORY, ADVISOR_CLIENT_ACCESS, STORAGE],
+      useFactory: (
+        quotes: QuoteRepositoryPort,
+        advisorAccess: AdvisorClientAccessPort,
+        storage: StoragePort,
+      ) => new AttachQuoteDocumentUseCase(quotes, advisorAccess, storage),
+    },
+    {
+      provide: GetQuoteDocumentUrlUseCase,
+      inject: [QUOTE_REPOSITORY, ADVISOR_CLIENT_ACCESS, STORAGE],
+      useFactory: (
+        quotes: QuoteRepositoryPort,
+        advisorAccess: AdvisorClientAccessPort,
+        storage: StoragePort,
+      ) => new GetQuoteDocumentUrlUseCase(quotes, advisorAccess, storage),
     },
     {
       provide: ListQuoteDetailsUseCase,

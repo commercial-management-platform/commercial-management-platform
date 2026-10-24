@@ -27,4 +27,6 @@ export interface QuoteRepositoryPort {
     status: QuoteStatus,
     expected: QuoteStatus,
   ): Promise<Quote | null>;
+  /** Guarda la key del documento en S3 (HU-20). Devuelve null si la cotización no existe. */
+  updateDocumentKey(id: number, documentKey: string): Promise<Quote | null>;
 }

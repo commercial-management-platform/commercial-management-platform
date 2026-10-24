@@ -18,6 +18,7 @@ export default defineConfig({
       DB_SSL: 'false',
       BETTER_AUTH_SECRET: 'cmp_test_secret_key_at_least_32_chars_12345',
       BETTER_AUTH_URL: 'http://localhost:3000',
+      S3_BUCKET_NAME: 'test-bucket',
     },
   },
 });

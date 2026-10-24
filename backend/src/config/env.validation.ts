@@ -86,6 +86,21 @@ export class EnvironmentVariables {
   @IsInt()
   @Min(1)
   VISIT_CHECKIN_RADIUS_METERS: number = 15;
+
+  /** Región del bucket de S3 (HU-20). */
+  @IsString()
+  @IsNotEmpty()
+  AWS_REGION: string = 'us-east-1';
+
+  /** Bucket privado donde viven los archivos (HU-20). Obligatorio. */
+  @IsString()
+  @IsNotEmpty()
+  S3_BUCKET_NAME: string;
+
+  /** Segundos que dura una URL firmada para ver un archivo (HU-20). */
+  @IsInt()
+  @Min(1)
+  S3_SIGNED_URL_EXPIRES_SECONDS: number = 300;
 }
 
 function parseBoolean(value: unknown): unknown {

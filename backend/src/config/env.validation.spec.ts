@@ -16,6 +16,7 @@ const validEnv = {
   DB_NAME: 'cmp_db',
   DB_SSL: 'true',
   BETTER_AUTH_SECRET: 'test_only_production_secret_0123456789abcdef',
+  S3_BUCKET_NAME: 'test-bucket',
 };
 
 describe('validateEnv - BETTER_AUTH_SECRET', () => {
@@ -105,6 +106,7 @@ describe('validateEnv', () => {
     'DB_USER',
     'DB_PASSWORD',
     'DB_NAME',
+    'S3_BUCKET_NAME',
   ])('fails when %s is missing', (key) => {
     const env: Record<string, string> = { ...validEnv };
     delete env[key];

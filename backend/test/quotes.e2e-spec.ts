@@ -26,6 +26,13 @@ import {
   ADVISOR_CLIENT_ACCESS,
   type AdvisorClientAccessPort,
 } from '../src/modules/clients/application/ports/advisor-client-access.port.js';
+import {
+  STORAGE,
+  type StoragePort,
+  type StorageUploadInput,
+} from '../src/shared/application/ports/storage.port.js';
+import { AttachQuoteDocumentUseCase } from '../src/modules/quotes/application/use-cases/attach-quote-document.use-case.js';
+import { GetQuoteDocumentUrlUseCase } from '../src/modules/quotes/application/use-cases/get-quote-document-url.use-case.js';
 import { ChangeQuoteStatusUseCase } from '../src/modules/quotes/application/use-cases/change-quote-status.use-case.js';
 import { AddQuoteDetailUseCase } from '../src/modules/quotes/application/use-cases/add-quote-detail.use-case.js';
 import { CreateQuoteUseCase } from '../src/modules/quotes/application/use-cases/create-quote.use-case.js';
@@ -167,6 +174,17 @@ class InMemoryQuotes implements QuoteRepositoryPort, QuoteDetailRepositoryPort {
     return new Quote({ ...updated });
   }
 
+  async updateDocumentKey(
+    id: number,
+    documentKey: string,
+  ): Promise<Quote | null> {
+    const quote = this.quotes.get(id);
+    if (!quote) return null;
+    const updated = new Quote({ ...quote, documentKey, updatedAt: new Date() });
+    this.quotes.set(id, updated);
+    return new Quote({ ...updated });
+  }
+
   async findByQuoteId(quoteId: number): Promise<QuoteDetail[]> {
     return [...this.details.values()]
       .filter((detail) => detail.quoteId === quoteId)
@@ -252,14 +270,32 @@ class RecordedActivities implements ActivityLogPort {
   }
 }
 
+/** Almacenamiento falso en memoria: no toca S3 (HU20-T06). */
+class FakeStorage implements StoragePort {
+  readonly files = new Map<string, StorageUploadInput>();
+
+  async upload(input: StorageUploadInput): Promise<string> {
+    this.files.set(input.key, input);
+    return input.key;
+  }
+  async getSignedUrl(key: string): Promise<string> {
+    return `https://fake-bucket.test/${key}?signature=abc`;
+  }
+  async delete(key: string): Promise<void> {
+    this.files.delete(key);
+  }
+}
+
 interface TestContext {
   app: INestApplication<App>;
   activities: RecordedActivities;
+  storage: FakeStorage;
 }
 
 async function createTestApp(): Promise<TestContext> {
   const quotes = new InMemoryQuotes();
   const activities = new RecordedActivities();
+  const storage = new FakeStorage();
   const fixture: TestingModule = await Test.createTestingModule({
     imports: [
       ConfigModule.forRoot({
@@ -281,6 +317,17 @@ async function createTestApp(): Promise<TestContext> {
       { provide: QUOTE_REFERENCES, useValue: references },
       { provide: ADVISOR_CLIENT_ACCESS, useValue: advisorAccess },
       { provide: ACTIVITY_LOG, useValue: activities },
+      { provide: STORAGE, useValue: storage },
+      {
+        provide: AttachQuoteDocumentUseCase,
+        useFactory: () =>
+          new AttachQuoteDocumentUseCase(quotes, advisorAccess, storage),
+      },
+      {
+        provide: GetQuoteDocumentUrlUseCase,
+        useFactory: () =>
+          new GetQuoteDocumentUrlUseCase(quotes, advisorAccess, storage),
+      },
       {
         provide: CreateQuoteUseCase,
         useFactory: () =>
@@ -323,7 +370,7 @@ async function createTestApp(): Promise<TestContext> {
   const app = fixture.createNestApplication();
   configureApp(app);
   await app.init();
-  return { app, activities };
+  return { app, activities, storage };
 }
 
 describe('Quotes (HU-12)', () => {
@@ -647,5 +694,146 @@ describe('Quotes (HU-12)', () => {
     expect(
       paths['/api/quotes/{id}/details/{detailId}'].delete.responses,
     ).toHaveProperty('204');
+  });
+});
+
+describe('Quote document in S3 (HU-20)', () => {
+  let context: TestContext | undefined;
+  afterEach(async () => context?.app.close());
+
+  const pdf = Buffer.from('%PDF-1.4 contenido de prueba');
+  const bearer = (user: AuthUser) => `Bearer ${TOKENS[user.id]}`;
+
+  /** Crea una cotización del cliente 1 (visible para el asesor). */
+  async function createQuote(server: App): Promise<number> {
+    const created = await request(server)
+      .post('/api/quotes')
+      .set('Authorization', bearer(admin))
+      .send({ clientId: 1, advisorId: 1, date: '2026-10-22' })
+      .expect(201);
+    return created.body.id as number;
+  }
+
+  it('requires a session', async () => {
+    context = await createTestApp();
+    const server = context.app.getHttpServer();
+    await request(server).post('/api/quotes/1/document').expect(401);
+    await request(server).get('/api/quotes/1/document').expect(401);
+  });
+
+  it('attaches a PDF, stores only the key and returns a signed URL', async () => {
+    context = await createTestApp();
+    const server = context.app.getHttpServer();
+    const id = await createQuote(server);
+
+    const attached = await request(server)
+      .post(`/api/quotes/${id}/document`)
+      .set('Authorization', bearer(advisor))
+      .attach('file', pdf, { filename: 'cotizacion.pdf', contentType: 'application/pdf' })
+      .expect(200);
+
+    // CA-04: la BD guarda la key, no una URL.
+    expect(attached.body.documentKey).toMatch(
+      new RegExp(`^quotes/${id}/[0-9a-f-]{36}\\.pdf$`),
+    );
+    expect(context.storage.files.get(attached.body.documentKey)?.contentType).toBe(
+      'application/pdf',
+    );
+
+    // CA-06: el archivo se ve con una URL firmada.
+    const signed = await request(server)
+      .get(`/api/quotes/${id}/document`)
+      .set('Authorization', bearer(advisor))
+      .expect(200);
+    expect(signed.body.url).toContain(attached.body.documentKey);
+  });
+
+  it('deletes the previous file when the document is replaced', async () => {
+    context = await createTestApp();
+    const server = context.app.getHttpServer();
+    const id = await createQuote(server);
+    const first = await request(server)
+      .post(`/api/quotes/${id}/document`)
+      .set('Authorization', bearer(admin))
+      .attach('file', pdf, { filename: 'a.pdf', contentType: 'application/pdf' })
+      .expect(200);
+    const second = await request(server)
+      .post(`/api/quotes/${id}/document`)
+      .set('Authorization', bearer(admin))
+      .attach('file', Buffer.from('png'), { filename: 'b.png', contentType: 'image/png' })
+      .expect(200);
+
+    expect(second.body.documentKey).toMatch(/\.png$/);
+    expect(context.storage.files.has(first.body.documentKey)).toBe(false);
+    expect(context.storage.files.has(second.body.documentKey)).toBe(true);
+  });
+
+  it('rejects a missing file, a wrong type and a file over 5 MB (CA-05)', async () => {
+    context = await createTestApp();
+    const server = context.app.getHttpServer();
+    const id = await createQuote(server);
+    const url = `/api/quotes/${id}/document`;
+
+    await request(server).post(url).set('Authorization', bearer(admin)).expect(400);
+    await request(server)
+      .post(url)
+      .set('Authorization', bearer(admin))
+      .attach('file', Buffer.from('hola'), { filename: 'a.txt', contentType: 'text/plain' })
+      .expect(400);
+    await request(server)
+      .post(url)
+      .set('Authorization', bearer(admin))
+      .attach('file', Buffer.alloc(5 * 1024 * 1024 + 1), {
+        filename: 'grande.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(413);
+    // Nada se subió a S3.
+    expect(context.storage.files.size).toBe(0);
+  });
+
+  it('hides the document of a quote outside the advisor routes (CA-07)', async () => {
+    context = await createTestApp();
+    const server = context.app.getHttpServer();
+    // Cotización del cliente 2: el asesor no lo tiene en sus rutas.
+    const other = await request(server)
+      .post('/api/quotes')
+      .set('Authorization', bearer(admin))
+      .send({ clientId: 2, advisorId: 2, date: '2026-10-22' })
+      .expect(201);
+    const url = `/api/quotes/${other.body.id}/document`;
+    await request(server)
+      .post(url)
+      .set('Authorization', bearer(admin))
+      .attach('file', pdf, { filename: 'a.pdf', contentType: 'application/pdf' })
+      .expect(200);
+
+    await request(server)
+      .post(url)
+      .set('Authorization', bearer(advisor))
+      .attach('file', pdf, { filename: 'a.pdf', contentType: 'application/pdf' })
+      .expect(404);
+    await request(server).get(url).set('Authorization', bearer(advisor)).expect(404);
+  });
+
+  it('answers 404 when the quote has no document', async () => {
+    context = await createTestApp();
+    const server = context.app.getHttpServer();
+    const id = await createQuote(server);
+    await request(server)
+      .get(`/api/quotes/${id}/document`)
+      .set('Authorization', bearer(admin))
+      .expect(404);
+  });
+
+  it('documents the document endpoints in Swagger', async () => {
+    context = await createTestApp();
+    const paths = (
+      await request(context.app.getHttpServer()).get('/api/docs-json').expect(200)
+    ).body.paths;
+    expect(paths['/api/quotes/{id}/document'].post.requestBody.content).toHaveProperty(
+      'multipart/form-data',
+    );
+    expect(paths['/api/quotes/{id}/document'].get.responses).toHaveProperty('200');
   });
 });

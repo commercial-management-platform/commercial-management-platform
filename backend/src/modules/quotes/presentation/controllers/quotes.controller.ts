@@ -10,9 +10,15 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
+  ApiBody,
+  ApiConsumes,
+  ApiPayloadTooLargeResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -31,6 +37,9 @@ import { CurrentUser } from '../../../auth/infrastructure/decorators/current-use
 import { Roles } from '../../../auth/infrastructure/decorators/roles.decorator.js';
 import { AuthGuard } from '../../../auth/infrastructure/guards/auth.guard.js';
 import { RolesGuard } from '../../../auth/infrastructure/guards/roles.guard.js';
+import { STORAGE_MAX_FILE_BYTES, type UploadedFileData } from '../../../../shared/application/validate-stored-file.js';
+import { AttachQuoteDocumentUseCase } from '../../application/use-cases/attach-quote-document.use-case.js';
+import { GetQuoteDocumentUrlUseCase } from '../../application/use-cases/get-quote-document-url.use-case.js';
 import { ChangeQuoteStatusUseCase } from '../../application/use-cases/change-quote-status.use-case.js';
 import { AddQuoteDetailUseCase } from '../../application/use-cases/add-quote-detail.use-case.js';
 import { CreateQuoteUseCase } from '../../application/use-cases/create-quote.use-case.js';
@@ -41,6 +50,7 @@ import { RemoveQuoteDetailUseCase } from '../../application/use-cases/remove-quo
 import { UpdateQuoteDetailUseCase } from '../../application/use-cases/update-quote-detail.use-case.js';
 import type { QuoteActor } from '../../application/types/quote-actor.js';
 import { ChangeQuoteStatusDto } from '../dtos/change-quote-status.dto.js';
+import { QuoteDocumentUrlResponseDto } from '../dtos/quote-document-url-response.dto.js';
 import { CreateQuoteDto } from '../dtos/create-quote.dto.js';
 import { ListQuotesQueryDto } from '../dtos/list-quotes-query.dto.js';
 import { PaginatedQuotesResponseDto } from '../dtos/paginated-quotes-response.dto.js';
@@ -69,6 +79,8 @@ export class QuotesController {
     private readonly addQuoteDetail: AddQuoteDetailUseCase,
     private readonly updateQuoteDetail: UpdateQuoteDetailUseCase,
     private readonly removeQuoteDetail: RemoveQuoteDetailUseCase,
+    private readonly attachQuoteDocument: AttachQuoteDocumentUseCase,
+    private readonly getQuoteDocumentUrl: GetQuoteDocumentUrlUseCase,
   ) {}
 
   @Post()
@@ -211,6 +223,60 @@ export class QuotesController {
     @CurrentUser() user: AuthUser,
   ): Promise<void> {
     await this.removeQuoteDetail.execute(toActor(user), id, detailId);
+  }
+
+  @Post(':id/document')
+  @HttpCode(HttpStatus.OK)
+  // Multer corta la subida si el archivo supera el máximo (responde 413).
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: STORAGE_MAX_FILE_BYTES, files: 1 },
+    }),
+  )
+  @ApiOperation({
+    summary:
+      'Attach (or replace) the quote document: PDF, JPG or PNG, up to 5 MB. It is stored in S3',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiOkResponse({ type: QuoteResponseDto, description: 'Document attached' })
+  @ApiBadRequestResponse({
+    description: 'Missing file, file type not allowed, or file too large',
+  })
+  @ApiPayloadTooLargeResponse({ description: 'File larger than 5 MB' })
+  @ApiNotFoundResponse({
+    description: 'Quote does not exist or is not visible',
+  })
+  async attachDocument(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() file: UploadedFileData | undefined,
+    @CurrentUser() user: AuthUser,
+  ): Promise<QuoteResponseDto> {
+    return QuoteResponseDto.fromDomain(
+      await this.attachQuoteDocument.execute(toActor(user), id, file),
+    );
+  }
+
+  @Get(':id/document')
+  @ApiOperation({
+    summary: 'Get a short-lived signed URL to view the quote document',
+  })
+  @ApiOkResponse({ type: QuoteDocumentUrlResponseDto })
+  @ApiNotFoundResponse({
+    description: 'Quote is not visible or has no document',
+  })
+  async getDocument(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ): Promise<QuoteDocumentUrlResponseDto> {
+    const url = await this.getQuoteDocumentUrl.execute(toActor(user), id);
+    return QuoteDocumentUrlResponseDto.fromUrl(url);
   }
 
   @Patch(':id/status')
