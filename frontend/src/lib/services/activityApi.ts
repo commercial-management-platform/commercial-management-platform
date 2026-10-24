@@ -7,6 +7,7 @@ export type ActivityAction =
   | 'client.created'
   | 'client.updated'
   | 'client.status_changed'
+  | 'client.imported'
   | 'contact.created'
   | 'contact.updated'
   | 'contact.status_changed'
@@ -17,6 +18,11 @@ export type ActivityAction =
   | 'quote.status_changed'
   | 'follow_up.created'
   | 'follow_up.completed'
+  | 'sales_order.created'
+  | 'sales_order.status_changed'
+  | 'visit.scheduled'
+  | 'visit.rescheduled'
+  | 'visit.cancelled'
   | 'visit.completed'
 
 export interface ApiActivityEntry {
@@ -33,6 +39,7 @@ export const ACTIVITY_LABELS: Record<ActivityAction, string> = {
   'client.created': 'Cliente creado',
   'client.updated': 'Datos actualizados',
   'client.status_changed': 'Cambio de estado',
+  'client.imported': 'Importado desde CSV',
   'contact.created': 'Contacto agregado',
   'contact.updated': 'Contacto actualizado',
   'contact.status_changed': 'Estado de contacto',
@@ -43,6 +50,11 @@ export const ACTIVITY_LABELS: Record<ActivityAction, string> = {
   'quote.status_changed': 'Estado de cotización',
   'follow_up.created': 'Seguimiento programado',
   'follow_up.completed': 'Seguimiento completado',
+  'sales_order.created': 'Pedido registrado',
+  'sales_order.status_changed': 'Estado de pedido',
+  'visit.scheduled': 'Visita programada',
+  'visit.rescheduled': 'Visita reprogramada',
+  'visit.cancelled': 'Visita cancelada',
   'visit.completed': 'Visita registrada',
 }
 

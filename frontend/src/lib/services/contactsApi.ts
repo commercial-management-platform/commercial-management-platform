@@ -39,5 +39,9 @@ export const updateContact = (clientId: number, contactId: number, payload: Part
   http<ApiContact>(`/clients/${clientId}/contacts/${contactId}`, { method: 'PATCH', body: payload })
 
 /** El contacto principal, o el primero activo si ninguno está marcado. */
+/** Solo admin y director. Desactivar no borra el contacto ni su historial. */
+export const setContactActive = (clientId: number, contactId: number, active: boolean) =>
+  http<ApiContact>(`/clients/${clientId}/contacts/${contactId}/status`, { method: 'PATCH', body: { active } })
+
 export const primaryContact = (contacts: ApiContact[]) =>
   contacts.find((c) => c.active && c.isPrimary) ?? contacts.find((c) => c.active) ?? null

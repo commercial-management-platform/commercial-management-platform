@@ -13,6 +13,7 @@
   import { formatDate } from '../../lib/utils/format'
   import ClientDrawer from './ClientDrawer.svelte'
   import ClientFormModal from './ClientFormModal.svelte'
+  import ClientImportModal from './ClientImportModal.svelte'
 
   useClientDirectory()
   // Para el filtro por portafolio (HU-06); el detalle también los usa.
@@ -41,6 +42,7 @@
   // Modales: detalle (por id, para que siga los cambios al refrescar) y formulario.
   let detailId = $state<number | null>(null)
   let formOpen = $state(false)
+  let importOpen = $state(false)
   let editing = $state<ApiClient | null>(null)
 
   let detail = $derived(detailId !== null ? (clientDirectory.byId.get(detailId) ?? null) : null)
@@ -145,9 +147,15 @@
       </p>
     </div>
     {#if can.createClient}
-      <button class="btn btn-primary" onclick={openCreate}>
-        <Icon name="plus" size={16} strokeWidth={2.2} /> Nuevo cliente
-      </button>
+      <div class="intro-actions">
+        <!-- Importación masiva (HU-22): mismo permiso que crear clientes. -->
+        <button class="btn btn-outline" onclick={() => (importOpen = true)}>
+          <Icon name="upload" size={16} /> Importar CSV
+        </button>
+        <button class="btn btn-primary" onclick={openCreate}>
+          <Icon name="plus" size={16} strokeWidth={2.2} /> Nuevo cliente
+        </button>
+      </div>
     {/if}
   </header>
 
@@ -384,6 +392,7 @@
     if (!editing) detailId = c.id
   }}
 />
+<ClientImportModal open={importOpen} onclose={() => (importOpen = false)} />
 
 <style>
   .page {
@@ -400,6 +409,12 @@
     align-items: flex-end;
     justify-content: space-between;
     gap: 16px;
+  }
+
+  .intro-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
   }
 
   h1 {

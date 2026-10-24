@@ -9,7 +9,14 @@ import {
   type ClientPayload,
 } from '../services/clientsApi'
 import { listClientActivity, type ApiActivityEntry } from '../services/activityApi'
-import { createContact, listContacts, updateContact, type ApiContact, type ContactPayload } from '../services/contactsApi'
+import {
+  createContact,
+  listContacts,
+  setContactActive,
+  updateContact,
+  type ApiContact,
+  type ContactPayload,
+} from '../services/contactsApi'
 import { ApiError } from '../services/http'
 import { catalogs } from './catalogs.svelte'
 import { dashboard } from './dashboard.svelte'
@@ -155,6 +162,23 @@ class ClientDirectoryStore {
         tone: 'warning',
         icon: 'alert-circle',
         title: 'No se pudo guardar el contacto',
+        message: errorText(error, 'Intenta de nuevo.'),
+      })
+      return false
+    }
+  }
+
+  async setContactActive(clientId: number, contactId: number, active: boolean) {
+    try {
+      await setContactActive(clientId, contactId, active)
+      await this.loadContacts(clientId, true)
+      this.invalidateActivity(clientId)
+      return true
+    } catch (error) {
+      toasts.push({
+        tone: 'warning',
+        icon: 'alert-circle',
+        title: active ? 'No se pudo reactivar el contacto' : 'No se pudo desactivar el contacto',
         message: errorText(error, 'Intenta de nuevo.'),
       })
       return false

@@ -1,19 +1,43 @@
 <script lang="ts">
-  import { dashboard } from '../../lib/stores/dashboard.svelte'
+  import Icon from '../../lib/components/Icon.svelte'
+  import { addDays, weekRange } from '../../lib/domain/tracking'
+  import { can } from '../../lib/permissions.svelte'
+  import type { CommercialKpis } from '../../lib/services/dashboardApi'
+  import { businessToday } from '../../lib/services/visitsApi'
+  import { advisors } from '../../lib/stores/advisors.svelte'
+  import { catalogs } from '../../lib/stores/catalogs.svelte'
+  import { useClientDirectory } from '../../lib/stores/clientDirectory.svelte'
+  import { operation } from '../../lib/stores/operation.svelte'
   import { session } from '../../lib/stores/session.svelte'
-  import type { Period } from '../../lib/types'
-  import { delta, formatCompact, greeting, percent } from '../../lib/utils/format'
-  import ActivityTable from './ActivityTable.svelte'
-  import DeliveryRoutes from './DeliveryRoutes.svelte'
+  import { currentWeekLabel, delta, formatCompact, formatTime, greeting } from '../../lib/utils/format'
+  import DayRoute from './DayRoute.svelte'
   import KpiCard from './KpiCard.svelte'
   import PortfolioOverview from './PortfolioOverview.svelte'
+  import TrackingTable from './TrackingTable.svelte'
 
-  const periodLabel: Record<Period, string> = { semana: 'Semana', mes: 'Mes', trimestre: 'Trimestre' }
+  // Dashboard comercial (HU-15). Los indicadores los calcula el backend
+  // (GET /dashboard/kpis) con los filtros de semana, zona y asesor.
+
+  operation.use()
+  useClientDirectory()
+  advisors.load()
+  catalogs.load()
 
   let firstName = $derived(session.current?.user.name.split(' ')[0] ?? '')
-  let s = $derived(dashboard.current)
-  let h = $derived(dashboard.highlights)
-  let efectividad = $derived(percent(s.visitasRealizadas, s.visitasProgramadas))
+  let isCurrentWeek = $derived(operation.range.from === weekRange(businessToday()).from)
+  let weekLabel = $derived(currentWeekLabel(new Date(`${operation.range.from}T12:00:00`)))
+
+  // Los montos llegan como texto decimal; para mostrarlos basta un número.
+  const toKpis = (k: CommercialKpis) => ({
+    scheduled: k.scheduledVisits,
+    visited: k.completedVisits,
+    effectiveness: k.effectiveness,
+    quoted: Number(k.quotedValue),
+    closedOrders: k.closedOrders,
+    billed: Number(k.billedValue),
+  })
+  let s = $derived(operation.kpis ? toKpis(operation.kpis.current) : null)
+  let prev = $derived(operation.kpis ? toKpis(operation.kpis.previous) : null)
 
   const money = (v: number) => `$${formatCompact(v)}`
   const pct = (v: number) => `${Math.round(v)}%`
@@ -22,6 +46,8 @@
     const d = delta(current, previous)
     return { trend: `${Math.abs(d)}%`, trendUp: d >= 0 }
   }
+
+  const shiftWeek = (weeks: number) => (operation.week = addDays(operation.range.from, weeks * 7))
 </script>
 
 <div class="dashboard">
@@ -31,84 +57,107 @@
     <p class="subtitle">Esto es lo que está pasando con tu operación comercial.</p>
   </header>
 
-  <!-- Visitas, rutas, cotizaciones y pedidos aún no existen en el backend:
-       esta sección usa el servidor simulado (lib/services/mock) con el mismo contrato. -->
   <section class="operation" aria-labelledby="operation-title">
     <div class="section-head">
       <div>
         <h2 id="operation-title">Operación comercial</h2>
-        <p><span class="pill demo">Demostración</span> Visitas, entregas y pedidos simulados hasta conectar esos módulos del backend.</p>
+        <p>
+          <span class="pill real">Datos reales</span>
+          {#if operation.updatedAt}Actualizado a las {formatTime(operation.updatedAt)}{/if}
+        </p>
       </div>
-      <div class="period">
-        <label for="period">Periodo</label>
-        <select id="period" class="select" bind:value={dashboard.period}>
-          {#each Object.entries(periodLabel) as [value, label] (value)}
-            <option {value}>{label}</option>
-          {/each}
-        </select>
+
+      <div class="filters">
+        <div class="week-nav" role="group" aria-label="Semana">
+          <button class="icon-btn" onclick={() => shiftWeek(-1)} aria-label="Semana anterior">
+            <Icon name="chevron-left" size={16} />
+          </button>
+          <span class="week-label">{weekLabel}</span>
+          <button class="icon-btn" onclick={() => shiftWeek(1)} aria-label="Semana siguiente">
+            <Icon name="chevron-right" size={16} />
+          </button>
+          {#if !isCurrentWeek}
+            <button class="today" onclick={() => (operation.week = businessToday())}>Esta semana</button>
+          {/if}
+        </div>
+
+        <!-- El asesor solo ve sus indicadores (CA-03): no filtra por zona ni asesor. -->
+        {#if can.isManager}
+          <select class="select" bind:value={operation.zoneId} aria-label="Zona">
+            <option value="">Todas las zonas</option>
+            {#each catalogs.zones as zone (zone.id)}
+              <option value={zone.id}>{zone.name}</option>
+            {/each}
+          </select>
+          <select class="select" bind:value={operation.advisorId} aria-label="Asesor">
+            <option value="">Todos los asesores</option>
+            {#each advisors.list as advisor (advisor.id)}
+              <option value={advisor.id}>{advisor.name}</option>
+            {/each}
+          </select>
+        {/if}
       </div>
     </div>
 
-  {#if dashboard.status === 'loading' || dashboard.status === 'idle'}
+  {#if operation.status === 'error'}
+    <div class="card error">
+      <p>{operation.error}</p>
+      <button class="btn btn-outline" onclick={() => operation.reload()}>Reintentar</button>
+    </div>
+  {:else if !s || !prev}
     <div class="kpis" aria-busy="true">
       {#each Array(6) as _, i (i)}<div class="skeleton kpi-skeleton"></div>{/each}
     </div>
-  {:else if dashboard.status === 'error'}
-    <div class="card error">
-      <p>No pudimos cargar el dashboard.</p>
-      <button class="btn btn-outline" onclick={() => dashboard.connect()}>Reintentar</button>
-    </div>
   {:else}
+    {#if operation.error}
+      <p class="stale"><Icon name="alert-circle" size={14} /> {operation.error} Se muestran los últimos datos.</p>
+    {/if}
     <div class="kpis">
       <KpiCard
         featured
         icon="check"
         label="Visitas realizadas"
-        value={s.visitasRealizadas}
-        detail="{s.visitasRealizadas} de {s.visitasProgramadas} · {efectividad}%"
-        flash={h['kpi:visitasRealizadas']}
+        value={s.visited}
+        detail="Objetivo semanal: {s.visited} de {s.scheduled}"
       />
       <KpiCard
         icon="calendar"
         label="Visitas programadas"
-        value={s.visitasProgramadas}
-        detail="{s.visitasProgramadas - s.visitasRealizadas} pendientes"
-        flash={h['kpi:visitasProgramadas']}
+        value={s.scheduled}
+        detail="{s.scheduled - s.visited} pendientes"
       />
       <KpiCard
         icon="trending-up"
         label="Efectividad"
-        value={efectividad}
+        value={s.effectiveness}
         format={pct}
-        detail="{s.visitasRealizadas} de {s.visitasProgramadas} visitas"
-        flash={h['kpi:visitasRealizadas'] || h['kpi:visitasProgramadas']}
+        detail="{s.visited} de {s.scheduled} visitas"
+        trend="{Math.abs(s.effectiveness - prev.effectiveness)} pts"
+        trendUp={s.effectiveness >= prev.effectiveness}
       />
       <KpiCard
         icon="file-text"
         label="Valor cotizado"
-        value={s.valorCotizado}
+        value={s.quoted}
         format={money}
-        detail="vs. periodo anterior"
-        {...trend(s.valorCotizado, s.valorCotizadoPrev)}
-        flash={h['kpi:valorCotizado']}
+        detail="vs. semana anterior"
+        {...trend(s.quoted, prev.quoted)}
       />
       <KpiCard
         icon="package"
         label="Pedidos cerrados"
-        value={s.pedidosCerrados}
-        detail="vs. periodo anterior"
-        trend={String(Math.abs(s.pedidosCerrados - s.pedidosCerradosPrev))}
-        trendUp={s.pedidosCerrados >= s.pedidosCerradosPrev}
-        flash={h['kpi:pedidosCerrados']}
+        value={s.closedOrders}
+        detail="confirmados o entregados"
+        trend={String(Math.abs(s.closedOrders - prev.closedOrders))}
+        trendUp={s.closedOrders >= prev.closedOrders}
       />
       <KpiCard
         icon="briefcase"
         label="Facturación"
-        value={s.facturacion}
+        value={s.billed}
         format={money}
-        detail="vs. periodo anterior"
-        {...trend(s.facturacion, s.facturacionPrev)}
-        flash={h['kpi:facturacion']}
+        detail="vs. semana anterior"
+        {...trend(s.billed, prev.billed)}
       />
     </div>
   {/if}
@@ -116,12 +165,9 @@
 
   <PortfolioOverview />
 
-  {#if dashboard.status === 'loading' || dashboard.status === 'idle'}
-    <div class="skeleton block-skeleton"></div>
-  {:else if dashboard.status === 'ready'}
-    <DeliveryRoutes />
-    <ActivityTable />
-  {/if}
+  <DayRoute />
+
+  <TrackingTable />
 </div>
 
 <style>
@@ -169,26 +215,69 @@
     color: var(--text-muted);
   }
 
-  .pill.demo {
+  .pill.real {
     padding: 2px 10px;
     font: 700 12px/18px var(--font-heading);
-    color: #92400e;
+    color: var(--brand-700);
     border-radius: 999px;
-    background: #fffbeb;
+    background: var(--brand-50);
+  }
+
+  .filters {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .week-nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .icon-btn {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    color: var(--text-primary);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .week-label {
+    min-width: 108px;
+    font: 600 0.9rem var(--font-heading);
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .today {
+    padding: 0 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--brand-600);
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+
+  .stale {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: #b45309;
   }
 
   .subtitle {
     margin-top: 6px;
     font-size: 1rem;
-    color: var(--text-secondary);
-  }
-
-  .period {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: var(--space-1);
-    font-size: 0.875rem;
     color: var(--text-secondary);
   }
 
@@ -213,11 +302,6 @@
 
   .kpi-skeleton {
     height: 156px;
-  }
-
-  .block-skeleton {
-    height: 460px;
-    border-radius: 18px;
   }
 
   .error {
@@ -250,8 +334,14 @@
       align-items: flex-start;
     }
 
-    .period {
+    .filters {
       justify-content: flex-start;
+      width: 100%;
+    }
+
+    .filters .select {
+      flex: 1;
+      min-width: 0;
     }
   }
 </style>

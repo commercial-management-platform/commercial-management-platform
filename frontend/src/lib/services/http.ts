@@ -10,11 +10,14 @@ const OFFLINE_MESSAGE = 'No pudimos conectar con el servidor. Revisa tu conexió
 /** Error de la API con el código HTTP; status 0 = sin conexión con el servidor. */
 export class ApiError extends Error {
   readonly status: number
+  /** Cuerpo de la respuesta, para errores que traen datos (p. ej. el reporte de una importación). */
+  readonly body: unknown
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, body: unknown = null) {
     super(message)
     this.name = 'ApiError'
     this.status = status
+    this.body = body
   }
 }
 
@@ -40,23 +43,28 @@ export function configureHttp(next: HttpConfig) {
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
+  /** Se envía como JSON, salvo un FormData (subida de archivos), que va tal cual. */
   body?: unknown
   query?: Record<string, string | number | boolean | undefined>
   /** false para endpoints públicos (login): no envía token ni dispara onUnauthorized. */
   auth?: boolean
   signal?: AbortSignal
+  /** 'blob' para descargar archivos (p. ej. plantillas CSV). */
+  responseType?: 'json' | 'blob'
 }
 
 export async function http<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, query, auth = true, signal } = options
+  const { method = 'GET', body, query, auth = true, signal, responseType = 'json' } = options
+  const isForm = body instanceof FormData
 
   const url = new URL(`${BASE_URL}${path}`, window.location.origin)
   for (const [key, value] of Object.entries(query ?? {})) {
     if (value !== undefined && value !== '') url.searchParams.set(key, String(value))
   }
 
-  const headers: Record<string, string> = { Accept: 'application/json' }
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  const headers: Record<string, string> = { Accept: responseType === 'blob' ? '*/*' : 'application/json' }
+  // Con FormData el navegador pone el Content-Type con su separador (boundary).
+  if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json'
   const token = auth ? config.getToken() : null
   if (token) headers.Authorization = `Bearer ${token}`
 
@@ -65,7 +73,7 @@ export async function http<T>(path: string, options: RequestOptions = {}): Promi
     response = await fetch(url, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
       credentials: 'include',
       signal: signal ?? AbortSignal.timeout(TIMEOUT_MS),
     })
@@ -77,12 +85,13 @@ export async function http<T>(path: string, options: RequestOptions = {}): Promi
   if (response.status >= 502 && response.status <= 504) throw new ApiError(0, OFFLINE_MESSAGE)
 
   if (response.status === 204) return undefined as T
+  if (response.ok && responseType === 'blob') return (await response.blob()) as T
 
   const payload = await response.json().catch(() => null)
 
   if (!response.ok) {
     if (response.status === 401 && auth) config.onUnauthorized()
-    throw new ApiError(response.status, errorMessage(payload, response.status))
+    throw new ApiError(response.status, errorMessage(payload, response.status), payload)
   }
 
   return payload as T

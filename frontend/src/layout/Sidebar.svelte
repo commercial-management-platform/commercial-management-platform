@@ -4,7 +4,7 @@
   import KestrelLogo from "../lib/components/KestrelLogo.svelte";
   import { can } from "../lib/permissions.svelte";
   import { router, type Route } from "../lib/router.svelte";
-  import { dashboard } from "../lib/stores/dashboard.svelte";
+  import { weeklyGoal } from "../lib/stores/operation.svelte";
   import { session } from "../lib/stores/session.svelte";
   import { percent } from "../lib/utils/format";
 
@@ -91,12 +91,8 @@
       .join("")
       .toUpperCase(),
   );
-  let goal = $derived(
-    percent(
-      dashboard.weekly.visitasRealizadas,
-      dashboard.weekly.visitasProgramadas,
-    ),
-  );
+  weeklyGoal.use();
+  let goal = $derived(percent(weeklyGoal.visited, weeklyGoal.scheduled));
 </script>
 
 <aside class="sidebar" class:collapsed class:open={mobileOpen}>
@@ -164,7 +160,7 @@
 
   <section
     class="goal"
-    class:flash={dashboard.highlights["kpi:visitasRealizadas"]}
+    class:flash={weeklyGoal.highlight}
     aria-label="Objetivo semanal"
   >
     <div
@@ -180,8 +176,8 @@
     <div class="goal-text">
       <p class="goal-label">Objetivo semanal</p>
       <p class="goal-detail">
-        <strong>{dashboard.weekly.visitasRealizadas}</strong> de {dashboard
-          .weekly.visitasProgramadas} visitas completadas
+        <strong>{weeklyGoal.visited}</strong> de {weeklyGoal.scheduled} visitas
+        completadas
       </p>
     </div>
   </section>

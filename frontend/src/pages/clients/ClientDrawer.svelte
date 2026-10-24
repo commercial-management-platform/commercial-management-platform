@@ -23,6 +23,7 @@
   let contactsError = $state(false)
   let activityError = $state(false)
   let toggling = $state(false)
+  let togglingContact = $state<number | null>(null)
   let portfolioBusy = $state(false)
   let portfolioToAdd = $state<number | ''>('')
 
@@ -77,6 +78,15 @@
     } finally {
       toggling = false
     }
+  }
+
+  async function toggleContact(contactId: number, active: boolean) {
+    if (clientId === null) return
+    const contact = contacts?.find((c) => c.id === contactId)
+    if (!active && contact && !confirm(`¿Desactivar el contacto ${contact.name}? Su historial se conserva.`)) return
+    togglingContact = contactId
+    await clientDirectory.setContactActive(clientId, contactId, active)
+    togglingContact = null
   }
 
   async function changePortfolio(portfolioId: number, add: boolean) {
@@ -154,6 +164,15 @@
                 {#if contact.phone}<a href="tel:{contact.phone.replace(/\s/g, '')}">{contact.phone}</a>{/if}
                 {#if contact.email}<a href="mailto:{contact.email}">{contact.email}</a>{/if}
               </div>
+              {#if can.manageContacts}
+                <button
+                  class="contact-toggle"
+                  disabled={togglingContact === contact.id}
+                  onclick={() => toggleContact(contact.id, !contact.active)}
+                >
+                  {contact.active ? 'Desactivar' : 'Reactivar'}
+                </button>
+              {/if}
             </li>
           {/each}
         </ul>
@@ -335,6 +354,22 @@
 
   .contacts li.off {
     opacity: 0.6;
+  }
+
+  .contact-toggle {
+    margin-top: 6px;
+    padding: 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--brand-600);
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+
+  .contact-toggle:disabled {
+    opacity: 0.6;
+    cursor: default;
   }
 
   .tag {
