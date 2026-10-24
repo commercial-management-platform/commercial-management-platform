@@ -67,7 +67,7 @@ describe('UpdateFollowUpUseCase', () => {
 
   it('rejects moving the date to the past', async () => {
     const { followUps, useCase } = setup();
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const yesterday = businessToday(new Date(Date.now() - 86_400_000));
 
     await expect(
       useCase.execute(advisorActor, 4, { nextDate: yesterday }),
