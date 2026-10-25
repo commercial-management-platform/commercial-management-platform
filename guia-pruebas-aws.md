@@ -52,7 +52,9 @@ Hazlos en orden: cada uno usa lo que creó el anterior.
 | Paso | Resultado esperado | ✔ |
 |---|---|---|
 | Iniciar sesión como **admin** | Ve todo el menú, incluida **Administración** (usuarios y zonas) | ☐ |
-| Iniciar sesión como **director** | Ve Dashboard, Clientes, Rutas, Visitas, Cotizaciones, Pedidos y Seguimientos, pero no **Administración** (esa pantalla es solo del admin) | ☐ |
+| Iniciar sesión como **director** | Ve Dashboard, Clientes, Rutas, Visitas, Cotizaciones, Pedidos, Seguimientos y **Administración**; en Administración solo aparecen asesores, sin pestaña de Zonas ni selector de rol | ☐ |
+| Director: Administración → **Nuevo asesor** (nombre, correo y contraseña; no elige rol) | La cuenta se crea como asesor y aparece en la lista; ese asesor puede iniciar sesión | ☐ |
+| Director: renombrar, desactivar y reactivar ese asesor | Los cambios se guardan; desactivado, el asesor no puede iniciar sesión | ☐ |
 | Iniciar sesión como **advisor** | No ve Administración; en Clientes solo aparecen los de sus rutas | ☐ |
 | Contraseña incorrecta | Mensaje de error y no entra | ☐ |
 | **Cerrar sesión** y volver atrás con el navegador | Pide iniciar sesión de nuevo | ☐ |

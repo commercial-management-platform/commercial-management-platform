@@ -1,10 +1,12 @@
 <script lang="ts">
   import Modal from '../../lib/components/Modal.svelte'
+  import { can } from '../../lib/permissions.svelte'
   import { roleLabel, type UserRole } from '../../lib/services/auth'
   import { PASSWORD_MIN_LENGTH, createUser, updateUser, type ApiUser } from '../../lib/services/usersApi'
   import { errorText } from '../../lib/stores/clientDirectory.svelte'
 
   // Crear un usuario o editar su nombre. El rol y el estado se cambian desde la tabla.
+  // El director no elige rol: solo crea asesores (HU-02 CA-13).
 
   interface Props {
     open: boolean
@@ -56,7 +58,12 @@
     try {
       const saved = user
         ? await updateUser(user.id, { name: name.trim() })
-        : await createUser({ name: name.trim(), email: email.trim().toLowerCase(), password, role })
+        : await createUser({
+            name: name.trim(),
+            email: email.trim().toLowerCase(),
+            password,
+            role: can.assignRoles ? role : 'advisor',
+          })
       onsaved(saved)
       onclose()
     } catch (e) {
@@ -67,7 +74,12 @@
   }
 </script>
 
-<Modal {open} {onclose} title={user ? 'Editar usuario' : 'Nuevo usuario'} subtitle={user ? user.email : 'Crea la cuenta con su rol inicial.'}>
+<Modal
+  {open}
+  {onclose}
+  title={user ? 'Editar usuario' : can.assignRoles ? 'Nuevo usuario' : 'Nuevo asesor'}
+  subtitle={user ? user.email : can.assignRoles ? 'Crea la cuenta con su rol inicial.' : 'Crea la cuenta de un asesor comercial.'}
+>
   <form id="user-form" class="form" onsubmit={submit} novalidate>
     <label class="field full">
       <span>Nombre completo</span>
@@ -81,17 +93,19 @@
         <input class="input" class:invalid={err.email} type="email" bind:value={email} autocomplete="off" />
         {#if err.email}<small>{err.email}</small>{/if}
       </label>
-      <label class="field">
+      <label class="field" class:full={!can.assignRoles}>
         <span>Contraseña inicial</span>
         <input class="input" class:invalid={err.password} type="password" bind:value={password} autocomplete="new-password" />
         {#if err.password}<small>{err.password}</small>{/if}
       </label>
-      <label class="field">
-        <span>Rol</span>
-        <select class="select" bind:value={role}>
-          {#each ROLES as r (r)}<option value={r}>{roleLabel[r]}</option>{/each}
-        </select>
-      </label>
+      {#if can.assignRoles}
+        <label class="field">
+          <span>Rol</span>
+          <select class="select" bind:value={role}>
+            {#each ROLES as r (r)}<option value={r}>{roleLabel[r]}</option>{/each}
+          </select>
+        </label>
+      {/if}
     {/if}
 
     {#if error}<p class="error full" role="alert">{error}</p>{/if}
@@ -100,7 +114,7 @@
   {#snippet footer()}
     <button class="btn btn-outline" type="button" onclick={onclose}>Cancelar</button>
     <button class="btn btn-primary" type="submit" form="user-form" disabled={saving}>
-      {saving ? 'Guardando…' : user ? 'Guardar' : 'Crear usuario'}
+      {saving ? 'Guardando…' : user ? 'Guardar' : can.assignRoles ? 'Crear usuario' : 'Crear asesor'}
     </button>
   {/snippet}
 </Modal>

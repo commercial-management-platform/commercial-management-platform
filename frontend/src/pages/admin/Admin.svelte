@@ -1,8 +1,10 @@
 <script lang="ts">
+  import { can } from '../../lib/permissions.svelte'
   import UsersPanel from './UsersPanel.svelte'
   import ZonesPanel from './ZonesPanel.svelte'
 
-  // Administración (solo admin): usuarios y roles (HU-02) y zonas (HU-05).
+  // Administración: el admin gestiona usuarios y roles (HU-02) y zonas (HU-05);
+  // el director solo las cuentas de los asesores (HU-02 CA-13).
 
   let tab = $state<'users' | 'zones'>('users')
 </script>
@@ -11,15 +13,19 @@
   <header>
     <p class="eyebrow">Configuración</p>
     <h1>Administración</h1>
-    <p class="subtitle">Cuentas, roles y zonas comerciales de la plataforma.</p>
+    <p class="subtitle">
+      {can.manageZones ? 'Cuentas, roles y zonas comerciales de la plataforma.' : 'Cuentas de los asesores comerciales.'}
+    </p>
   </header>
 
-  <div class="tabs" role="tablist" aria-label="Secciones">
-    <button role="tab" aria-selected={tab === 'users'} class:active={tab === 'users'} onclick={() => (tab = 'users')}>Usuarios</button>
-    <button role="tab" aria-selected={tab === 'zones'} class:active={tab === 'zones'} onclick={() => (tab = 'zones')}>Zonas</button>
-  </div>
+  {#if can.manageZones}
+    <div class="tabs" role="tablist" aria-label="Secciones">
+      <button role="tab" aria-selected={tab === 'users'} class:active={tab === 'users'} onclick={() => (tab = 'users')}>Usuarios</button>
+      <button role="tab" aria-selected={tab === 'zones'} class:active={tab === 'zones'} onclick={() => (tab = 'zones')}>Zonas</button>
+    </div>
+  {/if}
 
-  {#if tab === 'users'}
+  {#if tab === 'users' || !can.manageZones}
     <UsersPanel />
   {:else}
     <ZonesPanel />
