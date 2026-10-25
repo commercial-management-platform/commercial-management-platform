@@ -51,14 +51,23 @@ export class PartialQuoteError extends Error {
  * Crea la cotización en borrador y le agrega los productos uno a uno (el
  * backend recalcula el valor con cada uno). Si `send`, la envía al final.
  */
+/** Visita donde se generó una cotización o un pedido (HU-09 CA-08): el formulario llega con estos datos fijos. */
+export interface VisitOrigin {
+  visitId: number
+  clientId: number
+  clientName: string
+  advisorId: number
+}
+
 export async function createQuoteWithItems(input: {
   clientId: number
   date: string
   advisorId?: number
+  visitId?: number
   items: LineItem[]
   send: boolean
 }): Promise<ApiQuote> {
-  let quote = await createQuote({ clientId: input.clientId, date: input.date, advisorId: input.advisorId })
+  let quote = await createQuote({ clientId: input.clientId, date: input.date, advisorId: input.advisorId, visitId: input.visitId })
   quotesStore.upsert(quote)
   try {
     for (const item of input.items) await addQuoteDetail(quote.id, toDetail(item))

@@ -177,7 +177,9 @@ const references: SalesOrderReferencesPort = {
   findVisit: async (id) =>
     id === 10 ? { id, clientId: 1, advisorId: 1 } : null,
   findQuote: async (id) =>
-    id === 50 ? { id, clientId: 1, advisorId: 1, value: '99.125000' } : null,
+    id === 50
+      ? { id, clientId: 1, advisorId: 1, visitId: 10, value: '99.125000' }
+      : null,
 };
 const advisorAccess: AdvisorClientAccessPort = {
   canAccess: async (userId, clientId) =>
@@ -319,6 +321,8 @@ describe('Sales orders (HU-14)', () => {
       quoteId: 50,
       clientId: 1,
       advisorId: 1,
+      // Inherited from the quote (HU-14 CA-04).
+      visitId: 10,
       value: '99.125000',
     });
     await request(server)

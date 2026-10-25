@@ -35,8 +35,10 @@ export class CreateSalesOrderFromQuoteUseCase {
     if (!quote)
       throw new NotFoundError(`Quote with id '${input.quoteId}' not found`);
     await this.createOrder.assertClientVisible(input.actor, quote.clientId);
+    // Without an explicit visit, the order keeps the visit of its quote.
+    const visitId = input.visitId ?? quote.visitId ?? null;
     await this.createOrder.assertVisit(
-      input.visitId ?? null,
+      visitId,
       quote.clientId,
       quote.advisorId,
     );
@@ -49,7 +51,7 @@ export class CreateSalesOrderFromQuoteUseCase {
       SalesOrder.create({
         clientId: quote.clientId,
         advisorId: quote.advisorId,
-        visitId: input.visitId ?? null,
+        visitId,
         quoteId: quote.id,
         date: input.date,
         value: quote.value,

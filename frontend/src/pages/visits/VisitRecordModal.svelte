@@ -16,8 +16,11 @@
     type InterestLevel,
     type InterestReason,
   } from '../../lib/services/visitsApi'
+  import OrderFormModal from '../orders/OrderFormModal.svelte'
+  import QuoteFormModal from '../quotes/QuoteFormModal.svelte'
   import { visitCatalogs } from '../../lib/stores/catalogs.svelte'
   import { errorText } from '../../lib/stores/clientDirectory.svelte'
+  import type { VisitOrigin } from '../../lib/stores/commerce.svelte'
   import { toasts } from '../../lib/stores/toasts.svelte'
   import { formatTime } from '../../lib/utils/format'
 
@@ -60,6 +63,10 @@
   // "Iniciar visita", el backend ya tiene la de inicio y no se pide.
   let startTime = $state('')
   let endTime = $state('')
+  // Gestión comercial (HU-09 CA-08): al guardar se abre el formulario de cotización
+  // o de pedido, vinculado a esta visita. Vive fuera del modal de la visita, que se cierra.
+  let commercial = $state<'' | 'quote' | 'order'>('')
+  let linked = $state<{ kind: 'quote' | 'order'; origin: VisitOrigin } | null>(null)
 
   $effect(() => {
     if (visitId === null) return
@@ -71,6 +78,7 @@
     followUpOn = false
     nextDate = nextTime = nextActivity = nextObservation = ''
     startTime = endTime = ''
+    commercial = ''
     showErrors = false
     untrack(() => visitCatalogs.load())
     getVisitForm(id)
@@ -158,6 +166,12 @@
         title: followUpOn ? 'Visita y seguimiento registrados' : 'Visita registrada',
         message: client,
       })
+      if (commercial && form) {
+        linked = {
+          kind: commercial,
+          origin: { visitId, clientId: form.client.id, clientName: client, advisorId: form.advisor.id },
+        }
+      }
       onrecorded()
       onclose()
     } catch (error) {
@@ -302,6 +316,18 @@
         {#if err.endTime}<small>{err.endTime}</small>{/if}
       </label>
 
+      <label class="field full">
+        <span>Gestión comercial <em>(opcional)</em></span>
+        <select class="select" bind:value={commercial}>
+          <option value="">Ninguna</option>
+          <option value="quote">Se generó una cotización</option>
+          <option value="order">Se generó un pedido</option>
+        </select>
+        {#if commercial}
+          <small class="hint">Al registrar la visita se abre el formulario, ya vinculado a esta visita.</small>
+        {/if}
+      </label>
+
       <fieldset class="field full next">
         <label class="toggle">
           <input type="checkbox" bind:checked={followUpOn} />
@@ -344,6 +370,20 @@
     </button>
   {/snippet}
 </Modal>
+
+<!-- Al crearse, se refresca quien abrió la visita para que la tabla de seguimiento muestre la cotización o el pedido. -->
+<QuoteFormModal
+  open={linked?.kind === 'quote'}
+  fromVisit={linked?.origin}
+  onclose={() => (linked = null)}
+  oncreated={() => onrecorded()}
+/>
+<OrderFormModal
+  open={linked?.kind === 'order'}
+  fromVisit={linked?.origin}
+  onclose={() => (linked = null)}
+  oncreated={() => onrecorded()}
+/>
 
 <style>
   .summary {
@@ -434,6 +474,10 @@
   .field small {
     font-weight: 400;
     color: var(--danger);
+  }
+
+  .field small.hint {
+    color: var(--text-muted);
   }
 
   .field :global(.select),
