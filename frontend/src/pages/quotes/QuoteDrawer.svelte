@@ -191,6 +191,8 @@
         ['Moneda', quote.currency],
         ['Estado', QUOTE_STATUS_LABELS[quote.status]],
       ],
+      moneda: quote.currency,
+      marcaAgua: quote.status === 'draft' ? 'Borrador' : quote.status === 'rejected' ? 'Rechazada' : undefined,
     })
     if (!ok) toasts.push({ tone: 'warning', icon: 'alert-circle', title: 'Ventana bloqueada', message: 'Permite las ventanas emergentes para imprimir.' })
   }

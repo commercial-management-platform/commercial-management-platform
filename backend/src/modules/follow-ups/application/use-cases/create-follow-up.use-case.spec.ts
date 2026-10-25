@@ -1,4 +1,5 @@
 import { NotFoundError, ValidationError } from '../../../../shared/domain/errors/index.js';
+import { businessToday } from '../../../../shared/domain/time/business-time.js';
 import { UserRole } from '../../../auth/domain/types/user-role.enum.js';
 import type { ActivityLogPort } from '../../../../shared/application/ports/activity-log.port.js';
 import { FollowUp } from '../../domain/entities/follow-up.js';
@@ -10,7 +11,7 @@ import { CreateFollowUpUseCase } from './create-follow-up.use-case.js';
 const advisorActor = { id: 'usr_advisor_1', role: UserRole.Advisor };
 const managerActor = { id: 'usr_manager_1', role: UserRole.Director };
 /** Always in the future, so the tests do not expire. */
-const nextWeek = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+const nextWeek = businessToday(new Date(Date.now() + 7 * 86_400_000));
 
 function aVisit(
   overrides: { id?: number; clientId?: number; advisorId?: number; status?: VisitStatus } = {},
@@ -90,8 +91,7 @@ describe('CreateFollowUpUseCase', () => {
 
   it('rejects a past nextDate', async () => {
     const { useCase } = setup();
-    const yesterday = new Date(Date.now() - 86400000);
-    const yyyymmdd = yesterday.toISOString().slice(0, 10);
+    const yyyymmdd = businessToday(new Date(Date.now() - 86_400_000));
 
     await expect(
       useCase.execute(advisorActor, 7, { nextDate: yyyymmdd, activity: 'X' }),
