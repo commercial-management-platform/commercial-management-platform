@@ -17,6 +17,8 @@ export interface SalesOrderQuoteReference {
   id: number;
   clientId: number;
   advisorId: number;
+  /** Visit where the quote was made; the order inherits it (HU-14 CA-04). */
+  visitId: number | null;
   value: string;
 }
 

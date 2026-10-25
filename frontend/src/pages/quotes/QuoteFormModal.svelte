@@ -7,20 +7,22 @@
   import { businessToday } from '../../lib/services/visitsApi'
   import { advisors } from '../../lib/stores/advisors.svelte'
   import { clientDirectory } from '../../lib/stores/clientDirectory.svelte'
-  import { PartialQuoteError, createQuoteWithItems } from '../../lib/stores/commerce.svelte'
+  import { PartialQuoteError, createQuoteWithItems, type VisitOrigin } from '../../lib/stores/commerce.svelte'
   import { toasts } from '../../lib/stores/toasts.svelte'
   import type { LineItem } from '../../lib/types'
 
   // Nueva cotización (HU-12). El asesor la crea a su nombre y solo en borrador;
-  // el gestor elige el asesor y puede enviarla de una vez.
+  // el gestor elige el asesor y puede enviarla de una vez. Si viene de una visita,
+  // el cliente y el asesor quedan fijos y la cotización se vincula a ella (HU-12 CA-03).
 
   interface Props {
     open: boolean
     onclose: () => void
     oncreated?: (quote: ApiQuote) => void
+    fromVisit?: VisitOrigin | null
   }
 
-  let { open, onclose, oncreated }: Props = $props()
+  let { open, onclose, oncreated, fromVisit = null }: Props = $props()
 
   let clientId = $state<number | ''>('')
   let advisorId = $state<number | ''>('')
@@ -36,8 +38,8 @@
 
   $effect(() => {
     if (!open) return
-    clientId = ''
-    advisorId = ''
+    clientId = fromVisit?.clientId ?? ''
+    advisorId = fromVisit?.advisorId ?? ''
     date = businessToday()
     items = [{ producto: '', cantidad: 1, precio: 0 }]
     showErrors = false
@@ -55,6 +57,7 @@
         clientId,
         date,
         advisorId: can.isManager && advisorId !== '' ? advisorId : undefined,
+        visitId: fromVisit?.visitId,
         items: $state.snapshot(items),
         send,
       })
@@ -88,15 +91,22 @@
 
 <Modal {open} {onclose} size="lg" title="Nueva cotización" subtitle="Arma la propuesta con los productos para el cliente.">
   <div class="form">
-    <label class="field span-2">
-      <span>Cliente *</span>
-      <select class="select" class:invalid={showErrors && clientId === ''} bind:value={clientId}>
-        <option value="" disabled>Selecciona un cliente</option>
-        {#each clients as c (c.id)}
-          <option value={c.id}>{clientDisplayName(c)}{c.municipality ? ` · ${c.municipality}` : ''}</option>
-        {/each}
-      </select>
-    </label>
+    {#if fromVisit}
+      <div class="field span-2">
+        <span>Cliente</span>
+        <p class="fixed">{fromVisit.clientName}<small>Vinculada a la visita registrada</small></p>
+      </div>
+    {:else}
+      <label class="field span-2">
+        <span>Cliente *</span>
+        <select class="select" class:invalid={showErrors && clientId === ''} bind:value={clientId}>
+          <option value="" disabled>Selecciona un cliente</option>
+          {#each clients as c (c.id)}
+            <option value={c.id}>{clientDisplayName(c)}{c.municipality ? ` · ${c.municipality}` : ''}</option>
+          {/each}
+        </select>
+      </label>
+    {/if}
     <label class="field">
       <span>Fecha *</span>
       <input class="input" class:invalid={showErrors && !date} type="date" bind:value={date} />
@@ -165,6 +175,18 @@
 
   .invalid {
     border-color: var(--danger);
+  }
+
+  .fixed {
+    margin: 0;
+    font-weight: 600;
+  }
+
+  .fixed small {
+    display: block;
+    font-weight: 400;
+    font-size: 12px;
+    color: var(--text-muted);
   }
 
   @media (max-width: 600px) {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import Modal from '../../lib/components/Modal.svelte'
   import { can } from '../../lib/permissions.svelte'
   import { clientDisplayName } from '../../lib/services/clientsApi'
@@ -7,20 +8,22 @@
   import { businessToday } from '../../lib/services/visitsApi'
   import { advisors } from '../../lib/stores/advisors.svelte'
   import { clientDirectory } from '../../lib/stores/clientDirectory.svelte'
-  import { createOrder, createOrderFromQuote, ordersStore, quotesStore } from '../../lib/stores/commerce.svelte'
+  import { createOrder, createOrderFromQuote, ordersStore, quotesStore, type VisitOrigin } from '../../lib/stores/commerce.svelte'
   import { toasts } from '../../lib/stores/toasts.svelte'
   import { formatMoney } from '../../lib/utils/format'
 
   // Nuevo pedido (HU-14): desde una cotización aprobada (copia cliente, asesor y
   // valor) o directo. El backend guarda el valor total, no líneas de producto.
+  // Si viene de una visita, el cliente queda fijo y el pedido se vincula a ella (HU-14 CA-04).
 
   interface Props {
     open: boolean
     onclose: () => void
     oncreated?: (order: ApiSalesOrder) => void
+    fromVisit?: VisitOrigin | null
   }
 
-  let { open, onclose, oncreated }: Props = $props()
+  let { open, onclose, oncreated, fromVisit = null }: Props = $props()
 
   const addDays = (date: string, days: number) => new Date(Date.parse(`${date}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
 
@@ -43,13 +46,27 @@
 
   // Cotizaciones aprobadas que aún no tienen pedido.
   let approved = $derived(
-    quotesStore.items.filter((q) => q.status === 'approved' && !ordersStore.items.some((o) => o.quoteId === q.id)),
+    quotesStore.items.filter(
+      (q) =>
+        q.status === 'approved' &&
+        (!fromVisit || q.clientId === fromVisit.clientId) &&
+        !ordersStore.items.some((o) => o.quoteId === q.id),
+    ),
   )
   let quote = $derived(quoteId === '' ? null : (quotesStore.byId.get(quoteId) ?? null))
 
   $effect(() => {
     if (!open) return
-    quoteId = clientId = advisorId = ''
+    quoteId = ''
+    clientId = fromVisit?.clientId ?? ''
+    advisorId = fromVisit?.advisorId ?? ''
+    // Desde una visita la pantalla de pedidos no está abierta: se cargan las cotizaciones aprobadas.
+    if (fromVisit) {
+      untrack(() => {
+        if (quotesStore.status === 'idle') quotesStore.refresh()
+        if (ordersStore.status === 'idle') ordersStore.refresh()
+      })
+    }
     value = null
     date = businessToday()
     entrega = addDays(date, 5)
@@ -66,13 +83,14 @@
     saving = true
     try {
       const order = quote
-        ? await createOrderFromQuote(quote.id, { date, estimatedDeliveryDate: entrega })
+        ? await createOrderFromQuote(quote.id, { date, estimatedDeliveryDate: entrega, visitId: fromVisit?.visitId })
         : await createOrder({
             clientId: Number(clientId),
             date,
             value: toDecimal(value ?? 0),
             estimatedDeliveryDate: entrega,
             advisorId: can.isManager && advisorId !== '' ? advisorId : undefined,
+            visitId: fromVisit?.visitId,
           })
       toasts.push({ tone: 'success', icon: 'package', title: 'Pedido creado', message: order.number })
       oncreated?.(order)
@@ -108,15 +126,22 @@
         valor <strong>{formatMoney(Number(quote.value))}</strong>, tomados de la cotización.
       </p>
     {:else}
-      <label class="field span-2">
-        <span>Cliente *</span>
-        <select class="select" class:invalid={showErrors && clientId === ''} bind:value={clientId}>
-          <option value="" disabled>Selecciona un cliente</option>
-          {#each clients as c (c.id)}
-            <option value={c.id}>{clientDisplayName(c)}{c.municipality ? ` · ${c.municipality}` : ''}</option>
-          {/each}
-        </select>
-      </label>
+      {#if fromVisit}
+        <div class="field span-2">
+          <span>Cliente</span>
+          <p class="fixed">{fromVisit.clientName}<small>Vinculado a la visita registrada</small></p>
+        </div>
+      {:else}
+        <label class="field span-2">
+          <span>Cliente *</span>
+          <select class="select" class:invalid={showErrors && clientId === ''} bind:value={clientId}>
+            <option value="" disabled>Selecciona un cliente</option>
+            {#each clients as c (c.id)}
+              <option value={c.id}>{clientDisplayName(c)}{c.municipality ? ` · ${c.municipality}` : ''}</option>
+            {/each}
+          </select>
+        </label>
+      {/if}
       <label class="field">
         <span>Valor total *</span>
         <input
@@ -194,6 +219,18 @@
 
   .invalid {
     border-color: var(--danger);
+  }
+
+  .fixed {
+    margin: 0;
+    font-weight: 600;
+  }
+
+  .fixed small {
+    display: block;
+    font-weight: 400;
+    font-size: 12px;
+    color: var(--text-muted);
   }
 
   .from-quote {
