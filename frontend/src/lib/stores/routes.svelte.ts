@@ -161,7 +161,7 @@ class RoutesStore {
   }
 
   start() {
-    this.refresh()
+    void this.refresh()
     this.#timer ??= setInterval(() => this.refresh(), POLL_MS)
   }
 
@@ -250,7 +250,9 @@ export function useLiveRoutes() {
   $effect(() => {
     if (!dashboard.live) {
       // En pausa: una sola carga para no dejar la pantalla vacía.
-      untrack(() => routesStore.status === 'idle' && routesStore.refresh())
+      untrack(() => {
+        if (routesStore.status === 'idle') void routesStore.refresh()
+      })
       return
     }
     untrack(() => routesStore.start())

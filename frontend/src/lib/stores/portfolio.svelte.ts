@@ -88,7 +88,7 @@ class PortfolioStore {
   }
 
   start() {
-    this.refresh()
+    void this.refresh()
     this.#timer ??= setInterval(() => this.refresh(), POLL_MS)
   }
 
@@ -116,7 +116,9 @@ export function useLivePortfolio() {
   $effect(() => {
     if (!dashboard.live) {
       // En pausa: una sola carga para no dejar la sección vacía.
-      untrack(() => portfolio.status === 'idle' && portfolio.refresh())
+      untrack(() => {
+        if (portfolio.status === 'idle') void portfolio.refresh()
+      })
       return
     }
     untrack(() => portfolio.start())

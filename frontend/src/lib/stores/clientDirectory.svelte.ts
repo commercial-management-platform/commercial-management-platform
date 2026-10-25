@@ -91,7 +91,7 @@ class ClientDirectoryStore {
   }
 
   start() {
-    this.refresh()
+    void this.refresh()
     this.#timer ??= setInterval(() => this.refresh(), POLL_MS)
   }
 
@@ -219,7 +219,9 @@ export function useClientDirectory() {
   $effect(() => {
     if (!dashboard.live) {
       // En pausa: una sola carga para no dejar la pantalla vacía.
-      untrack(() => clientDirectory.status === 'idle' && clientDirectory.refresh())
+      untrack(() => {
+        if (clientDirectory.status === 'idle') void clientDirectory.refresh()
+      })
       return
     }
     untrack(() => clientDirectory.start())

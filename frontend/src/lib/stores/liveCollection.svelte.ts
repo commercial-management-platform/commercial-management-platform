@@ -71,11 +71,13 @@ export class LiveCollection<T extends { id: number; updatedAt: string }> {
     $effect(() => {
       if (!dashboard.live) {
         // En pausa: una sola carga para no dejar la pantalla vacía.
-        untrack(() => this.status === 'idle' && this.refresh())
+        untrack(() => {
+          if (this.status === 'idle') void this.refresh()
+        })
         return
       }
       untrack(() => {
-        this.refresh()
+        void this.refresh()
         this.#timer ??= setInterval(() => this.refresh(), POLL_MS)
       })
       return () => {

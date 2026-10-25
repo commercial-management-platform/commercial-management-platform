@@ -127,7 +127,7 @@ class OperationStore {
   /** Cambia un filtro: se muestra la carga en lugar de los datos de la semana anterior. */
   reload() {
     this.status = 'loading'
-    this.refresh()
+    void this.refresh()
   }
 
   #flashChanges(next: ApiVisit[]) {
@@ -149,7 +149,7 @@ class OperationStore {
     })
     $effect(() => {
       void [this.visits, clientDirectory.status]
-      untrack(() => this.#loadMissingClients())
+      untrack(() => void this.#loadMissingClients())
     })
     $effect(() => {
       if (!dashboard.live) return
@@ -192,7 +192,7 @@ class WeeklyGoalStore {
   use() {
     $effect(() => {
       void session.current?.user.id
-      untrack(() => this.refresh())
+      untrack(() => void this.refresh())
       if (!dashboard.live) return
       untrack(() => (this.#timer ??= setInterval(() => this.refresh(), POLL_MS)))
       return () => {

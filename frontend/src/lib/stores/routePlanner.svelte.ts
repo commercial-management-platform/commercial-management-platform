@@ -209,7 +209,7 @@ class RoutePlanner {
     this.advisorId = this.advisors.some((a) => a.id === draft.advisorId) ? draft.advisorId : ''
     this.selectedClientId = null
     this.showErrors = false
-    this.#reroute()
+    void this.#reroute()
   }
 
   reset() {
@@ -247,20 +247,20 @@ class RoutePlanner {
     if (this.stops.some((s) => s.clientId === clientId)) return
     this.stops.push({ clientId, duracionVisita: DEFAULT_VISIT_MINUTES })
     this.selectedClientId = clientId
-    this.#reroute()
+    void this.#reroute()
   }
 
   removeStop(clientId: number) {
     this.stops = this.stops.filter((s) => s.clientId !== clientId)
     if (this.selectedClientId === clientId) this.selectedClientId = null
-    this.#reroute()
+    void this.#reroute()
   }
 
   moveStop(from: number, to: number) {
     if (to < 0 || to >= this.stops.length || from === to) return
     const [stop] = this.stops.splice(from, 1)
     this.stops.splice(to, 0, stop)
-    this.#reroute()
+    void this.#reroute()
   }
 
   updateStop(clientId: number, patch: Partial<Omit<RouteStop, 'clientId'>>) {

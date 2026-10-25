@@ -63,7 +63,7 @@ const GUARD_END = [2, 1, 1, 1, 3]
 function barcodeSvg(code: string): string {
   const widths = [...GUARD_START]
   for (const char of code.slice(0, 44)) {
-    const n = parseInt(char, 16)
+    const n = Number.parseInt(char, 16)
     widths.push(1 + (n % 3), 1 + ((n >> 2) % 2))
   }
   widths.push(...GUARD_END)
