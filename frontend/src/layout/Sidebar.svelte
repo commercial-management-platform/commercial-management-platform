@@ -46,7 +46,7 @@
     { route: "seguimientos", label: "Seguimientos", icon: "clock" },
     { route: "cotizaciones", label: "Cotizaciones", icon: "file-text" },
     { route: "pedidos", label: "Pedidos", icon: "package" },
-    { route: "administracion", label: "Administración", icon: "user-check", only: "admin" },
+    { route: "administracion", label: "Administración", icon: "user-check", only: "manager" },
   ];
 
   let items = $derived(

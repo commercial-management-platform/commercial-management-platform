@@ -1,35 +1,115 @@
 # Historias de usuario
 
-Plataforma de Gestión Comercial. Este documento describe cada HU: historia, criterios de aceptación, datos, endpoints y subtareas. Los prompts para implementarlas con IA están en [`ai-prompts.md`](ai-prompts.md).
+Plataforma de Gestión Comercial. Este documento describe cada HU: historia, criterios de aceptación, datos, endpoints y subtareas.
 
-Los nombres de tablas, columnas, módulos y roles siguen [`naming-glossary.md`](naming-glossary.md). Los puntos marcados como **pendiente de confirmar** no se implementan hasta que el equipo los defina.
+Los nombres de tablas, columnas, módulos, roles y estados siguen [`docs/naming-glossary.md`](docs/naming-glossary.md). Los puntos marcados como **pendiente de confirmar** no se implementan hasta que el equipo los defina.
 
 ## Índice
 
-| HU                                                               | Título                                           | Responsable | Prioridad  |
-| ---------------------------------------------------------------- | ------------------------------------------------ | ----------- | ---------- |
-| [HU-01](#hu-01--autenticación-de-usuarios)                       | Autenticación de usuarios                        | Brayan      | Alta       |
-| [HU-02](#hu-02--gestión-de-usuarios-asesores-y-permisos-por-rol) | Gestión de usuarios, asesores y permisos por rol | Brayan      | Alta       |
-| [HU-03](#hu-03--gestión-de-clientes)                             | Gestión de clientes                              | Natalia     | Alta       |
-| [HU-04](#hu-04--gestión-de-contactos-de-clientes)                | Gestión de contactos de clientes                 | Natalia     | Alta       |
-| [HU-05](#hu-05--gestión-de-catálogos-comerciales)                | Gestión de catálogos comerciales                 | Jose        | Alta       |
-| [HU-06](#hu-06--gestión-de-portafolios-de-clientes)              | Gestión de portafolios de clientes               | Natalia     | Alta       |
-| [HU-07](#hu-07--gestión-de-rutas-comerciales)                    | Gestión de rutas comerciales                     | Stevel      | Alta       |
-| [HU-08](#hu-08--programar-y-consultar-visitas)                   | Programar y consultar visitas                    | Stevel      | Alta (P0)  |
-| [HU-09](#hu-09--registrar-resultados-de-visitas)                 | Registrar resultados de visitas                  | Stevel      | Media (P1) |
-| [HU-10](#hu-10--gestionar-seguimientos-comerciales)              | Gestionar seguimientos comerciales               | Brayan      | Media (P1) |
-| [HU-11](#hu-11--visualizar-visitas-en-un-mapa)                   | Visualizar visitas en un mapa                    | Ricardo     | Media (P1) |
-| [HU-12](#hu-12--crear-y-consultar-cotizaciones)                  | Crear y consultar cotizaciones                   | Jose        | Media (P1) |
-| [HU-13](#hu-13--gestionar-detalles-de-cotización)                | Gestionar detalles de cotización                 | Jose        | Media (P1) |
-| [HU-14](#hu-14--registrar-y-consultar-pedidos)                   | Registrar y consultar pedidos                    | Jose        | Media (P1) |
-| [HU-15](#hu-15--consultar-dashboard-de-indicadores-comerciales)  | Consultar dashboard de indicadores comerciales   | Ricardo     | Media (P1) |
-| [HU-16](#hu-16--registrar-historial-de-actividad-del-cliente)    | Registrar historial de actividad del cliente     | Brayan      | Media (P1) |
-| [HU-17](#hu-17--exportar-reportes-csv)                           | Exportar reportes CSV                            | Brayan      | Media (P1) |
-| [HU-18](#hu-18--desplegar-la-aplicación-en-aws)                  | Desplegar la aplicación en AWS                   | Laura       | Alta (P0)  |
-| [HU-19](#hu-19--automatizar-despliegues-con-jenkins)             | Automatizar despliegues con Jenkins              | Laura       | Alta (P0)  |
-| [HU-20](#hu-20--gestionar-documentos-y-archivos-en-s3)           | Gestionar documentos y archivos en S3            | Laura       | Alta (P0)  |
-| [HU-21](#hu-21--validar-la-solución-integrada)                   | Validar la solución integrada                    | Neider      | Alta (P0)  |
-| [HU-22](#hu-22--importar-clientes-desde-csv)                     | Importar clientes desde CSV                      | Natalia     | Alta (P0)  |
+| HU | Título | Responsable | Prioridad |
+|---|---|---|---|
+| [HU-00](#hu-00--estructura-base-del-backend) | Estructura base del backend | Neider | Alta (P0) |
+| [HU-01](#hu-01--autenticación-de-usuarios) | Autenticación de usuarios | Brayan | Alta |
+| [HU-02](#hu-02--gestión-de-usuarios-asesores-y-permisos-por-rol) | Gestión de usuarios, asesores y permisos por rol | Brayan | Alta |
+| [HU-03](#hu-03--gestión-de-clientes) | Gestión de clientes | Natalia | Alta |
+| [HU-04](#hu-04--gestión-de-contactos-de-clientes) | Gestión de contactos de clientes | Natalia | Alta |
+| [HU-05](#hu-05--gestión-de-catálogos-comerciales) | Gestión de catálogos comerciales | Jose | Alta |
+| [HU-06](#hu-06--gestión-de-portafolios-de-clientes) | Gestión de portafolios de clientes | Natalia | Alta |
+| [HU-07](#hu-07--gestión-de-rutas-comerciales) | Gestión de rutas comerciales | Stevel | Alta |
+| [HU-08](#hu-08--programar-y-consultar-visitas) | Programar y consultar visitas | Stevel | Alta (P0) |
+| [HU-09](#hu-09--registrar-resultados-de-visitas) | Registrar resultados de visitas | Stevel | Media (P1) |
+| [HU-10](#hu-10--gestionar-seguimientos-comerciales) | Gestionar seguimientos comerciales | Brayan | Media (P1) |
+| [HU-11](#hu-11--visualizar-visitas-en-un-mapa) | Visualizar visitas en un mapa | Ricardo | Media (P1) |
+| [HU-12](#hu-12--crear-y-consultar-cotizaciones) | Crear y consultar cotizaciones | Jose | Media (P1) |
+| [HU-13](#hu-13--gestionar-detalles-de-cotización) | Gestionar detalles de cotización | Jose | Media (P1) |
+| [HU-14](#hu-14--registrar-y-consultar-pedidos) | Registrar y consultar pedidos | Jose | Media (P1) |
+| [HU-15](#hu-15--consultar-dashboard-de-indicadores-comerciales) | Consultar dashboard de indicadores comerciales | Ricardo | Media (P1) |
+| [HU-16](#hu-16--registrar-historial-de-actividad-del-cliente) | Registrar historial de actividad del cliente | Brayan | Media (P1) |
+| [HU-17](#hu-17--exportar-reportes-csv) | Exportar reportes CSV | Brayan | Media (P1) |
+| [HU-18](#hu-18--desplegar-la-aplicación-en-aws) | Desplegar la aplicación en AWS | Laura | Alta (P0) |
+| [HU-19](#hu-19--automatizar-despliegues-con-jenkins) | Automatizar despliegues con Jenkins | Laura | Alta (P0) |
+| [HU-20](#hu-20--gestionar-documentos-y-archivos-en-s3) | Gestionar documentos y archivos en S3 | Laura | Alta (P0) |
+| [HU-21](#hu-21--validar-la-solución-integrada) | Validar la solución integrada | Neider | Alta (P0) |
+| [HU-22](#hu-22--importar-clientes-desde-csv) | Importar clientes desde CSV | Natalia | Alta (P0) |
+| [HU-23](#hu-23--ejecutar-la-api-en-docker-compose-para-desarrollo-local) | Ejecutar la API en Docker Compose para desarrollo local | Neider | Media |
+
+---
+
+## HU-00 — Estructura base del backend
+
+Esta HU registra el trabajo de base sobre el que se construyen todas las demás: el esqueleto del backend en NestJS, su configuración, la conexión a PostgreSQL con TypeORM, la documentación de la API y las reglas del equipo. Ya está integrada en `dev`.
+
+- **Épica:** Base técnica
+- **Prioridad:** Alta (P0)
+- **Responsable:** Neider
+- **Revisor:** por definir
+- **Estado:** Terminada — commits `9b19f0b`, `7174291` y `6e95ff5` (19 de octubre), integrados en `dev` con el PR #2
+- **Dependencias:** ninguna. Todas las HU del backend dependen de esta.
+
+### 1. Historia de usuario
+
+Como equipo de desarrollo,
+
+quiero una estructura base del backend con configuración, persistencia, documentación y reglas comunes,
+
+para que cada integrante construya su HU sobre la misma arquitectura y sin repetir configuración.
+
+### 2. Criterios de aceptación
+
+- CA-01 — Proyecto NestJS: el backend usa NestJS con TypeScript en ESM (`"type": "module"`, imports con extensión `.js`).
+- CA-02 — Arquitectura: los módulos siguen Clean Architecture (domain, application, infrastructure, presentation), con puertos y adaptadores. El módulo `health` sirve de ejemplo.
+- CA-03 — Configuración validada: las variables de entorno se validan al arrancar; si falta una obligatoria o tiene un formato inválido, la aplicación no inicia y dice cuál es.
+- CA-04 — Persistencia: la conexión a PostgreSQL usa TypeORM con `synchronize: false` y un DataSource para la CLI de migraciones. Admite SSL para RDS (`DB_SSL`).
+- CA-05 — Migraciones y seeds: existen los comandos `migration:run`, `migration:revert` y `migration:generate`, y un ejecutor de seeds (`npm run seed`) al que cada HU agrega los suyos.
+- CA-06 — Configuración HTTP global: prefijo `/api`, `ValidationPipe` con `whitelist` y `forbidNonWhitelisted`, y CORS configurable con `CORS_ORIGIN`.
+- CA-07 — Errores de dominio: existen `NotFoundError`, `ConflictError`, `ValidationError`, `ForbiddenError` y `UnauthorizedError`, y el `DomainExceptionFilter` los convierte en 404, 409, 400, 403 y 401.
+- CA-08 — Documentación de la API: Swagger está disponible en `/api/docs`, con autenticación Bearer.
+- CA-09 — Health check: `GET /api/health` es público y responde el estado de la API y de la base de datos (`{ status, database }`).
+- CA-10 — Base de datos local: `docker-compose.yml` levanta PostgreSQL 16 con los mismos valores de `backend/.env.example`.
+- CA-11 — Calidad: pruebas con vitest (unitarias y e2e) y lint con oxlint. Hay pruebas de la validación de entorno, del filtro de errores y del health check.
+- CA-12 — Reglas del equipo: `README.md`, `CONTRIBUTING.md` (ramas, commits, PR, reglas de arquitectura, base de datos y Definition of Done), `docs/architecture.md` y `docs/naming-glossary.md`.
+
+### 3. Estructura entregada
+
+```text
+backend/
+├── scripts/migration-generate.mjs
+├── src/
+│   ├── main.ts
+│   ├── app.module.ts
+│   ├── app.setup.ts              # prefijo, pipes, filtro, CORS y Swagger
+│   ├── config/
+│   │   ├── env.validation.ts
+│   │   ├── typeorm.config.ts
+│   │   └── data-source.ts
+│   ├── database/
+│   │   ├── migrations/
+│   │   └── seeds/seed.ts
+│   ├── modules/health/           # módulo de ejemplo con Clean Architecture
+│   └── shared/
+│       ├── domain/errors/
+│       └── infrastructure/filters/domain-exception.filter.ts
+└── test/health.e2e-spec.ts
+docs/
+├── architecture.md
+└── naming-glossary.md
+docker-compose.yml
+CONTRIBUTING.md
+README.md
+```
+
+### 4. Subtareas para ClickUp
+
+- [x] **HU00-T01** Inicializar el repositorio y la estructura de carpetas — Neider
+- [x] **HU00-T02** Escribir README, CONTRIBUTING y el glosario de nombres — Neider
+- [x] **HU00-T03** Configurar NestJS en ESM, vitest y oxlint — Neider
+- [x] **HU00-T04** Validar las variables de entorno al arrancar — Neider
+- [x] **HU00-T05** Configurar TypeORM, el DataSource, los comandos de migración y el ejecutor de seeds — Neider
+- [x] **HU00-T06** Configurar prefijo, ValidationPipe, CORS y Swagger — Neider
+- [x] **HU00-T07** Crear los errores de dominio y el filtro global — Neider
+- [x] **HU00-T08** Crear el módulo health como ejemplo de arquitectura — Neider
+- [x] **HU00-T09** Agregar PostgreSQL en docker-compose — Neider
+- [x] **HU00-T10** Documentar la arquitectura en docs/architecture.md — Neider
 
 ---
 
@@ -116,13 +196,13 @@ El equipo debe comprobar las rutas reales que expone la configuración de better
 
 Como referencia, el contrato funcional debe cubrir:
 
-| Operación                 | Resultado esperado                                     |
-| ------------------------- | ------------------------------------------------------ |
-| Iniciar sesión            | Autenticar al usuario y establecer la sesión           |
-| Obtener usuario actual    | Devolver la identidad y el rol del usuario autenticado |
-| Cerrar sesión             | Invalidar la sesión según el mecanismo configurado     |
-| Acceder a ruta protegida  | Permitir la solicitud solo si la sesión es válida      |
-| Acceder sin autenticación | Responder 401 Unauthorized                             |
+| Operación | Resultado esperado |
+|---|---|
+| Iniciar sesión | Autenticar al usuario y establecer la sesión |
+| Obtener usuario actual | Devolver la identidad y el rol del usuario autenticado |
+| Cerrar sesión | Invalidar la sesión según el mecanismo configurado |
+| Acceder a ruta protegida | Permitir la solicitud solo si la sesión es válida |
+| Acceder sin autenticación | Responder 401 Unauthorized |
 
 Las rutas concretas dependen de la configuración de betterAuth. Si se usan cookies, Ricardo debe configurar correctamente el envío de credenciales desde Svelte y Laura debe verificar HTTPS, dominios y configuración de cookies en el despliegue.
 
@@ -197,16 +277,18 @@ Regla importante: no basta con ocultar botones en el frontend. Los permisos debe
 
 Matriz aprobada por el equipo. Las reglas detalladas de cada módulo se aplican en su propia HU.
 
-| Funcionalidad                     | admin | director              | advisor                                        |
-| --------------------------------- | ----- | --------------------- | ---------------------------------------------- |
-| Gestionar usuarios y roles        | Sí    | Solo usuarios advisor | No                                             |
-| Consultar usuarios                | Sí    | Solo asesores         | No                                             |
-| Consultar dashboard comercial     | Sí    | Sí                    | Solo sus indicadores                           |
-| Gestionar clientes                | Sí    | Sí                    | Consulta y actualiza los de sus rutas; no crea |
-| Acceder a funcionalidades propias | Sí    | Sí                    | Sí                                             |
-| Administrar catálogos             | Sí    | No                    | No                                             |
-| Crear, editar y asignar rutas     | Sí    | Sí                    | No; solo consulta las suyas                    |
-| Exportar reportes CSV             | Sí    | Sí                    | Solo sus datos                                 |
+| Funcionalidad | admin | director | advisor |
+|---|---|---|---|
+| Gestionar usuarios y roles | Sí | Solo usuarios advisor | No |
+| Consultar usuarios | Sí | Solo asesores | No |
+| Consultar dashboard comercial | Sí | Sí | Solo sus indicadores |
+| Gestionar clientes | Sí | Sí | Consulta y actualiza los de sus rutas; no crea |
+| Gestionar contactos de clientes | Sí | Sí | No; solo consulta los de clientes de sus rutas |
+| Asignar clientes a portafolios | Sí | Sí | No; solo consulta |
+| Acceder a funcionalidades propias | Sí | Sí | Sí |
+| Administrar catálogos | Sí | No | No |
+| Crear, editar y asignar rutas | Sí | Sí | No; solo consulta las suyas |
+| Exportar reportes CSV | Sí | Sí | Solo sus datos |
 
 La HU-02 debe implementar la administración de usuarios y los permisos correspondientes. Las reglas específicas de clientes, rutas, visitas y reportes se aplicarán en las historias de esos módulos.
 
@@ -214,14 +296,14 @@ La HU-02 debe implementar la administración de usuarios y los permisos correspo
 
 Estos endpoints son una propuesta para acordar con Neider, no rutas confirmadas del proyecto. Antes de crearlos, Brayan debe revisar la estructura existente y evitar duplicar funcionalidades que ya estén implementadas.
 
-| Método | Endpoint propuesto | Función                        |
-| ------ | ------------------ | ------------------------------ |
-| GET    | /users             | Listar usuarios                |
-| POST   | /users             | Crear usuario                  |
-| GET    | /users/:id         | Consultar usuario              |
-| PATCH  | /users/:id         | Actualizar datos permitidos    |
-| PATCH  | /users/:id/role    | Cambiar el rol                 |
-| PATCH  | /users/:id/status  | Activar o desactivar la cuenta |
+| Método | Endpoint propuesto | Función |
+|---|---|---|
+| GET | /users | Listar usuarios |
+| POST | /users | Crear usuario |
+| GET | /users/:id | Consultar usuario |
+| PATCH | /users/:id | Actualizar datos permitidos |
+| PATCH | /users/:id/role | Cambiar el rol |
+| PATCH | /users/:id/status | Activar o desactivar la cuenta |
 
 Consideración con BetterAuth: la gestión de contraseñas, sesiones y credenciales debe respetar la implementación de la HU-01. No se deben crear contraseñas ni sesiones paralelas por fuera del mecanismo establecido.
 
@@ -305,27 +387,27 @@ Visibilidad por rol: admin y director crean, consultan y actualizan todos los cl
 
 Campos del cliente, según el modelo ER del reto:
 
-| Campo                | Propósito                                                                     |
-| -------------------- | ----------------------------------------------------------------------------- |
-| id                   | Identificador único                                                           |
-| nit                  | NIT, único en el sistema                                                      |
-| legal_name           | Razón social                                                                  |
-| trade_name           | Nombre comercial                                                              |
-| address              | Dirección comercial                                                           |
-| department           | Departamento                                                                  |
-| municipality         | Municipio                                                                     |
-| neighborhood         | Barrio                                                                        |
-| phone                | Número de contacto principal                                                  |
-| email                | Correo de contacto                                                            |
-| latitude             | Latitud: mapa de visitas (HU-11) y confirmación de la ubicación de la visita  |
-| longitude            | Longitud: mapa de visitas (HU-11) y confirmación de la ubicación de la visita |
-| zone_id              | Zona comercial (catálogo de HU-05)                                            |
-| client_type_id       | Tipo de cliente (catálogo de HU-05)                                           |
-| client_potential_id  | Potencial comercial (catálogo de HU-05)                                       |
-| client_status_id     | Estado del cliente (catálogo de HU-05)                                        |
-| visit_frequency_days | Cada cuántos días se debe visitar al cliente                                  |
-| created_at           | Fecha de creación                                                             |
-| active               | Falso cuando el cliente está desactivado; su historial se conserva            |
+| Campo | Propósito |
+|---|---|
+| id | Identificador único |
+| nit | NIT, único en el sistema |
+| business_name | Razón social |
+| trade_name | Nombre comercial |
+| address | Dirección comercial |
+| department | Departamento |
+| municipality | Municipio |
+| neighborhood | Barrio |
+| phone | Número de contacto principal |
+| email | Correo de contacto |
+| latitude | Latitud: mapa de visitas (HU-11) y confirmación de la ubicación de la visita |
+| longitude | Longitud: mapa de visitas (HU-11) y confirmación de la ubicación de la visita |
+| zone_id | Zona comercial (catálogo de HU-05) |
+| client_type_id | Tipo de cliente (catálogo de HU-05) |
+| client_potential_id | Potencial comercial (catálogo de HU-05) |
+| client_status_id | Estado del cliente (catálogo de HU-05) |
+| visit_frequency_days | Cada cuántos días se debe visitar al cliente |
+| created_at | Fecha de creación |
+| active | Falso cuando el cliente está desactivado; su historial se conserva |
 
 Los campos siguen la entidad Cliente del modelo ER del reto, con nombres en inglés según docs/naming-glossary.md (tabla client), más latitude y longitude para el mapa de visitas (HU-11). Los catálogos se guardan como relaciones (FK), no como texto libre.
 
@@ -333,13 +415,13 @@ Los campos siguen la entidad Cliente del modelo ER del reto, con nombres en ingl
 
 Las siguientes rutas son una propuesta para acordar con el equipo y adaptar al contrato actual del backend.
 
-| Método | Endpoint            | Función              |
-| ------ | ------------------- | -------------------- |
-| POST   | /clients            | Registrar cliente    |
-| GET    | /clients            | Listar clientes      |
-| GET    | /clients/:id        | Consultar un cliente |
-| PATCH  | /clients/:id        | Actualizar datos     |
-| PATCH  | /clients/:id/status | Cambiar el estado    |
+| Método | Endpoint | Función |
+|---|---|---|
+| POST | /clients | Registrar cliente |
+| GET | /clients | Listar clientes |
+| GET | /clients/:id | Consultar un cliente |
+| PATCH | /clients/:id | Actualizar datos |
+| PATCH | /clients/:id/status | Cambiar el estado |
 
 Reglas de implementación
 
@@ -411,14 +493,14 @@ para mantener actualizada la información de las personas con las que debo comun
 ### 2. Criterios de aceptación
 
 - CA-01 — Registrar contacto: se puede crear un contacto asociado a un cliente existente.
-- CA-02 — Datos obligatorios: se validan los campos requeridos y los formatos definidos por el proyecto.
+- CA-02 — Datos obligatorios: name es obligatorio y debe venir al menos un medio de contacto (phone, mobile o email), al crear y al editar. job_title es opcional. Se validan los formatos de email y teléfono.
 - CA-03 — Listar contactos: se pueden consultar los contactos pertenecientes a un cliente específico.
 - CA-04 — Consultar contacto: se puede consultar el detalle de un contacto mediante su identificador.
 - CA-05 — Actualizar contacto: se puede modificar la información de un contacto existente.
 - CA-06 — Desactivar contacto: se puede marcar un contacto como inactivo sin eliminar innecesariamente su historial.
 - CA-07 — Validar cliente: no se puede asociar un contacto a un cliente inexistente.
 - CA-08 — Validar pertenencia: al consultar, modificar o desactivar un contacto, se verifica que pertenezca al cliente indicado cuando la operación esté anidada bajo ese cliente.
-- CA-09 — Autorización: solo usuarios autenticados con permisos suficientes pueden gestionar contactos.
+- CA-09 — Autorización: admin y director crean, consultan, editan y desactivan contactos. El advisor solo los consulta, y solo en clientes de sus rutas; un cliente ajeno responde 404, como en clientes. Crear, editar o desactivar como advisor responde 403 (decisión del equipo, 25 de octubre de 2026).
 - CA-10 — Persistencia: los datos se guardan utilizando TypeORM y la conexión PostgreSQL existente.
 - CA-11 — Manejo de errores: el sistema responde correctamente ante identificadores inexistentes, datos inválidos y operaciones no autorizadas.
 - CA-12 — Pruebas y documentación: se implementan pruebas y se documentan los endpoints en Swagger/OpenAPI.
@@ -428,19 +510,19 @@ para mantener actualizada la información de las personas con las que debo comun
 
 Los campos siguen la entidad Contacto del modelo ER del reto, con nombres en inglés según docs/naming-glossary.md (tabla contact).
 
-| Campo      | Descripción                          |
-| ---------- | ------------------------------------ |
-| id         | Identificador único del contacto     |
-| client_id  | Cliente al que pertenece             |
-| name       | Nombre de la persona                 |
-| job_title  | Cargo o función dentro de la empresa |
-| phone      | Número de contacto                   |
-| mobile     | Número de celular                    |
-| email      | Correo electrónico                   |
-| is_primary | Indica si es el contacto principal   |
-| active     | Estado activo o inactivo             |
-| created_at | Fecha de creación                    |
-| updated_at | Fecha de última actualización        |
+| Campo | Descripción |
+|---|---|
+| id | Identificador único del contacto |
+| client_id | Cliente al que pertenece |
+| name | Nombre de la persona |
+| job_title | Cargo o función dentro de la empresa |
+| phone | Número de contacto |
+| mobile | Número de celular |
+| email | Correo electrónico |
+| is_primary | Indica si es el contacto principal |
+| active | Estado activo o inactivo |
+| created_at | Fecha de creación |
+| updated_at | Fecha de última actualización |
 
 El campo active se agrega al modelo ER para permitir la desactivación (CA-06).
 
@@ -448,13 +530,13 @@ Regla de negocio: cada cliente tiene un solo contacto principal. Al marcar un co
 
 ### 4. Endpoints propuestos
 
-| Método | Endpoint                               | Función                        |
-| ------ | -------------------------------------- | ------------------------------ |
-| POST   | /clients/:clientId/contacts            | Crear contacto para un cliente |
-| GET    | /clients/:clientId/contacts            | Listar contactos del cliente   |
-| GET    | /clients/:clientId/contacts/:id        | Consultar un contacto          |
-| PATCH  | /clients/:clientId/contacts/:id        | Actualizar contacto            |
-| PATCH  | /clients/:clientId/contacts/:id/status | Activar o desactivar contacto  |
+| Método | Endpoint | Función |
+|---|---|---|
+| POST | /clients/:clientId/contacts | Crear contacto para un cliente |
+| GET | /clients/:clientId/contacts | Listar contactos del cliente |
+| GET | /clients/:clientId/contacts/:id | Consultar un contacto |
+| PATCH | /clients/:clientId/contacts/:id | Actualizar contacto |
+| PATCH | /clients/:clientId/contacts/:id/status | Activar o desactivar contacto |
 
 Las rutas son orientativas. Si el backend ya tiene un contrato de API definido, debes mantenerlo y evitar duplicar endpoints.
 
@@ -524,15 +606,15 @@ para mantener estandarizadas las clasificaciones de clientes y los resultados de
 
 La HU contempla estos siete catálogos. Los dos últimos salen de la explicación del creador del reto sobre el registro de visitas:
 
-| Catálogo             | Propósito                                                                            |
-| -------------------- | ------------------------------------------------------------------------------------ |
-| Zonas                | Organizar clientes y actividades por zona geográfica o comercial.                    |
-| Tipos de cliente     | Clasificar los clientes según su tipo de negocio o categoría.                        |
-| Potencial            | Clasificar clientes según el potencial comercial definido por el negocio.            |
-| Estados de cliente   | Identificar la situación comercial de un cliente.                                    |
-| Resultados de visita | Estandarizar los resultados posibles de una visita comercial.                        |
-| Objetivos de visita  | Estandarizar el propósito de cada visita (por ejemplo, presentación de nueva línea). |
-| Tipos de visita      | Clasificar la visita según su tipo (por ejemplo, desarrollo de cliente).             |
+| Catálogo | Propósito |
+|---|---|
+| Zonas | Organizar clientes y actividades por zona geográfica o comercial. |
+| Tipos de cliente | Clasificar los clientes según su tipo de negocio o categoría. |
+| Potencial | Clasificar clientes según el potencial comercial definido por el negocio. |
+| Estados de cliente | Identificar la situación comercial de un cliente. |
+| Resultados de visita | Estandarizar los resultados posibles de una visita comercial. |
+| Objetivos de visita | Estandarizar el propósito de cada visita (por ejemplo, presentación de nueva línea). |
+| Tipos de visita | Clasificar la visita según su tipo (por ejemplo, desarrollo de cliente). |
 
 Estos catálogos se desprenden de las entidades identificadas en el modelo inicial del proyecto. Los valores iniciales se cargan con un seed, que también carga los portafolios (no tienen CRUD). Propuesta por validar con el equipo: Zonas: Norte, Sur, Centro, Metropolitana. Tipos de cliente: Industrial, Distribuidor, Retail. Potencial (orden): Alto (1), Medio (2), Bajo (3). Estados de cliente: Prospecto, Activo, Inactivo. Resultados de visita: Interesado, Pedido, No interesado, No visitado. Portafolios: Equipos industriales, Herramientas, Ferretería, Insumos de soldadura. Objetivos de visita: Presentación de nueva línea, Seguimiento de cotización, Cierre comercial, Servicio posventa. Tipos de visita: Prospección, Desarrollo de cliente, Seguimiento. Las listas fijas del registro de visita (interés: alto, medio, bajo; módulo de interés: calidad, precio, calidad y precio) no son catálogos administrables y se definen con la HU de visitas.
 
@@ -553,18 +635,18 @@ Estos catálogos se desprenden de las entidades identificadas en el modelo inici
 
 Para evitar crear diez o más rutas independientes sin necesidad, se puede acordar un patrón común de endpoints para los catálogos.
 
-| Método | Endpoint propuesto         | Función                        |
-| ------ | -------------------------- | ------------------------------ |
-| GET    | /catalogs/zones            | Consultar zonas                |
-| POST   | /catalogs/zones            | Crear zona                     |
-| PATCH  | /catalogs/zones/:id        | Actualizar zona                |
-| PATCH  | /catalogs/zones/:id/status | Cambiar estado                 |
-| GET    | /catalogs/client-types     | Consultar tipos de cliente     |
-| GET    | /catalogs/potentials       | Consultar potenciales          |
-| GET    | /catalogs/client-statuses  | Consultar estados de cliente   |
-| GET    | /catalogs/visit-results    | Consultar resultados de visita |
-| GET    | /catalogs/visit-objectives | Consultar objetivos de visita  |
-| GET    | /catalogs/visit-types      | Consultar tipos de visita      |
+| Método | Endpoint propuesto | Función |
+|---|---|---|
+| GET | /catalogs/zones | Consultar zonas |
+| POST | /catalogs/zones | Crear zona |
+| PATCH | /catalogs/zones/:id | Actualizar zona |
+| PATCH | /catalogs/zones/:id/status | Cambiar estado |
+| GET | /catalogs/client-types | Consultar tipos de cliente |
+| GET | /catalogs/potentials | Consultar potenciales |
+| GET | /catalogs/client-statuses | Consultar estados de cliente |
+| GET | /catalogs/visit-results | Consultar resultados de visita |
+| GET | /catalogs/visit-objectives | Consultar objetivos de visita |
+| GET | /catalogs/visit-types | Consultar tipos de visita |
 
 El mismo patrón de escritura puede aplicarse a los demás catálogos si el equipo necesita administrarlos desde la plataforma.
 
@@ -613,6 +695,7 @@ Si cada catálogo ya tiene su propia entidad o módulo, reutilízalo. No crees e
 - **Prioridad:** Alta
 - **Responsable:** Natalia
 - **Estimación propuesta:** 8 puntos
+- **Dependencias:** HU-01 y HU-02 (autenticación y roles), HU-03 (clientes) y HU-05 (catálogo portfolio).
 - **Revisor:** Neider
 - **Apoyo técnico:** Jose — Base de datos
 
@@ -636,9 +719,9 @@ En el modelo de datos de referencia aparece la entidad intermedia client_portfol
 - CA-02. Consultar clientes asociados: se pueden consultar los clientes que pertenecen a un portafolio.
 - CA-03. Asignar cliente: un usuario autorizado puede asociar un cliente existente a un portafolio existente.
 - CA-04. Validar duplicados: el sistema impide crear dos veces la misma asociación entre un cliente y un portafolio.
-- CA-05. Validar relaciones: no se permite asociar clientes o portafolios inexistentes.
+- CA-05. Validar relaciones: no se permite asociar clientes o portafolios inexistentes (404) ni asociar a un portafolio inactivo (400).
 - CA-06. Gestionar asociaciones: se puede retirar una asociación sin eliminar accidentalmente el cliente ni el portafolio.
-- CA-07. Controlar permisos: las operaciones respetan la autenticación y autorización por roles.
+- CA-07. Controlar permisos: admin y director asignan y retiran clientes de un portafolio; el advisor solo consulta.
 - CA-08. Persistencia: los datos se guardan en PostgreSQL mediante TypeORM.
 - CA-09. Manejar errores: las respuestas HTTP son coherentes con los errores de validación, recursos inexistentes y asociaciones duplicadas.
 - CA-10. Documentar y probar: los endpoints cuentan con documentación Swagger y pruebas automatizadas.
@@ -647,15 +730,13 @@ En el modelo de datos de referencia aparece la entidad intermedia client_portfol
 
 Estos endpoints son una propuesta inicial. Antes de crearlos, Copilot debe revisar las rutas existentes y reutilizar el contrato que ya tenga el proyecto.
 
-| Método | Endpoint                          | Función                   |
-| ------ | --------------------------------- | ------------------------- |
-| GET    | /portfolios                       | Consultar portafolios     |
-| GET    | /portfolios/:id                   | Consultar un portafolio   |
-| GET    | /portfolios/:id/clients           | Listar clientes asociados |
-| POST   | /portfolios/:id/clients/:clientId | Asociar un cliente        |
-| DELETE | /portfolios/:id/clients/:clientId | Retirar la asociación     |
+| Método | Endpoint | Función |
+|---|---|---|
+| GET | /portfolios/:id/clients | Listar clientes asociados |
+| POST | /portfolios/:id/clients/:clientId | Asociar un cliente |
+| DELETE | /portfolios/:id/clients/:clientId | Retirar la asociación |
 
-Alcance: los portafolios no se crean ni se editan desde la plataforma; sus valores se cargan con el seed de HU-05. Esta HU solo consulta portafolios y gestiona su asociación con clientes.
+Alcance: los portafolios no se crean ni se editan desde la plataforma; sus valores se cargan con el seed de HU-05 y se listan con `GET /catalogs/portfolios`, que ya existe. Esta HU no crea otro endpoint para listarlos: solo gestiona su asociación con clientes.
 
 ### 5. Modelo de datos de referencia
 
@@ -755,16 +836,16 @@ Alcance: el director crea la ruta con nombre o código (por ejemplo, RUT-ATL-001
 
 Adapta estos endpoints al contrato de API existente; no dupliques rutas que ya estén implementadas.
 
-| Método | Endpoint                      | Función                            |
-| ------ | ----------------------------- | ---------------------------------- |
-| POST   | /routes                       | Crear una ruta                     |
-| GET    | /routes                       | Listar rutas                       |
-| GET    | /routes/:id                   | Consultar una ruta                 |
-| PATCH  | /routes/:id                   | Actualizar una ruta                |
-| GET    | /routes/:id/clients           | Consultar los clientes de una ruta |
-| POST   | /routes/:id/clients/:clientId | Asociar un cliente                 |
-| DELETE | /routes/:id/clients/:clientId | Retirar un cliente                 |
-| PATCH  | /routes/:id/clients/order     | Reordenar los clientes de la ruta  |
+| Método | Endpoint | Función |
+|---|---|---|
+| POST | /routes | Crear una ruta |
+| GET | /routes | Listar rutas |
+| GET | /routes/:id | Consultar una ruta |
+| PATCH | /routes/:id | Actualizar una ruta |
+| GET | /routes/:id/clients | Consultar los clientes de una ruta |
+| POST | /routes/:id/clients/:clientId | Asociar un cliente |
+| DELETE | /routes/:id/clients/:clientId | Retirar un cliente |
+| PATCH | /routes/:id/clients/order | Reordenar los clientes de la ruta |
 
 ### 5. Modelo de datos de referencia
 
@@ -854,15 +935,15 @@ Pendiente de confirmar: la demo muestra además pendiente, reprogramada y sin vi
 
 Adapta estos endpoints al contrato existente; no dupliques rutas.
 
-| Método | Endpoint               | Función                                          |
-| ------ | ---------------------- | ------------------------------------------------ |
-| POST   | /visits                | Programar una visita                             |
-| POST   | /routes/:id/visits     | Generar las visitas de una ruta para una fecha   |
-| GET    | /visits                | Listar visitas con filtros y paginación          |
-| GET    | /visits/agenda         | Agenda del advisor autenticado, por día o semana |
-| GET    | /visits/:id            | Consultar una visita                             |
-| PATCH  | /visits/:id/reschedule | Reprogramar una visita                           |
-| PATCH  | /visits/:id/cancel     | Cancelar una visita                              |
+| Método | Endpoint | Función |
+|---|---|---|
+| POST | /visits | Programar una visita |
+| POST | /routes/:id/visits | Generar las visitas de una ruta para una fecha |
+| GET | /visits | Listar visitas con filtros y paginación |
+| GET | /visits/agenda | Agenda del advisor autenticado, por día o semana |
+| GET | /visits/:id | Consultar una visita |
+| PATCH | /visits/:id/reschedule | Reprogramar una visita |
+| PATCH | /visits/:id/cancel | Cancelar una visita |
 
 ### 5. Subtareas para ClickUp
 
@@ -946,11 +1027,11 @@ Pendiente de confirmar: el radio en metros que cuenta como cerca. Se configura c
 
 Adapta estos endpoints al contrato existente; no dupliques rutas.
 
-| Método | Endpoint            | Función                                               |
-| ------ | ------------------- | ----------------------------------------------------- |
-| GET    | /visits/:id/form    | Datos precargados para el formulario de la visita     |
-| POST   | /visits/:id/start   | Iniciar la visita y registrar la ubicación del asesor |
-| POST   | /visits/:id/outcome | Registrar el resultado de la visita                   |
+| Método | Endpoint | Función |
+|---|---|---|
+| GET | /visits/:id/form | Datos precargados para el formulario de la visita |
+| POST | /visits/:id/start | Iniciar la visita y registrar la ubicación del asesor |
+| POST | /visits/:id/outcome | Registrar el resultado de la visita |
 
 ### 5. Subtareas para ClickUp
 
@@ -1026,13 +1107,13 @@ Pendiente de confirmar: si un seguimiento que es una próxima visita debe crear 
 
 Adapta estos endpoints al contrato existente; no dupliques rutas.
 
-| Método | Endpoint                 | Función                                                 |
-| ------ | ------------------------ | ------------------------------------------------------- |
-| POST   | /visits/:id/follow-ups   | Crear un seguimiento a partir de una visita             |
-| GET    | /follow-ups              | Listar seguimientos (pendientes, vencidos, completados) |
-| GET    | /follow-ups/:id          | Consultar un seguimiento                                |
-| PATCH  | /follow-ups/:id          | Actualizar fecha, actividad u observación               |
-| PATCH  | /follow-ups/:id/complete | Marcar como completado                                  |
+| Método | Endpoint | Función |
+|---|---|---|
+| POST | /visits/:id/follow-ups | Crear un seguimiento a partir de una visita |
+| GET | /follow-ups | Listar seguimientos (pendientes, vencidos, completados) |
+| GET | /follow-ups/:id | Consultar un seguimiento |
+| PATCH | /follow-ups/:id | Actualizar fecha, actividad u observación |
+| PATCH | /follow-ups/:id/complete | Marcar como completado |
 
 ### 5. Subtareas para ClickUp
 
@@ -1106,9 +1187,9 @@ Los colores dependen de los estados de HU-08; si se agregan los estados de la de
 
 Adapta este endpoint al contrato existente.
 
-| Método | Endpoint    | Función                                                                     |
-| ------ | ----------- | --------------------------------------------------------------------------- |
-| GET    | /visits/map | Visitas de un día con coordenadas, orden y estado (filtros: fecha y asesor) |
+| Método | Endpoint | Función |
+|---|---|---|
+| GET | /visits/map | Visitas de un día con coordenadas, orden y estado (filtros: fecha y asesor) |
 
 ### 5. Subtareas para ClickUp
 
@@ -1176,14 +1257,14 @@ Pendiente de confirmar: los estados de la cotización y sus transiciones. Propue
 
 Adapta estos endpoints al contrato existente; no dupliques rutas.
 
-| Método | Endpoint             | Función                                       |
-| ------ | -------------------- | --------------------------------------------- |
-| POST   | /quotes              | Crear una cotización                          |
-| GET    | /quotes              | Listar cotizaciones con filtros y paginación  |
-| GET    | /quotes/:id          | Consultar una cotización con sus detalles     |
-| PATCH  | /quotes/:id/status   | Cambiar el estado                             |
-| POST   | /quotes/:id/document | Adjuntar el documento PDF (se guarda en S3)   |
-| GET    | /quotes/:id/document | Obtener una URL firmada para ver el documento |
+| Método | Endpoint | Función |
+|---|---|---|
+| POST | /quotes | Crear una cotización |
+| GET | /quotes | Listar cotizaciones con filtros y paginación |
+| GET | /quotes/:id | Consultar una cotización con sus detalles |
+| PATCH | /quotes/:id/status | Cambiar el estado |
+| POST | /quotes/:id/document | Adjuntar el documento PDF (se guarda en S3) |
+| GET | /quotes/:id/document | Obtener una URL firmada para ver el documento |
 
 ### 5. Subtareas para ClickUp
 
@@ -1257,12 +1338,12 @@ Los montos usan tipo decimal (numeric) para evitar errores de redondeo.
 
 Adapta estos endpoints al contrato existente; no dupliques rutas.
 
-| Método | Endpoint                      | Función                               |
-| ------ | ----------------------------- | ------------------------------------- |
-| GET    | /quotes/:id/details           | Listar los detalles de una cotización |
-| POST   | /quotes/:id/details           | Agregar un producto                   |
-| PATCH  | /quotes/:id/details/:detailId | Actualizar cantidad o precio          |
-| DELETE | /quotes/:id/details/:detailId | Eliminar un producto                  |
+| Método | Endpoint | Función |
+|---|---|---|
+| GET | /quotes/:id/details | Listar los detalles de una cotización |
+| POST | /quotes/:id/details | Agregar un producto |
+| PATCH | /quotes/:id/details/:detailId | Actualizar cantidad o precio |
+| DELETE | /quotes/:id/details/:detailId | Eliminar un producto |
 
 ### 5. Subtareas para ClickUp
 
@@ -1335,13 +1416,13 @@ Pendiente de confirmar: los estados del pedido. El dashboard cuenta los pedidos 
 
 Adapta estos endpoints al contrato existente; no dupliques rutas.
 
-| Método | Endpoint                 | Función                                    |
-| ------ | ------------------------ | ------------------------------------------ |
-| POST   | /sales-orders            | Registrar un pedido                        |
-| POST   | /quotes/:id/sales-order  | Crear un pedido a partir de una cotización |
-| GET    | /sales-orders            | Listar pedidos con filtros y paginación    |
-| GET    | /sales-orders/:id        | Consultar un pedido                        |
-| PATCH  | /sales-orders/:id/status | Cambiar el estado                          |
+| Método | Endpoint | Función |
+|---|---|---|
+| POST | /sales-orders | Registrar un pedido |
+| POST | /quotes/:id/sales-order | Crear un pedido a partir de una cotización |
+| GET | /sales-orders | Listar pedidos con filtros y paginación |
+| GET | /sales-orders/:id | Consultar un pedido |
+| PATCH | /sales-orders/:id/status | Cambiar el estado |
 
 ### 5. Subtareas para ClickUp
 
@@ -1409,15 +1490,15 @@ para conocer el estado de la operación y tomar decisiones.
 
 Indicadores tomados de la demo del reto:
 
-| Indicador           | Cálculo                                                             |
-| ------------------- | ------------------------------------------------------------------- |
-| Visitas programadas | Visitas del periodo, sin contar las canceladas                      |
-| Visitas realizadas  | Visitas del periodo en estado visited                               |
-| Efectividad         | Visitas realizadas ÷ visitas programadas                            |
-| Valor cotizado      | Suma del valor de las cotizaciones del periodo                      |
-| Pedidos cerrados    | Cantidad de pedidos del periodo en el estado que signifique cerrado |
-| Facturación         | Suma del valor de esos pedidos                                      |
-| Objetivo semanal    | Visitas realizadas frente a la meta (las programadas de la semana)  |
+| Indicador | Cálculo |
+|---|---|
+| Visitas programadas | Visitas del periodo, sin contar las canceladas |
+| Visitas realizadas | Visitas del periodo en estado visited |
+| Efectividad | Visitas realizadas ÷ visitas programadas |
+| Valor cotizado | Suma del valor de las cotizaciones del periodo |
+| Pedidos cerrados | Cantidad de pedidos del periodo en el estado que signifique cerrado |
+| Facturación | Suma del valor de esos pedidos |
+| Objetivo semanal | Visitas realizadas frente a la meta (las programadas de la semana) |
 
 Pendiente de confirmar: el estado que cuenta como pedido cerrado (HU-14) y si la meta semanal es distinta de las visitas programadas.
 
@@ -1425,10 +1506,10 @@ Pendiente de confirmar: el estado que cuenta como pedido cerrado (HU-14) y si la
 
 Adapta estos endpoints al contrato existente; no dupliques rutas.
 
-| Método | Endpoint            | Función                                                  |
-| ------ | ------------------- | -------------------------------------------------------- |
-| GET    | /dashboard/kpis     | Indicadores del periodo (filtros: semana, zona y asesor) |
-| GET    | /dashboard/tracking | Tabla de seguimiento de rutas y visitas, paginada        |
+| Método | Endpoint | Función |
+|---|---|---|
+| GET | /dashboard/kpis | Indicadores del periodo (filtros: semana, zona y asesor) |
+| GET | /dashboard/tracking | Tabla de seguimiento de rutas y visitas, paginada |
 
 ### 5. Subtareas para ClickUp
 
@@ -1501,9 +1582,9 @@ Las acciones son una lista fija en inglés, por ejemplo client_created, client_u
 
 Adapta este endpoint al contrato existente.
 
-| Método | Endpoint                    | Función                                                            |
-| ------ | --------------------------- | ------------------------------------------------------------------ |
-| GET    | /clients/:clientId/activity | Historial de un cliente, paginado y con filtros por acción y fecha |
+| Método | Endpoint | Función |
+|---|---|---|
+| GET | /clients/:clientId/activity | Historial de un cliente, paginado y con filtros por acción y fecha |
 
 ### 5. Subtareas para ClickUp
 
@@ -1574,12 +1655,12 @@ Esta HU no crea tablas: reutiliza las consultas de HU-15 y de los módulos de co
 
 Adapta estos endpoints al contrato existente; no dupliques rutas.
 
-| Método | Endpoint                       | Función                                             |
-| ------ | ------------------------------ | --------------------------------------------------- |
-| GET    | /reports/visit-tracking/export | CSV de seguimiento de rutas y visitas (obligatorio) |
-| GET    | /reports/clients/export        | CSV de clientes (opcional)                          |
-| GET    | /reports/quotes/export         | CSV de cotizaciones (opcional)                      |
-| GET    | /reports/sales-orders/export   | CSV de pedidos (opcional)                           |
+| Método | Endpoint | Función |
+|---|---|---|
+| GET | /reports/visit-tracking/export | CSV de seguimiento de rutas y visitas (obligatorio) |
+| GET | /reports/clients/export | CSV de clientes (opcional) |
+| GET | /reports/quotes/export | CSV de cotizaciones (opcional) |
+| GET | /reports/sales-orders/export | CSV de pedidos (opcional) |
 
 ### 5. Subtareas para ClickUp
 
@@ -1628,7 +1709,7 @@ Como equipo,
 
 queremos desplegar el frontend y el backend en EC2 y persistir los datos en RDS PostgreSQL,
 
-para disponer de una aplicación funcional y accesible durante la sustentación.
+para disponer de una aplicación funcional y accesible desde internet.
 
 ### 2. Criterios de aceptación
 
@@ -1645,15 +1726,15 @@ para disponer de una aplicación funcional y accesible durante la sustentación.
 
 Configuración propuesta, tomada del documento de organización:
 
-| Componente           | Configuración                                                                             |
-| -------------------- | ----------------------------------------------------------------------------------------- |
-| EC2                  | Ubuntu LTS con IP elástica; corre el backend, el frontend (Nginx) y Jenkins               |
-| RDS                  | PostgreSQL en la misma VPC, accesible solo desde la EC2                                   |
-| Nginx                | Sirve el frontend compilado y redirige /api al backend                                    |
-| Proceso del backend  | PM2 o Docker Compose (decisión pendiente del documento de organización)                   |
-| IAM                  | Rol asignado a la EC2 con permisos mínimos sobre el bucket de S3; sin llaves en el código |
-| Security groups      | 80 y 443 públicos; SSH y Jenkins solo desde las IP del equipo; RDS solo desde la EC2      |
-| Variables de entorno | En el servidor y en Jenkins; nunca en el repositorio                                      |
+| Componente | Configuración |
+|---|---|
+| EC2 | Ubuntu LTS con IP elástica; corre el backend, el frontend (Nginx) y Jenkins |
+| RDS | PostgreSQL en la misma VPC, accesible solo desde la EC2 |
+| Nginx | Sirve el frontend compilado y redirige /api al backend |
+| Proceso del backend | PM2 o Docker Compose (decisión pendiente del documento de organización) |
+| IAM | Rol asignado a la EC2 con permisos mínimos sobre el bucket de S3; sin llaves en el código |
+| Security groups | 80 y 443 públicos; SSH y Jenkins solo desde las IP del equipo; RDS solo desde la EC2 |
+| Variables de entorno | En el servidor y en Jenkins; nunca en el repositorio |
 
 Estado actual: existe la instancia "Nexo" en us-east-1, t4g.micro (ARM, 1 GB de memoria), sin IP elástica ni rol IAM. Antes de instalar Jenkins conviene asignar una IP elástica, agregar swap o pasar a t4g.small, y usar imágenes y binarios arm64.
 
@@ -1686,7 +1767,7 @@ docs/infraestructura.md
 
 ## HU-19 — Automatizar despliegues con Jenkins
 
-Esta HU automatiza el despliegue con Jenkins en la misma EC2, integrado con GitHub, como exige el reto. En la sustentación hay que demostrar un cambio desplegado así.
+Esta HU automatiza el despliegue con Jenkins en la misma EC2, integrado con GitHub, como exige el reto.
 
 - **Épica:** Infraestructura, archivos y entrega
 - **Prioridad:** Alta (P0)
@@ -1711,21 +1792,21 @@ para actualizar la aplicación de forma repetible.
 - CA-04. El pipeline sigue las etapas de la sección 3 y se detiene ante cualquier fallo.
 - CA-05. Las variables y credenciales están en las credenciales de Jenkins, nunca en el Jenkinsfile.
 - CA-06. El historial de builds muestra quién y qué se desplegó.
-- CA-07. Se ensaya antes de la sustentación: un cambio visible llega a producción solo por Jenkins.
+- CA-07. Un cambio visible llega a producción solo por Jenkins, sin pasos manuales en el servidor.
 
 ### 3. Etapas del pipeline
 
 Etapas propuestas, según el documento de organización:
 
-| Etapa       | Qué hace                                                             |
-| ----------- | -------------------------------------------------------------------- |
-| Checkout    | Descarga main desde GitHub                                           |
-| Instalar    | npm ci en backend y frontend                                         |
-| Calidad     | Lint y pruebas; si fallan, no se despliega                           |
-| Build       | Compila backend y frontend                                           |
-| Migraciones | Aplica migraciones en RDS                                            |
-| Desplegar   | Publica el frontend en Nginx y reinicia el backend                   |
-| Verificar   | Llama a /api/health; si no responde 200, marca el build como fallido |
+| Etapa | Qué hace |
+|---|---|
+| Checkout | Descarga main desde GitHub |
+| Instalar | npm ci en backend y frontend |
+| Calidad | Lint y pruebas; si fallan, no se despliega |
+| Build | Compila backend y frontend |
+| Migraciones | Aplica migraciones en RDS |
+| Desplegar | Publica el frontend en Nginx y reinicia el backend |
+| Verificar | Llama a /api/health; si no responde 200, marca el build como fallido |
 
 ### 4. Subtareas para ClickUp
 
@@ -1734,7 +1815,6 @@ Etapas propuestas, según el documento de organización:
 - [ ] **HU19-T03** Escribir el Jenkinsfile con las etapas — Laura + Brayan
 - [ ] **HU19-T04** Configurar el webhook de GitHub — Laura
 - [ ] **HU19-T05** Probar un despliegue completo y uno con pruebas fallidas — Laura + Brayan
-- [ ] **HU19-T06** Ensayar el cambio en vivo para la sustentación — Laura + Neider
 
 ---
 
@@ -1773,11 +1853,11 @@ para tener los archivos centralizados y seguros.
 
 Operaciones del puerto compartido:
 
-| Operación del servicio | Uso                                                             |
-| ---------------------- | --------------------------------------------------------------- |
-| upload                 | Sube un archivo y devuelve su key                               |
-| getSignedUrl           | Devuelve una URL firmada de corta duración para ver o descargar |
-| delete                 | Elimina un archivo cuando su registro se reemplaza              |
+| Operación del servicio | Uso |
+|---|---|
+| upload | Sube un archivo y devuelve su key |
+| getSignedUrl | Devuelve una URL firmada de corta duración para ver o descargar |
+| delete | Elimina un archivo cuando su registro se reemplaza |
 
 Pendiente de confirmar: el tamaño máximo de archivo y si las fotos y documentos de la visita (Tomar foto y Adjuntar documento en la demo) entran en el alcance.
 
@@ -1803,7 +1883,7 @@ backend/src/shared/
 
 ## HU-21 — Validar la solución integrada
 
-Esta HU asegura que todo funcione junto en AWS antes de la sustentación del lunes 26 de octubre y que cada integrante pueda explicar su parte.
+Esta HU asegura que todo funcione junto en AWS.
 
 - **Épica:** Infraestructura, archivos y entrega
 - **Prioridad:** Alta (P0)
@@ -1816,9 +1896,9 @@ Esta HU asegura que todo funcione junto en AWS antes de la sustentación del lun
 
 Como equipo,
 
-queremos probar los flujos principales y documentar cómo ejecutar y sustentar la aplicación,
+queremos probar los flujos principales y documentar cómo ejecutar la aplicación,
 
-para llegar a la sustentación con la solución verificada.
+para entregar la solución verificada.
 
 ### 2. Criterios de aceptación
 
@@ -1827,26 +1907,23 @@ para llegar a la sustentación con la solución verificada.
 - CA-03. Se verifican la conexión a RDS, el bucket privado de S3 con URLs firmadas y el pipeline de Jenkins.
 - CA-04. Hay datos de demostración cargados con seeds: clientes, rutas, visitas, cotizaciones y pedidos ficticios.
 - CA-05. El README explica cómo ejecutar el proyecto en local y dónde está desplegado.
-- CA-06. Hay un guion de sustentación de una hora: demo, arquitectura, decisiones técnicas y preguntas.
-- CA-07. Cada integrante puede explicar su HU, incluido el código generado con IA.
-- CA-08. Se hace un ensayo general completo antes del 26 de octubre.
 
 ### 3. Flujos de extremo a extremo
 
 Flujos que se prueban en AWS:
 
-| Flujo                           | Rol                | Resultado esperado                           |
-| ------------------------------- | ------------------ | -------------------------------------------- |
-| Inicio y cierre de sesión       | Los tres           | Cada rol ve solo lo que le corresponde       |
-| Crear cliente, ruta y asignarla | director           | El asesor ve la ruta en su agenda            |
-| Iniciar y registrar visita      | advisor            | Ubicación confirmada y resultado guardado    |
-| Cotización con PDF              | advisor            | Documento en S3 y visible con URL firmada    |
-| Pedido desde la cotización      | advisor            | Pedido vinculado a la cotización y la visita |
-| Seguimiento                     | advisor            | Aparece en la tabla de seguimiento           |
-| Mapa y dashboard                | advisor y director | Indicadores con datos reales                 |
-| Exportar CSV                    | advisor y director | Archivo con los datos de cada rol            |
-| Bitácora                        | director           | Historial completo del cliente               |
-| Cambio en vivo                  | equipo             | Jenkins despliega un cambio desde GitHub     |
+| Flujo | Rol | Resultado esperado |
+|---|---|---|
+| Inicio y cierre de sesión | Los tres | Cada rol ve solo lo que le corresponde |
+| Crear cliente, ruta y asignarla | director | El asesor ve la ruta en su agenda |
+| Iniciar y registrar visita | advisor | Ubicación confirmada y resultado guardado |
+| Cotización con PDF | advisor | Documento en S3 y visible con URL firmada |
+| Pedido desde la cotización | advisor | Pedido vinculado a la cotización y la visita |
+| Seguimiento | advisor | Aparece en la tabla de seguimiento |
+| Mapa y dashboard | advisor y director | Indicadores con datos reales |
+| Exportar CSV | advisor y director | Archivo con los datos de cada rol |
+| Bitácora | director | Historial completo del cliente |
+| Cambio en vivo | equipo | Jenkins despliega un cambio desde GitHub |
 
 ### 4. Subtareas para ClickUp
 
@@ -1854,9 +1931,6 @@ Flujos que se prueban en AWS:
 - [ ] **HU21-T02** Probar los flujos de extremo a extremo en AWS — Neider + equipo
 - [ ] **HU21-T03** Probar la matriz de permisos con los tres roles — Brayan
 - [ ] **HU21-T04** Verificar RDS, S3 y Jenkins — Laura
-- [ ] **HU21-T05** Escribir el guion de sustentación y repartir los tiempos — Neider
-- [ ] **HU21-T06** Ensayo cruzado: cada integrante explica su HU — Equipo
-- [ ] **HU21-T07** Ensayo general completo — Equipo
 
 ---
 
@@ -1898,24 +1972,24 @@ para pasar a la plataforma la cartera que hoy se maneja en Excel sin registrarla
 
 Columnas de la plantilla (los nombres de campo siguen la tabla client de HU-03):
 
-| Columna              | Obligatoria | Regla                                            |
-| -------------------- | ----------- | ------------------------------------------------ |
-| nit                  | Sí          | Único en el archivo y en la base de datos        |
-| legal_name           | Sí          | Razón social                                     |
-| trade_name           | No          | Nombre comercial                                 |
-| address              | Sí          | Dirección                                        |
-| department           | Sí          | Departamento                                     |
-| municipality         | Sí          | Municipio                                        |
-| neighborhood         | No          | Barrio                                           |
-| phone                | No          | Teléfono                                         |
-| email                | No          | Formato de email válido                          |
-| latitude             | No          | Número entre -90 y 90                            |
-| longitude            | No          | Número entre -180 y 180                          |
-| zone                 | Sí          | Nombre existente en el catálogo zone             |
-| client_type          | Sí          | Nombre existente en el catálogo client_type      |
-| client_potential     | Sí          | Nombre existente en el catálogo client_potential |
-| client_status        | Sí          | Nombre existente en el catálogo client_status    |
-| visit_frequency_days | Sí          | Entero mayor que cero                            |
+| Columna | Obligatoria | Regla |
+|---|---|---|
+| nit | Sí | Único en el archivo y en la base de datos |
+| business_name | Sí | Razón social |
+| trade_name | No | Nombre comercial |
+| address | Sí | Dirección |
+| department | Sí | Departamento |
+| municipality | Sí | Municipio |
+| neighborhood | No | Barrio |
+| phone | No | Teléfono |
+| email | No | Formato de email válido |
+| latitude | No | Número entre -90 y 90 |
+| longitude | No | Número entre -180 y 180 |
+| zone | Sí | Nombre existente en el catálogo zone |
+| client_type | Sí | Nombre existente en el catálogo client_type |
+| client_potential | Sí | Nombre existente en el catálogo client_potential |
+| client_status | Sí | Nombre existente en el catálogo client_status |
+| visit_frequency_days | Sí | Entero mayor que cero |
 
 Tabla client_import: id, file_key, total_rows, imported_rows, error_rows, status (validated, imported, failed), user_id y created_at. Es una tabla nueva que no está en el modelo ER; hay que agregarla a docs/naming-glossary.md.
 
@@ -1927,12 +2001,12 @@ Regla por defecto: un NIT que ya existe se rechaza. Pendiente de confirmar si, e
 
 Adapta estos endpoints al contrato existente; no dupliques rutas.
 
-| Método | Endpoint                    | Función                                                |
-| ------ | --------------------------- | ------------------------------------------------------ |
-| GET    | /clients/import/template    | Descargar la plantilla CSV                             |
-| POST   | /clients/import?dryRun=true | Validar el archivo sin guardar (multipart, campo file) |
-| POST   | /clients/import             | Validar e importar el archivo                          |
-| GET    | /clients/imports            | Historial de importaciones                             |
+| Método | Endpoint | Función |
+|---|---|---|
+| GET | /clients/import/template | Descargar la plantilla CSV |
+| POST | /clients/import?dryRun=true | Validar el archivo sin guardar (multipart, campo file) |
+| POST | /clients/import | Validar e importar el archivo |
+| GET | /clients/imports | Historial de importaciones |
 
 ### 5. Subtareas para ClickUp
 
@@ -1966,4 +2040,64 @@ backend/src/modules/clients/
 └── presentation/
     └── controllers/
         └── client-import.controller.ts
+```
+
+---
+
+## HU-23 — Ejecutar la API en Docker Compose para desarrollo local
+
+Hoy `docker-compose.yml` levanta PostgreSQL y pgAdmin, pero la API se ejecuta aparte con Node. Esta HU agrega el backend al mismo compose para que el entorno local completo se levante con un solo comando. El despliegue en AWS (EC2, RDS y Jenkins) sigue siendo el que pide el enunciado y se trabaja en HU-18 y HU-19.
+
+- **Épica:** Base técnica
+- **Prioridad:** Media
+- **Responsable:** Neider
+- **Revisor:** por definir
+- **Apoyo técnico:** Laura (infraestructura)
+- **Dependencias:** HU-00 — Estructura base del backend. HU-18 y HU-19 pueden reutilizar el Dockerfile, pero no dependen de esta HU.
+
+### 1. Historia de usuario
+
+Como integrante del equipo,
+
+quiero levantar la API, PostgreSQL y pgAdmin con un solo `docker compose up`,
+
+para tener el mismo entorno local que mis compañeros sin instalar ni configurar Node ni la base de datos a mano.
+
+### 2. Criterios de aceptación
+
+- CA-01 — Dockerfile: `backend/Dockerfile` construye la API compilada (`dist/`) en varias etapas, con solo las dependencias de producción en la imagen final.
+- CA-02 — Contexto limpio: `backend/.dockerignore` excluye `node_modules`, `dist`, `.env` y archivos de pruebas o del editor.
+- CA-03 — Servicio en el compose: `docker-compose.yml` tiene un servicio `api` que construye `./backend`, publica el puerto 3000 y espera a que `postgres` esté sano (`depends_on` con `condition: service_healthy`).
+- CA-04 — Conexión a la base: dentro del compose la API se conecta con `DB_HOST=postgres`. El resto de las variables sale de `backend/.env`; no hay secretos en el compose ni en la imagen.
+- CA-05 — Migraciones al arrancar: el contenedor ejecuta las migraciones pendientes antes de iniciar la API. Si una migración falla, el contenedor no inicia la API y el error queda en los logs.
+- CA-06 — Seed manual: el seed no corre solo. Se ejecuta con `docker compose exec api npm run seed` (o el comando equivalente que quede documentado).
+- CA-07 — Health check: el servicio `api` tiene un healthcheck contra `GET /api/health`.
+- CA-08 — Servicios actuales: PostgreSQL y pgAdmin siguen funcionando igual, incluido el puerto configurable `POSTGRES_HOST_PORT`. pgAdmin es solo para desarrollo local.
+- CA-09 — Verificación: con una base vacía, `docker compose up -d --build` deja los tres servicios sanos, `/api/health` responde `database: "up"`, `/api/docs` carga y el login con un usuario del seed funciona.
+- CA-10 — Documentación: el README explica cómo levantar todo con Docker, cómo correr el seed, cómo ver los logs y cómo seguir desarrollando sin Docker.
+
+### 3. Decisiones
+
+- **Modo desarrollo con recarga:** el compose monta el código del backend como volumen y ejecuta `npm run start:dev`; al guardar un archivo, la API se reinicia sola sin reconstruir la imagen.
+- **Frontend fuera del compose:** sigue con `npm run dev` y su proxy de Vite hacia `localhost:3000`.
+- **Listo para la EC2:** el Dockerfile tiene además una etapa de producción, con imagen base multiarquitectura (amd64 y arm64). HU-18 decide si la usa.
+
+### 4. Subtareas para ClickUp
+
+- [ ] **HU23-T01** Crear el Dockerfile multietapa y el .dockerignore del backend — Neider
+- [ ] **HU23-T02** Agregar el servicio api al docker-compose con dependencia y healthcheck — Neider
+- [ ] **HU23-T03** Ejecutar las migraciones al arrancar el contenedor — Neider
+- [ ] **HU23-T04** Verificar el flujo completo sobre una base vacía (migraciones, seed, login, Swagger) — Neider
+- [ ] **HU23-T05** Documentar el uso en el README — Neider
+- [ ] **HU23-T06** Revisar si HU-18 reutiliza la imagen — Neider + Laura
+- [ ] **HU23-T07** Revisar el PR e integrar en dev — Revisor
+
+### 5. Estructura técnica sugerida
+
+```text
+backend/
+├── Dockerfile
+└── .dockerignore
+docker-compose.yml   # servicios: postgres, pgadmin, api
+README.md            # sección "Levantar con Docker"
 ```

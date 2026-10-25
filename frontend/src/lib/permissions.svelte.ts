@@ -7,10 +7,12 @@ import { session } from './stores/session.svelte'
 // El equipo acordó dos perfiles: el gestor (director, y admin mientras exista
 // en el backend) administra; el asesor consulta lo suyo y actualiza sus clientes.
 
-/** Pantallas que solo ve el gestor. El resto las ven todos los roles. */
-const MANAGER_ROUTES: readonly Route[] = ['rutas/crear', 'rutas/asesores']
-/** Pantallas solo del admin: el backend reserva /users y la escritura de catálogos a ese rol. */
-const ADMIN_ROUTES: readonly Route[] = ['administracion']
+/**
+ * Pantallas que solo ve el gestor. El resto las ven todos los roles.
+ * Administración: el admin gestiona todos los usuarios y las zonas; el director,
+ * solo los asesores (HU-02 CA-13).
+ */
+const MANAGER_ROUTES: readonly Route[] = ['rutas/crear', 'rutas/asesores', 'administracion']
 
 class Permissions {
   isManager = $derived(session.hasRole('admin', 'director'))
@@ -27,14 +29,19 @@ class Permissions {
   // Rutas (HU-07): solo el gestor crea, edita y asigna; el asesor consulta las suyas.
   manageRoutes = $derived(this.isManager)
 
-  /** GET /users hoy solo lo permite el admin en el backend; el director recibe 403. */
-  listUsers = $derived(session.hasRole('admin'))
-
-  // Usuarios (HU-02) y zonas (HU-05): solo el admin.
   isAdmin = $derived(session.hasRole('admin'))
 
+  // Usuarios (HU-02): el admin, todos; el director, solo asesores. GET /users le
+  // devuelve al director únicamente asesores, y el backend rechaza cualquier otro rol.
+  listUsers = $derived(this.isManager)
+  manageUsers = $derived(this.isManager)
+  /** Elegir o cambiar el rol de un usuario: solo el admin. */
+  assignRoles = $derived(this.isAdmin)
+
+  // Zonas (HU-05): el único catálogo editable, solo el admin.
+  manageZones = $derived(this.isAdmin)
+
   visit(route: Route) {
-    if (ADMIN_ROUTES.includes(route)) return this.isAdmin
     return this.isManager || !MANAGER_ROUTES.includes(route)
   }
 }

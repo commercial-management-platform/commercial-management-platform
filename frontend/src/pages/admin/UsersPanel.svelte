@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from '../../lib/components/Icon.svelte'
+  import { can } from '../../lib/permissions.svelte'
   import { roleLabel, type UserRole } from '../../lib/services/auth'
   import { changeUserRole, listUsers, setUserActive, type ApiUser } from '../../lib/services/usersApi'
   import { errorText } from '../../lib/stores/clientDirectory.svelte'
@@ -10,6 +11,7 @@
 
   // Gestión de usuarios (HU-02): crear, editar nombre, cambiar rol y activar o desactivar.
   // El backend impide dejar la plataforma sin administradores activos (409).
+  // El director solo recibe asesores y no cambia roles (CA-13): el rol se muestra como texto.
 
   const ROLES = Object.keys(roleLabel) as UserRole[]
 
@@ -85,12 +87,14 @@
       <input type="search" placeholder="Buscar por nombre o correo…" bind:value={query} />
     </label>
     <div class="controls">
-      <select class="select" bind:value={roleFilter} aria-label="Rol">
-        <option value="">Todos los roles</option>
-        {#each ROLES as r (r)}<option value={r}>{roleLabel[r]}</option>{/each}
-      </select>
+      {#if can.assignRoles}
+        <select class="select" bind:value={roleFilter} aria-label="Rol">
+          <option value="">Todos los roles</option>
+          {#each ROLES as r (r)}<option value={r}>{roleLabel[r]}</option>{/each}
+        </select>
+      {/if}
       <button class="btn btn-primary" onclick={() => openEdit(null)}>
-        <Icon name="plus" size={16} strokeWidth={2.2} /> Nuevo usuario
+        <Icon name="plus" size={16} strokeWidth={2.2} /> {can.assignRoles ? 'Nuevo usuario' : 'Nuevo asesor'}
       </button>
     </div>
   </header>
@@ -124,16 +128,20 @@
                 <small>{user.email}</small>
               </td>
               <td>
-                <select
-                  class="select role"
-                  value={user.role}
-                  disabled={busyId === user.id || self}
-                  title={self ? 'No puedes cambiar tu propio rol' : undefined}
-                  onchange={(e) => changeRole(user, e.currentTarget)}
-                  aria-label="Rol de {user.name}"
-                >
-                  {#each ROLES as r (r)}<option value={r}>{roleLabel[r]}</option>{/each}
-                </select>
+                {#if can.assignRoles}
+                  <select
+                    class="select role"
+                    value={user.role}
+                    disabled={busyId === user.id || self}
+                    title={self ? 'No puedes cambiar tu propio rol' : undefined}
+                    onchange={(e) => changeRole(user, e.currentTarget)}
+                    aria-label="Rol de {user.name}"
+                  >
+                    {#each ROLES as r (r)}<option value={r}>{roleLabel[r]}</option>{/each}
+                  </select>
+                {:else}
+                  {roleLabel[user.role]}
+                {/if}
               </td>
               <td><span class="badge" class:inactive={!user.isActive}>{user.isActive ? 'Activo' : 'Desactivado'}</span></td>
               <td class="date">{formatDate(user.createdAt)}</td>
@@ -169,18 +177,20 @@
             </div>
             <span class="badge" class:inactive={!user.isActive}>{user.isActive ? 'Activo' : 'Desactivado'}</span>
           </div>
-          <label class="role-field">
-            <span>Rol</span>
-            <select
-              class="select"
-              value={user.role}
-              disabled={busyId === user.id || self}
-              onchange={(e) => changeRole(user, e.currentTarget)}
-            >
-              {#each ROLES as r (r)}<option value={r}>{roleLabel[r]}</option>{/each}
-            </select>
-            {#if self}<small>No puedes cambiar tu propio rol.</small>{/if}
-          </label>
+          {#if can.assignRoles}
+            <label class="role-field">
+              <span>Rol</span>
+              <select
+                class="select"
+                value={user.role}
+                disabled={busyId === user.id || self}
+                onchange={(e) => changeRole(user, e.currentTarget)}
+              >
+                {#each ROLES as r (r)}<option value={r}>{roleLabel[r]}</option>{/each}
+              </select>
+              {#if self}<small>No puedes cambiar tu propio rol.</small>{/if}
+            </label>
+          {/if}
           <div class="card-actions">
             <button class="btn btn-outline" onclick={() => openEdit(user)}>
               <Icon name="pencil" size={14} /> Editar

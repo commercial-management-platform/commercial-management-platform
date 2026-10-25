@@ -157,6 +157,7 @@ Run them from `backend/`:
 | `npm run migration:generate` | Generates a migration from the entities |
 | `npm run seed` | Builds and runs the seeds (users, catalogs, clients, demo data) |
 | `npm run seed:prod` | Runs the seeds from the compiled image (production) |
+| `npm run check:permissions -- <url>` | Checks the role matrix of HU-02 against a running API (default `http://localhost:3000`). It changes no data, so it also works on production |
 
 Frontend (`frontend/`): `npm run dev`, `npm run build` and `npm run check` (svelte-check).
 
