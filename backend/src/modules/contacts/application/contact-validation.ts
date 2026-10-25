@@ -1,6 +1,6 @@
 import { ValidationError } from '../../../shared/domain/errors/index.js';
+import { isValidEmail } from '../../../shared/domain/email.js';
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Tolerant phone pattern: digits, spaces and the usual separators.
 const PHONE_PATTERN = /^[0-9+()\s.-]{7,30}$/;
 
@@ -45,7 +45,7 @@ export function normalizeEmail(value: string | null | undefined): string | null 
   if (!email) {
     return null;
   }
-  if (!EMAIL_PATTERN.test(email)) {
+  if (!isValidEmail(email)) {
     throw new ValidationError('email must be a valid email address');
   }
   return email;

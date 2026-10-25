@@ -1,3 +1,4 @@
+import { isValidEmail } from '../../../shared/domain/email.js';
 import { NIT_PATTERN } from './entities/client.js';
 
 export interface ClientImportRowError {
@@ -94,7 +95,7 @@ export class ClientImportRow {
     }
 
     const email = get('email');
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (email && !isValidEmail(email)) {
       errors.push({ column: 'email', reason: 'email format is invalid' });
     }
 

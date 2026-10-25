@@ -13,6 +13,7 @@ import {
   ForbiddenError,
   ValidationError,
 } from '../../../../shared/domain/errors/index.js';
+import { isValidEmail } from '../../../../shared/domain/email.js';
 
 export interface CreateUserCommand {
   actor: UserActor;
@@ -21,8 +22,6 @@ export interface CreateUserCommand {
   password: string;
   role: UserRole;
 }
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export class CreateUserUseCase {
   constructor(
@@ -96,7 +95,7 @@ export class CreateUserUseCase {
       throw new ValidationError('User name is required');
     }
 
-    if (!command.email || !EMAIL_REGEX.test(command.email.trim())) {
+    if (!command.email || !isValidEmail(command.email.trim())) {
       throw new ValidationError('A valid email address is required');
     }
 
