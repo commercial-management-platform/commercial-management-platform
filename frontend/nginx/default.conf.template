@@ -2,6 +2,9 @@
 # come from the container environment (docker-compose.prod.yml).
 server {
     listen ${WEB_PORT};
+    listen 443 ssl;
+    ssl_certificate     /etc/letsencrypt/live/kestrel1.duckdns.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/kestrel1.duckdns.org/privkey.pem;
     server_name _;
 
     root /usr/share/nginx/html;
