@@ -38,6 +38,10 @@ services:
       API_PORT: ${PORT:?set PORT in .env}
     ports:
       - "${WEB_PORT:?}:${WEB_PORT:?}"
+      - "443:443"
+    volumes:
+      # Certificados de Let's Encrypt (solo lectura). Se generan en el servidor.
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       api:
         condition: service_healthy
