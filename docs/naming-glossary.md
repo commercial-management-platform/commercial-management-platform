@@ -19,7 +19,7 @@ Reference names for domain entities. Code, tables, columns, modules and commits 
 | Cliente | `client` | `clients` |
 | Importación de clientes desde CSV (HU-22) | `client_import` | `clients` |
 | Contacto | `contact` | `contacts` |
-| Asesor | `advisor` | `advisors` |
+| Asesor | `advisor` | `users` |
 | Cliente-Portafolio | `client_portfolio` | `portfolios` |
 | Ruta | `route` | `routes` |
 | Ruta-Cliente | `route_client` | `routes` |
@@ -30,6 +30,8 @@ Reference names for domain entities. Code, tables, columns, modules and commits 
 | Detalle de cotización | `quote_detail` | `quotes` |
 | Pedido | `sales_order` | `sales-orders` |
 | Bitácora de actividades | `activity_log` | `activity-log` |
+
+Modules without tables of their own: `auth` (betterAuth), `dashboard` (HU-15) and `reports` (HU-17) only read the tables above; `health` checks the API and the database.
 
 ## Catalogs
 
@@ -53,6 +55,43 @@ Loaded with seeds. Managed in the `catalogs` module.
 | Administrador | `admin` |
 | Director comercial | `director` |
 | Asesor | `advisor` |
+
+## Status values
+
+Stored as they are in the `status` column of each table, in English. The Spanish labels only live in the frontend.
+
+| Table | Values |
+|---|---|
+| `visit` | `scheduled` (programada), `visited` (realizada), `cancelled` (cancelada) |
+| `quote` | `draft` (borrador), `sent` (enviada), `approved` (aprobada), `rejected` (rechazada) |
+| `sales_order` | `pending` (pendiente), `confirmed` (confirmado), `delivered` (entregado), `cancelled` (cancelado). A closed order for the dashboard is `confirmed` or `delivered` |
+| `route` | `active`, `inactive` |
+| `advisor` | `active`, `inactive` |
+| `client_import` | `validated` (checked with `dryRun`, nothing saved), `imported`, `failed` |
+
+`follow_up` has no `status` column: it stores `completed` (boolean). The API derives `pending`, `overdue` (pending with a past `next_date`) and `completed`.
+
+## Visit outcome lists
+
+Fixed lists of the visit form (HU-09), not managed catalogs.
+
+| Column | Values |
+|---|---|
+| `visit.interest_level` | `high`, `medium`, `low` |
+| `visit.interest_reason` | `quality`, `price`, `quality_price` |
+
+## Activity log actions
+
+`activity_log.action` stores `<entity>.<event>` values. The full list lives in `backend/src/shared/domain/activity-log/activity-action.ts`; never rename a stored value.
+
+| Entity | Actions |
+|---|---|
+| Client | `client.created`, `client.updated`, `client.status_changed`, `client.imported`, `client.portfolio_added`, `client.portfolio_removed` |
+| Contact | `contact.created`, `contact.updated`, `contact.status_changed`, `contact.primary_changed` |
+| Visit | `visit.scheduled`, `visit.rescheduled`, `visit.cancelled`, `visit.completed` |
+| Follow-up | `follow_up.created`, `follow_up.completed` |
+| Quote | `quote.created`, `quote.status_changed` |
+| Sales order | `sales_order.created`, `sales_order.status_changed` |
 
 ## Notes
 
