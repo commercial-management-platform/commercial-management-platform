@@ -82,6 +82,7 @@
         ['Cotización', quote?.number ?? '—'],
         ['Estado', SALES_ORDER_STATUS_LABELS[order.status]],
       ],
+      marcaAgua: order.status === 'cancelled' ? 'Cancelado' : undefined,
     })
     if (!ok) toasts.push({ tone: 'warning', icon: 'alert-circle', title: 'Ventana bloqueada', message: 'Permite las ventanas emergentes para imprimir.' })
   }
