@@ -50,7 +50,7 @@ export class SalesOrderReferencesDao {
   }
   async findQuote(quoteId: number): Promise<SalesOrderQuoteReference | null> {
     const rows: SalesOrderQuoteReference[] = await this.dataSource.query(
-      `SELECT "id", "client_id" AS "clientId", "advisor_id" AS "advisorId", "visit_id" AS "visitId", "value" FROM "quote" WHERE "id" = $1 LIMIT 1`,
+      `SELECT "id", "client_id" AS "clientId", "advisor_id" AS "advisorId", "visit_id" AS "visitId", "value", "status" FROM "quote" WHERE "id" = $1 LIMIT 1`,
       [quoteId],
     );
     return rows[0] ?? null;

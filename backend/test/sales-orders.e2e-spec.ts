@@ -177,8 +177,15 @@ const references: SalesOrderReferencesPort = {
   findVisit: async (id) =>
     id === 10 ? { id, clientId: 1, advisorId: 1 } : null,
   findQuote: async (id) =>
-    id === 50
-      ? { id, clientId: 1, advisorId: 1, visitId: 10, value: '99.125000' }
+    id === 50 || id === 51
+      ? {
+          id,
+          clientId: 1,
+          advisorId: 1,
+          visitId: 10,
+          value: '99.125000',
+          status: id === 50 ? 'approved' : 'sent',
+        }
       : null,
 };
 const advisorAccess: AdvisorClientAccessPort = {
@@ -330,6 +337,15 @@ describe('Sales orders (HU-14)', () => {
       .set('Authorization', `Bearer ${TOKENS[advisor.id]}`)
       .send({ date: '2026-10-23', estimatedDeliveryDate: '2026-10-30' })
       .expect(409);
+  });
+  it('rejects an order from a quote that is not approved', async () => {
+    context = await createTestApp();
+    const rejected = await request(context.app.getHttpServer())
+      .post('/api/quotes/51/sales-order')
+      .set('Authorization', `Bearer ${TOKENS[advisor.id]}`)
+      .send({ date: '2026-10-23', estimatedDeliveryDate: '2026-10-30' })
+      .expect(400);
+    expect(rejected.body.message).toContain('only an approved quote');
   });
   it('allows a valid state transition and rejects an invalid one', async () => {
     context = await createTestApp();
