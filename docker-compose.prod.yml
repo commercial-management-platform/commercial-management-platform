@@ -1,0 +1,70 @@
+# Production (EC2): the API and the frontend behind Nginx, on the same origin.
+#   docker compose -f docker-compose.prod.yml up -d --build
+# Every value comes from the .env next to this file, which is written on the
+# server (never committed). Only the web port is published; the API is reachable
+# only through Nginx inside the compose network.
+#
+# Until RDS is ready, a local PostgreSQL can run with the "local-db" profile
+# (DB_HOST=postgres in .env):
+#   docker compose -f docker-compose.prod.yml --profile local-db up -d --build
+name: cmp-prod
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  api:
+    build:
+      context: ./backend
+      target: production
+    restart: always
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+        # With RDS the postgres service is not started; the API does not wait for it.
+        required: false
+    logging: *logging
+
+  web:
+    build: ./frontend
+    restart: always
+    environment:
+      # Read by the Nginx template (frontend/nginx/default.conf.template).
+      WEB_PORT: ${WEB_PORT:?set WEB_PORT in .env}
+      API_PORT: ${PORT:?set PORT in .env}
+    ports:
+      - "${WEB_PORT:?}:${WEB_PORT:?}"
+      - "443:443"
+    volumes:
+      # Certificados de Let's Encrypt (solo lectura). Se generan en el servidor.
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    logging: *logging
+
+  postgres:
+    image: postgres:16-alpine
+    profiles: [local-db]
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:?set DB_USER in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      POSTGRES_DB: ${DB_NAME:?set DB_NAME in .env}
+      PGPORT: ${DB_PORT:?set DB_PORT in .env}
+    # Not published: only the API reaches it, inside the compose network.
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+volumes:
+  postgres_data:

@@ -1,0 +1,934 @@
+<script lang="ts">
+  import { untrack } from 'svelte'
+  import { fade } from 'svelte/transition'
+  import AnimatedNumber from '../../lib/components/AnimatedNumber.svelte'
+  import Icon from '../../lib/components/Icon.svelte'
+  import { can } from '../../lib/permissions.svelte'
+  import { clientStatusTone } from '../../lib/domain/clients'
+  import { clientDisplayName, type ApiClient } from '../../lib/services/clientsApi'
+  import { catalogs } from '../../lib/stores/catalogs.svelte'
+  import { clientDirectory, useClientDirectory } from '../../lib/stores/clientDirectory.svelte'
+  import { clientPortfolios } from '../../lib/stores/clientPortfolios.svelte'
+  import { downloadCsv } from '../../lib/utils/csv'
+  import { formatDate } from '../../lib/utils/format'
+  import ClientDrawer from './ClientDrawer.svelte'
+  import ClientFormModal from './ClientFormModal.svelte'
+  import ClientImportModal from './ClientImportModal.svelte'
+
+  useClientDirectory()
+  // Para el filtro por portafolio (HU-06); el detalle también los usa.
+  $effect(() => {
+    untrack(() => clientPortfolios.load())
+  })
+
+  const PAGE_SIZE = 10
+  const shortDate = new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
+
+  type SortKey = 'nombre' | 'creado'
+  type Activity = '' | 'active' | 'inactive'
+
+  let query = $state('')
+  let activity = $state<Activity>('')
+  let statusIds = $state<number[]>([])
+  let typeId = $state<number | ''>('')
+  let potentialId = $state<number | ''>('')
+  let zoneId = $state<number | ''>('')
+  let portfolioId = $state<number | ''>('')
+  let sort = $state<{ key: SortKey; dir: 1 | -1 }>({ key: 'creado', dir: -1 })
+  let page = $state(0)
+  let filtersOpen = $state(false)
+  let filtersEl = $state<HTMLDivElement>()
+
+  // Modales: detalle (por id, para que siga los cambios al refrescar) y formulario.
+  let detailId = $state<number | null>(null)
+  let formOpen = $state(false)
+  let importOpen = $state(false)
+  let editing = $state<ApiClient | null>(null)
+
+  let detail = $derived(detailId !== null ? (clientDirectory.byId.get(detailId) ?? null) : null)
+  let activeFilters = $derived(
+    statusIds.length + (activity ? 1 : 0) + (typeId !== '' ? 1 : 0) + (potentialId !== '' ? 1 : 0) + (zoneId !== '' ? 1 : 0) + (portfolioId !== '' ? 1 : 0),
+  )
+
+  let rows = $derived.by(() => {
+    const q = query.trim().toLowerCase()
+    const filtered = clientDirectory.clients.filter(
+      (c) =>
+        (!activity || c.active === (activity === 'active')) &&
+        (statusIds.length === 0 || (c.clientStatusId !== null && statusIds.includes(c.clientStatusId))) &&
+        (typeId === '' || c.clientTypeId === typeId) &&
+        (potentialId === '' || c.clientPotentialId === potentialId) &&
+        (zoneId === '' || c.zoneId === zoneId) &&
+        (portfolioId === '' || !!clientPortfolios.membership[c.id]?.includes(portfolioId)) &&
+        (!q || `${c.tradeName ?? ''} ${c.businessName} ${c.nit} ${c.municipality ?? ''}`.toLowerCase().includes(q)),
+    )
+    return filtered.toSorted((a, b) => {
+      if (sort.key === 'nombre') return clientDisplayName(a).localeCompare(clientDisplayName(b)) * sort.dir
+      return (Date.parse(a.createdAt) - Date.parse(b.createdAt)) * sort.dir || a.id - b.id
+    })
+  })
+
+  let pages = $derived(Math.max(1, Math.ceil(rows.length / PAGE_SIZE)))
+  let visible = $derived(rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE))
+
+  // Al cambiar filtros o búsqueda se vuelve a la primera página.
+  $effect(() => {
+    void [query, activity, statusIds, typeId, potentialId, zoneId, portfolioId]
+    page = 0
+  })
+  $effect(() => {
+    if (page > pages - 1) page = pages - 1
+  })
+
+  const createdLabel = (iso: string) => shortDate.format(new Date(iso)).replace(/ de /g, ' ').replace('.', '')
+
+  function toggleSort(key: SortKey) {
+    sort = sort.key === key ? { key, dir: sort.dir === 1 ? -1 : 1 } : { key, dir: key === 'nombre' ? 1 : -1 }
+  }
+
+  function toggleStatus(id: number) {
+    statusIds = statusIds.includes(id) ? statusIds.filter((s) => s !== id) : [...statusIds, id]
+  }
+
+  function clearFilters() {
+    statusIds = []
+    activity = ''
+    typeId = potentialId = zoneId = portfolioId = ''
+  }
+
+  function openCreate() {
+    editing = null
+    formOpen = true
+  }
+
+  function openEdit(client: ApiClient) {
+    editing = client
+    formOpen = true
+  }
+
+  function exportCsv() {
+    downloadCsv(
+      `kestrel-clientes-${new Date().toISOString().slice(0, 10)}.csv`,
+      ['Nombre comercial', 'Razón social', 'NIT', 'Tipo', 'Potencial', 'Estado', 'Zona', 'Municipio', 'Dirección', 'Teléfono', 'Correo', 'Activo', 'Creado'],
+      rows.map((c) => [
+        c.tradeName ?? '',
+        c.businessName,
+        c.nit,
+        catalogs.name('clientTypes', c.clientTypeId),
+        catalogs.name('potentials', c.clientPotentialId),
+        catalogs.name('clientStatuses', c.clientStatusId),
+        catalogs.name('zones', c.zoneId),
+        c.municipality ?? '',
+        c.address ?? '',
+        c.phone ?? '',
+        c.email ?? '',
+        c.active ? 'Sí' : 'No',
+        formatDate(c.createdAt),
+      ]),
+    )
+  }
+
+  const stats = [
+    { key: 'total', label: 'Total', prefix: '' },
+    { key: 'active', label: 'Activos', prefix: '' },
+    { key: 'newThisMonth', label: 'Este mes', prefix: '+' },
+  ] as const
+</script>
+
+<svelte:window onclick={(e) => filtersOpen && !filtersEl?.contains(e.target as Node) && (filtersOpen = false)} />
+
+<div class="page">
+  <header class="intro">
+    <div>
+      <p class="eyebrow">Base comercial</p>
+      <h1>Clientes</h1>
+      <p class="subtitle">
+        {can.isAdvisor ? 'Consulta los clientes de tus rutas.' : 'Consulta y administra tu cartera de clientes.'}
+      </p>
+    </div>
+    {#if can.createClient}
+      <div class="intro-actions">
+        <!-- Importación masiva (HU-22): mismo permiso que crear clientes. -->
+        <button class="btn btn-outline" onclick={() => (importOpen = true)}>
+          <Icon name="upload" size={16} /> Importar CSV
+        </button>
+        <button class="btn btn-primary" onclick={openCreate}>
+          <Icon name="plus" size={16} strokeWidth={2.2} /> Nuevo cliente
+        </button>
+      </div>
+    {/if}
+  </header>
+
+  {#if clientDirectory.status === 'ready'}
+    {#if clientDirectory.error}
+      <p class="warning" role="status">
+        <Icon name="alert-circle" size={16} /> {clientDirectory.error} Mostramos los últimos datos cargados.
+      </p>
+    {/if}
+
+    <div class="stats">
+      {#each stats as stat (stat.key)}
+        <article class="card stat" class:flash={clientDirectory.highlights[`kpi:${stat.key}`]}>
+          <p>{stat.label}</p>
+          <strong>
+            <AnimatedNumber value={clientDirectory.totals[stat.key]} format={(v) => `${stat.prefix}${Math.round(v)}`} />
+          </strong>
+        </article>
+      {/each}
+    </div>
+
+    <section class="card list" aria-label="Listado de clientes">
+      <header class="list-head">
+        <label class="search">
+          <Icon name="search" size={16} />
+          <input type="search" placeholder="Buscar por nombre, NIT o municipio…" bind:value={query} />
+        </label>
+
+        <div class="controls">
+          <div class="filters" bind:this={filtersEl}>
+            <button class="btn btn-outline" aria-expanded={filtersOpen} onclick={() => (filtersOpen = !filtersOpen)}>
+              Filtros
+              {#if activeFilters}<span class="count">{activeFilters}</span>{/if}
+            </button>
+            {#if filtersOpen}
+              <div class="popover" transition:fade={{ duration: 120 }}>
+                <p class="popover-title">Activación</p>
+                <select class="select" bind:value={activity}>
+                  <option value="">Todos</option>
+                  <option value="active">Activos</option>
+                  <option value="inactive">Desactivados</option>
+                </select>
+                <p class="popover-title">Estado comercial</p>
+                {#each catalogs.clientStatuses as status (status.id)}
+                  <label class="check">
+                    <input type="checkbox" checked={statusIds.includes(status.id)} onchange={() => toggleStatus(status.id)} />
+                    {status.name}
+                  </label>
+                {/each}
+                <p class="popover-title">Tipo</p>
+                <select class="select" bind:value={typeId}>
+                  <option value="">Todos</option>
+                  {#each catalogs.clientTypes as t (t.id)}<option value={t.id}>{t.name}</option>{/each}
+                </select>
+                <p class="popover-title">Potencial</p>
+                <select class="select" bind:value={potentialId}>
+                  <option value="">Todos</option>
+                  {#each catalogs.potentials as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
+                </select>
+                <p class="popover-title">Zona</p>
+                <select class="select" bind:value={zoneId}>
+                  <option value="">Todas</option>
+                  {#each catalogs.zones as z (z.id)}<option value={z.id}>{z.name}</option>{/each}
+                </select>
+                {#if clientPortfolios.portfolios.length}
+                  <p class="popover-title">Portafolio</p>
+                  <select class="select" bind:value={portfolioId}>
+                    <option value="">Todos</option>
+                    {#each clientPortfolios.portfolios as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
+                  </select>
+                {/if}
+                {#if activeFilters}<button class="clear" onclick={clearFilters}>Limpiar filtros</button>{/if}
+              </div>
+            {/if}
+          </div>
+          <select
+            class="select sort-select"
+            aria-label="Ordenar"
+            value={`${sort.key}:${sort.dir}`}
+            onchange={(e) => {
+              const [key, dir] = e.currentTarget.value.split(':')
+              sort = { key: key as SortKey, dir: Number(dir) as 1 | -1 }
+            }}
+          >
+            <option value="creado:-1">Más recientes</option>
+            <option value="creado:1">Más antiguos</option>
+            <option value="nombre:1">Nombre A–Z</option>
+            <option value="nombre:-1">Nombre Z–A</option>
+          </select>
+          <button class="btn btn-outline export" onclick={exportCsv} disabled={rows.length === 0} title="Exportar a CSV">
+            <Icon name="download" size={16} /> <span>Exportar</span>
+          </button>
+        </div>
+      </header>
+
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>
+                <button class="sort" onclick={() => toggleSort('nombre')}>
+                  Cliente
+                  {#if sort.key === 'nombre'}<Icon name={sort.dir === 1 ? 'arrow-up' : 'arrow-down'} size={12} />{/if}
+                </button>
+              </th>
+              <th>NIT</th>
+              <th>Tipo</th>
+              <th>Zona</th>
+              <th>Potencial</th>
+              <th>Estado</th>
+              <th>
+                <button class="sort" onclick={() => toggleSort('creado')}>
+                  Creado
+                  {#if sort.key === 'creado'}<Icon name={sort.dir === 1 ? 'arrow-up' : 'arrow-down'} size={12} />{/if}
+                </button>
+              </th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each visible as client (client.id)}
+              {@const status = catalogs.name('clientStatuses', client.clientStatusId)}
+              <tr class:flash={clientDirectory.highlights[client.id]} class:off={!client.active}>
+                <td class="name">
+                  {clientDisplayName(client)}
+                  <small>{client.municipality ?? 'Sin municipio'}</small>
+                </td>
+                <td class="nit">{client.nit}</td>
+                <td>{catalogs.name('clientTypes', client.clientTypeId) || '—'}</td>
+                <td>{catalogs.name('zones', client.zoneId) || '—'}</td>
+                <td>{catalogs.name('potentials', client.clientPotentialId) || '—'}</td>
+                <td>
+                  {#if !client.active}
+                    <span class="badge inactivo">Desactivado</span>
+                  {:else if status}
+                    <span class="badge {clientStatusTone(status)}">{status}</span>
+                  {:else}
+                    <span class="muted">Sin estado</span>
+                  {/if}
+                </td>
+                <td class="date">{createdLabel(client.createdAt)}</td>
+                <td><button class="link" onclick={() => (detailId = client.id)}>Ver detalle</button></td>
+              </tr>
+            {:else}
+              <tr>
+                <td class="empty" colspan="8">
+                  {clientDirectory.clients.length === 0
+                    ? can.isAdvisor
+                      ? 'Aún no tienes clientes asignados en tus rutas.'
+                      : 'Aún no hay clientes registrados.'
+                    : 'No hay clientes que coincidan con la búsqueda.'}
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- En pantallas pequeñas la tabla se reemplaza por tarjetas compactas. -->
+      <ul class="cards">
+        {#each visible as client (client.id)}
+          {@const status = catalogs.name('clientStatuses', client.clientStatusId)}
+          <li class:flash={clientDirectory.highlights[client.id]} class:off={!client.active}>
+            <div class="card-head">
+              <div>
+                <p class="client">{clientDisplayName(client)}</p>
+                <p class="meta">{client.municipality ?? 'Sin municipio'} · Creado {createdLabel(client.createdAt)}</p>
+              </div>
+              {#if !client.active}
+                <span class="badge inactivo">Desactivado</span>
+              {:else if status}
+                <span class="badge {clientStatusTone(status)}">{status}</span>
+              {:else}
+                <span class="muted">Sin estado</span>
+              {/if}
+            </div>
+            <dl>
+              <div><dt>NIT</dt><dd class="nit">{client.nit}</dd></div>
+              <div><dt>Tipo</dt><dd>{catalogs.name('clientTypes', client.clientTypeId) || '—'}</dd></div>
+              <div><dt>Zona</dt><dd>{catalogs.name('zones', client.zoneId) || '—'}</dd></div>
+              <div><dt>Potencial</dt><dd>{catalogs.name('potentials', client.clientPotentialId) || '—'}</dd></div>
+            </dl>
+            <button class="detail" onclick={() => (detailId = client.id)}>
+              Ver detalle <Icon name="chevron-right" size={16} />
+            </button>
+          </li>
+        {:else}
+          <li class="empty">
+            {clientDirectory.clients.length === 0
+              ? can.isAdvisor
+                ? 'Aún no tienes clientes asignados en tus rutas.'
+                : 'Aún no hay clientes registrados.'
+              : 'No hay clientes que coincidan con la búsqueda.'}
+          </li>
+        {/each}
+      </ul>
+
+      {#if rows.length > PAGE_SIZE}
+        <footer class="pager">
+          <span>
+            Mostrando {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, rows.length)} de {rows.length}
+          </span>
+          <div>
+            <button class="page-btn" onclick={() => page--} disabled={page === 0} aria-label="Página anterior">
+              <Icon name="chevron-left" size={16} />
+            </button>
+            <span class="page-num">{page + 1} / {pages}</span>
+            <button class="page-btn" onclick={() => page++} disabled={page >= pages - 1} aria-label="Página siguiente">
+              <Icon name="chevron-right" size={16} />
+            </button>
+          </div>
+        </footer>
+      {/if}
+    </section>
+  {:else if clientDirectory.status === 'error'}
+    <div class="card error">
+      <p>{clientDirectory.error}</p>
+      <button class="btn btn-outline" onclick={() => clientDirectory.refresh()}>Reintentar</button>
+    </div>
+  {:else}
+    <div class="stats">
+      {#each Array(3) as _, i (i)}<div class="skeleton" style:height="98px"></div>{/each}
+    </div>
+    <div class="skeleton" style:height="420px"></div>
+  {/if}
+</div>
+
+<ClientDrawer client={detail} onclose={() => (detailId = null)} onedit={openEdit} />
+<ClientFormModal
+  open={formOpen}
+  client={editing}
+  onclose={() => (formOpen = false)}
+  onsaved={(c) => {
+    if (!editing) detailId = c.id
+  }}
+/>
+<ClientImportModal open={importOpen} onclose={() => (importOpen = false)} />
+
+<style>
+  .page {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    width: 100%;
+    max-width: var(--content-max);
+    margin-inline: auto;
+  }
+
+  .intro {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .intro-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  h1 {
+    margin-top: 8px;
+    font-size: 32px;
+    line-height: 40px;
+    letter-spacing: -0.02em;
+  }
+
+  .subtitle {
+    margin-top: 6px;
+    color: var(--text-secondary);
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .stat {
+    position: relative;
+    padding: 20px;
+  }
+
+  .stat.flash::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border: 2px solid var(--brand-300);
+    border-radius: inherit;
+    pointer-events: none;
+    animation: fade-ring 2.4s ease-out forwards;
+  }
+
+  @keyframes fade-ring {
+    to {
+      opacity: 0;
+    }
+  }
+
+  .stat p {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .stat strong {
+    display: block;
+    margin-top: 4px;
+    font: 800 24px/32px var(--font-heading);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .list-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 20px;
+  }
+
+  .search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: min(280px, 100%);
+    height: 42px;
+    padding: 0 12px;
+    color: var(--text-muted);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    transition:
+      border-color 0.15s,
+      box-shadow 0.15s;
+  }
+
+  .search:focus-within {
+    border-color: var(--brand-500);
+    box-shadow: var(--ring);
+  }
+
+  .search input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+  }
+
+  .controls {
+    display: flex;
+    gap: 8px;
+  }
+
+  .filters {
+    position: relative;
+  }
+
+  .count {
+    display: grid;
+    place-items: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    font-size: 11px;
+    color: #fff;
+    border-radius: 999px;
+    background: var(--brand-600);
+  }
+
+  .popover {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 230px;
+    padding: 14px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: 12px;
+    box-shadow: 0 16px 32px -12px rgba(15, 23, 42, 0.25);
+  }
+
+  .popover-title {
+    font: 600 11px/16px var(--font-heading);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+  }
+
+  .check input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--brand-600);
+  }
+
+  .popover .select {
+    width: 100%;
+    height: 38px;
+  }
+
+  .clear {
+    align-self: flex-start;
+    padding: 0;
+    font-size: 13px;
+    color: var(--text-brand);
+    border: 0;
+    background: none;
+    cursor: pointer;
+  }
+
+  .scroll {
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    min-width: 820px;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  th {
+    padding: 12px 20px;
+    font: 600 11px/16px var(--font-heading);
+    letter-spacing: 0.06em;
+    text-align: left;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    background: var(--bg-surface-soft);
+    border-block: 1px solid var(--border-default);
+  }
+
+  .sort {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    color: inherit;
+    border: 0;
+    background: none;
+    cursor: pointer;
+  }
+
+  .sort:hover {
+    color: var(--text-primary);
+  }
+
+  td {
+    padding: 14px 20px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  tbody tr:hover {
+    background: var(--bg-surface-soft);
+  }
+
+  tr.flash {
+    animation: live-flash 2.4s ease-out;
+  }
+
+  .name {
+    font: 700 13px/18px var(--font-heading);
+    color: var(--text-primary);
+  }
+
+  .name small {
+    display: block;
+    font: 400 11px/16px var(--font-body);
+    color: var(--text-muted);
+  }
+
+  .date,
+  .nit {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  tr.off td {
+    opacity: 0.6;
+  }
+
+  .warning {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #b45309;
+    border-radius: var(--radius-sm);
+    background: #fffbeb;
+  }
+
+  .muted {
+    color: var(--text-muted);
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    font: 700 11px/16px var(--font-heading);
+    white-space: nowrap;
+    border-radius: 999px;
+    color: var(--brand-700);
+    background: var(--brand-50);
+  }
+
+  .badge.activo {
+    background: var(--brand-100);
+  }
+
+  .badge.prospecto {
+    color: var(--neutral-700);
+    background: var(--neutral-100);
+  }
+
+  .badge.inactivo {
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid var(--border-default);
+  }
+
+  .link {
+    padding: 0;
+    font: 700 13px/18px var(--font-heading);
+    white-space: nowrap;
+    color: var(--text-brand);
+    border: 0;
+    background: none;
+    cursor: pointer;
+  }
+
+  .link:hover {
+    text-decoration: underline;
+  }
+
+  .empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-muted);
+  }
+
+  .pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    border-top: 1px solid var(--border-default);
+  }
+
+  .pager div {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .page-btn {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
+    border-radius: 8px;
+    background: var(--bg-surface);
+    cursor: pointer;
+  }
+
+  .page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .page-num {
+    min-width: 48px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .skeleton {
+    border-radius: 18px;
+    background: linear-gradient(90deg, var(--neutral-100) 0%, var(--neutral-50) 50%, var(--neutral-100) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.2s linear infinite;
+  }
+
+  @keyframes shimmer {
+    to {
+      background-position: -200% 0;
+    }
+  }
+
+  .sort-select {
+    display: none;
+  }
+
+  .cards {
+    display: none;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--border-default);
+  }
+
+  .cards li {
+    padding: 16px;
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .cards li:last-child {
+    border-bottom: 0;
+  }
+
+  .cards li.flash {
+    animation: live-flash 2.4s ease-out;
+  }
+
+  .cards li.off > * {
+    opacity: 0.6;
+  }
+
+  .card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .client {
+    font: 700 15px/20px var(--font-heading);
+    color: var(--text-primary);
+  }
+
+  .meta {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  dl {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 16px;
+    margin: 12px 0 0;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--bg-page);
+  }
+
+  dt {
+    font: 600 11px/16px var(--font-heading);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  dd {
+    margin: 2px 0 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .detail {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-top: 10px;
+    padding: 8px 2px;
+    font: 700 14px/18px var(--font-heading);
+    color: var(--text-brand);
+    border: 0;
+    background: none;
+    cursor: pointer;
+  }
+
+  .cards .empty {
+    padding: 32px 16px;
+  }
+
+  .error {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+  }
+
+  @media (max-width: 760px) {
+    .intro {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    /* Los tres indicadores se mantienen en una sola fila, más compactos. */
+    .stats {
+      gap: 10px;
+    }
+
+    .stat {
+      padding: 14px;
+    }
+
+    .stat strong {
+      font-size: 20px;
+      line-height: 28px;
+    }
+
+    .list-head {
+      flex-direction: column;
+      align-items: stretch;
+      padding: 16px;
+    }
+
+    .search {
+      width: 100%;
+    }
+
+    .controls .sort-select {
+      display: block;
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* El botón queda a la izquierda, así que el menú se abre hacia la derecha. */
+    .popover {
+      right: auto;
+      left: 0;
+    }
+
+    .scroll {
+      display: none;
+    }
+
+    .cards {
+      display: block;
+    }
+
+    .pager {
+      padding: 12px 16px;
+    }
+  }
+
+  /* El botón de exportar queda solo con el icono para que los controles quepan en una fila. */
+  @media (max-width: 420px) {
+    .export span {
+      display: none;
+    }
+
+    .export {
+      width: 44px;
+      padding: 0;
+    }
+  }
+</style>
