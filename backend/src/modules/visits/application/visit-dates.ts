@@ -1,10 +1,20 @@
 import { ValidationError } from '../../../shared/domain/errors/index.js';
+import { BUSINESS_TIME_ZONE } from '../../../shared/domain/time/business-time.js';
+
+const businessInstantFormat = new Intl.DateTimeFormat('es-CO', {
+  dateStyle: 'short',
+  timeStyle: 'short',
+  timeZone: BUSINESS_TIME_ZONE,
+});
+
+const formatBusinessInstant = (instant: Date): string =>
+  businessInstantFormat.format(instant);
 
 /** A visit cannot be scheduled for an instant that already passed. */
 export function assertNotPast(scheduledDate: Date, now: Date = new Date()): void {
   if (scheduledDate.getTime() < now.getTime()) {
     throw new ValidationError(
-      `The scheduled date ${scheduledDate.toISOString()} is in the past`,
+      `La fecha programada (${formatBusinessInstant(scheduledDate)}) ya pasó`,
     );
   }
 }
