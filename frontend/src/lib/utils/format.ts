@@ -45,6 +45,19 @@ export function formatDuration(minutes: number): string {
 
 export const formatKm = (meters: number) => `${(meters / 1000).toFixed(1)} km`
 
+const WEEKDAYS_ES: Record<string, string> = {
+  Monday: 'Lunes',
+  Tuesday: 'Martes',
+  Wednesday: 'Miércoles',
+  Thursday: 'Jueves',
+  Friday: 'Viernes',
+  Saturday: 'Sábado',
+  Sunday: 'Domingo',
+}
+
+/** El backend responde el día de la semana en inglés ('Sunday'). */
+export const weekdayEs = (weekday: string) => WEEKDAYS_ES[weekday] ?? weekday
+
 export function greeting(date = new Date()): string {
   const h = date.getHours()
   if (h < 12) return 'Buenos días'

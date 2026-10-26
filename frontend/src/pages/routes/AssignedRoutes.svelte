@@ -77,7 +77,7 @@
   <header class="intro">
     <div>
       <p class="eyebrow">Planeación comercial</p>
-      <h1>Rutas asignadas</h1>
+      <h1>{can.isAdvisor ? 'Mis rutas' : 'Rutas asignadas'}</h1>
       <p class="subtitle">
         {can.isAdvisor
           ? 'Consulta tus rutas y el avance de cada recorrido.'

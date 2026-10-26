@@ -44,7 +44,8 @@ export class QuoteSalesOrdersController {
   })
   @ApiCreatedResponse({ type: SalesOrderResponseDto })
   @ApiBadRequestResponse({
-    description: 'Invalid dates, delivery before order date, or visit linkage',
+    description:
+      'The quote is not approved, invalid dates, delivery before order date, or visit linkage',
   })
   @ApiConflictResponse({ description: 'The quote already has a sales order' })
   @ApiNotFoundResponse({

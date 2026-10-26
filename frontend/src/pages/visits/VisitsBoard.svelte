@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte'
+  import { router } from '../../lib/router.svelte'
   import Icon from '../../lib/components/Icon.svelte'
   import Modal from '../../lib/components/Modal.svelte'
   import { clientDisplayName } from '../../lib/services/clientsApi'
@@ -93,6 +94,13 @@
   $effect(() => {
     void [range, date, statusFilter, zoneId, page]
     untrack(load)
+  })
+
+  // "Programar visita" del encabezado llega con #/visitas?nueva=1: abre el formulario.
+  $effect(() => {
+    if (router.params.nueva !== '1') return
+    scheduleOpen = true
+    router.replace('visitas')
   })
 
   $effect(() => {

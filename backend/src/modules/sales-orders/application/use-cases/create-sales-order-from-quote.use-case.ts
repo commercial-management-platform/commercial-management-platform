@@ -1,6 +1,7 @@
 import {
   ConflictError,
   NotFoundError,
+  ValidationError,
 } from '../../../../shared/domain/errors/index.js';
 import type { SalesOrderRepositoryPort } from '../../domain/ports/sales-order.repository.port.js';
 import type { SalesOrderReferencesPort } from '../../domain/ports/sales-order-references.port.js';
@@ -35,6 +36,10 @@ export class CreateSalesOrderFromQuoteUseCase {
     if (!quote)
       throw new NotFoundError(`Quote with id '${input.quoteId}' not found`);
     await this.createOrder.assertClientVisible(input.actor, quote.clientId);
+    if (quote.status !== 'approved')
+      throw new ValidationError(
+        `Quote with id '${input.quoteId}' is '${quote.status}'; only an approved quote becomes a sales order`,
+      );
     // Without an explicit visit, the order keeps the visit of its quote.
     const visitId = input.visitId ?? quote.visitId ?? null;
     await this.createOrder.assertVisit(

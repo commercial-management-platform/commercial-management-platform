@@ -124,7 +124,7 @@
         icon="calendar"
         label="Visitas programadas"
         value={s.scheduled}
-        detail="{s.scheduled - s.visited} pendientes"
+        detail="{s.scheduled - s.visited} {s.scheduled - s.visited === 1 ? 'pendiente' : 'pendientes'}"
       />
       <KpiCard
         icon="trending-up"
