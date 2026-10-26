@@ -84,7 +84,8 @@ class RoutesStore {
   )
 
   totals = $derived({
-    activas: this.routes.filter((r) => r.status === 'active').length,
+    // Una ruta completada esta semana ya no cuenta como activa.
+    activas: this.routes.filter((r) => r.status === 'active').length - this.rows.filter((r) => r.estado === 'completada').length,
     completadas: this.rows.filter((r) => r.estado === 'completada').length,
     /** Visitas de la semana que siguen pendientes. */
     visitasProgramadas: this.visits.filter((v) => v.status === 'scheduled').length,

@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
   import { router } from '../lib/router.svelte'
+  import { can } from '../lib/permissions.svelte'
   import AppFooter from './AppFooter.svelte'
   import Sidebar from './Sidebar.svelte'
   import Topbar from './Topbar.svelte'
@@ -43,7 +44,7 @@
   {/if}
 
   <div class="main">
-    <Topbar onmenu={() => (mobileOpen = true)} onregister={() => router.go('visitas')} />
+    <Topbar onmenu={() => (mobileOpen = true)} onregister={() => router.go('visitas', can.isAdvisor ? undefined : { nueva: '1' })} />
     <main class="content">
       {@render children()}
     </main>

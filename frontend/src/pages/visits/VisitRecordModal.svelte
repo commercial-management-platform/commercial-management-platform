@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from 'svelte'
+  import { tick, untrack } from 'svelte'
   import Icon from '../../lib/components/Icon.svelte'
   import Modal from '../../lib/components/Modal.svelte'
   import {
@@ -22,7 +22,7 @@
   import { errorText } from '../../lib/stores/clientDirectory.svelte'
   import type { VisitOrigin } from '../../lib/stores/commerce.svelte'
   import { toasts } from '../../lib/stores/toasts.svelte'
-  import { formatTime } from '../../lib/utils/format'
+  import { formatTime, weekdayEs } from '../../lib/utils/format'
 
   // Formulario del asesor (HU-09): datos precargados por el backend, check-in con
   // la ubicación del dispositivo y registro del resultado.
@@ -136,7 +136,12 @@
   async function submit(event: SubmitEvent) {
     event.preventDefault()
     showErrors = true
-    if (visitId === null || Object.keys(errors).length) return
+    if (visitId === null || Object.keys(errors).length) {
+      // Con el formulario largo el error puede quedar fuera de la vista.
+      await tick()
+      document.querySelector('.field small')?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      return
+    }
     saving = true
     try {
       const nextFollowUp = followUpOn
@@ -187,7 +192,7 @@
   {onclose}
   size="lg"
   title={form ? form.client.tradeName || form.client.businessName : 'Registrar visita'}
-  subtitle={form ? `${form.week.weekday} ${form.week.date} · Semana ${form.week.isoWeek} · ${formatTime(form.visit.scheduledDate)}` : ''}
+  subtitle={form ? `${weekdayEs(form.week.weekday)} ${form.week.date} · Semana ${form.week.isoWeek} · ${formatTime(form.visit.scheduledDate)}` : ''}
 >
   {#if loadError}
     <p class="error" role="alert">{loadError}</p>

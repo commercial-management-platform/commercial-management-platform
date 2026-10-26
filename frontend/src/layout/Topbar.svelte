@@ -34,7 +34,7 @@
   </button>
 
   <p class="crumbs">
-    <span>Kestrel /</span> <strong>{titles[router.route]}</strong>
+    <span>Kestrel /</span> <strong>{router.route === 'rutas/asignadas' && can.isAdvisor ? 'Mis rutas' : titles[router.route]}</strong>
   </p>
 
   <div class="actions">

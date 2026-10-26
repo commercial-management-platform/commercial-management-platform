@@ -23,7 +23,7 @@
 
   {#if planner.advisor}
     <p class="load">
-      {planner.advisor.rutasActivas} rutas activas · esta sería la {planner.advisor.rutasActivas + 1}.ª
+      {planner.advisor.rutasActivas} {planner.advisor.rutasActivas === 1 ? 'ruta activa' : 'rutas activas'} · esta sería la {planner.advisor.rutasActivas + 1}.ª
     </p>
   {:else if !planner.advisors.length}
     <p class="error">No hay asesores activos. Crea uno en Administración.</p>
