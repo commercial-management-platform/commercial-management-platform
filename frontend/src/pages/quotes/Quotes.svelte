@@ -153,6 +153,33 @@
           </tbody>
         </table>
       </div>
+
+      <!-- En pantallas pequeñas la tabla se reemplaza por tarjetas compactas. -->
+      <ul class="list-cards">
+        {#each visible as quote (quote.id)}
+          <li class:flash={quotesStore.highlights[quote.id]}>
+            <div class="list-card-head">
+              <div>
+                <p class="list-card-title">{quote.number}</p>
+                <p class="list-card-meta">{clientName(quote.clientId)}</p>
+              </div>
+              <span class="badge {quoteBadge[quote.status]}">{QUOTE_STATUS_LABELS[quote.status]}</span>
+            </div>
+            <dl>
+              <div><dt>Asesor</dt><dd>{advisors.name(quote.advisorId)}</dd></div>
+              <div><dt>Fecha</dt><dd>{formatShortDate(day(quote.date))}</dd></div>
+              <div><dt>Valor</dt><dd>{formatMoney(Number(quote.value))}</dd></div>
+            </dl>
+            <button class="list-card-action" onclick={() => (detailId = quote.id)}>
+              Ver detalle <Icon name="chevron-right" size={16} />
+            </button>
+          </li>
+        {:else}
+          <li class="empty">
+            {quotesStore.items.length ? 'No hay cotizaciones que coincidan.' : 'Aún no hay cotizaciones.'}
+          </li>
+        {/each}
+      </ul>
       <Pagination bind:page total={rows.length} size={PAGE_SIZE} />
     </section>
   {:else if quotesStore.status === 'error'}

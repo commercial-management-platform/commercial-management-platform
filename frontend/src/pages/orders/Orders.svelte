@@ -164,6 +164,34 @@
           </tbody>
         </table>
       </div>
+
+      <!-- En pantallas pequeñas la tabla se reemplaza por tarjetas compactas. -->
+      <ul class="list-cards">
+        {#each visible as order (order.id)}
+          <li class:flash={ordersStore.highlights[order.id]}>
+            <div class="list-card-head">
+              <div>
+                <p class="list-card-title">{order.number}</p>
+                <p class="list-card-meta">{clientName(order.clientId)}</p>
+              </div>
+              <span class="badge {orderBadge[order.status]}">{SALES_ORDER_STATUS_LABELS[order.status]}</span>
+            </div>
+            <dl>
+              <div><dt>Asesor</dt><dd>{advisors.name(order.advisorId)}</dd></div>
+              <div><dt>Fecha</dt><dd>{formatShortDate(day(order.date))}</dd></div>
+              <div><dt>Entrega</dt><dd>{formatShortDate(day(order.estimatedDeliveryDate))}</dd></div>
+              <div><dt>Valor</dt><dd>{formatMoney(Number(order.value))}</dd></div>
+            </dl>
+            <button class="list-card-action" onclick={() => (detailId = order.id)}>
+              Ver detalle <Icon name="chevron-right" size={16} />
+            </button>
+          </li>
+        {:else}
+          <li class="empty">
+            {ordersStore.items.length ? 'No hay pedidos que coincidan.' : 'Aún no hay pedidos.'}
+          </li>
+        {/each}
+      </ul>
       <Pagination bind:page total={rows.length} size={PAGE_SIZE} />
     </section>
   {:else if ordersStore.status === 'error'}
