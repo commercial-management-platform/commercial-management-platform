@@ -229,6 +229,50 @@
           </tbody>
         </table>
       </div>
+
+      <!-- En pantallas pequeñas la tabla se reemplaza por tarjetas compactas. -->
+      <ul class="list-cards">
+        {#each visible as followUp (followUp.id)}
+          <li class:flash={followUps.highlights[followUp.id]}>
+            <div class="list-card-head">
+              <div>
+                <p class="list-card-title">{followUp.activity}</p>
+                <p class="list-card-meta">{clientName(followUp.visitId)}</p>
+              </div>
+              <span class="badge {BADGE[followUp.status]}">{FOLLOW_UP_STATUS_LABELS[followUp.status]}</span>
+            </div>
+            <dl>
+              <div>
+                <dt>Fecha</dt>
+                <dd>
+                  {formatShortDate(day(followUp.nextDate))}
+                  {#if followUpTime(followUp)}· {followUpTime(followUp)}{/if}
+                </dd>
+              </div>
+              {#if can.isManager}
+                <div><dt>Responsable</dt><dd>{advisors.name(followUp.responsibleAdvisorId)}</dd></div>
+              {/if}
+              {#if followUp.observation}
+                <div class="span-2"><dt>Observación</dt><dd>{followUp.observation}</dd></div>
+              {/if}
+            </dl>
+            {#if !followUp.completed}
+              <div class="list-card-actions">
+                <button class="link-btn" disabled={busyId === followUp.id} onclick={() => complete(followUp)}>Completar</button>
+                <button class="link-btn" onclick={() => (editing = followUp)}>Editar</button>
+              </div>
+            {/if}
+          </li>
+        {:else}
+          <li class="empty">
+            {#if followUps.items.length}
+              No hay seguimientos para los filtros seleccionados.
+            {:else}
+              Aún no hay seguimientos. Se programan al registrar una visita.
+            {/if}
+          </li>
+        {/each}
+      </ul>
       <Pagination bind:page total={rows.length} size={PAGE_SIZE} />
     </section>
   {:else if followUps.status === 'error'}
